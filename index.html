@@ -465,6 +465,38 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 .wlog{display:grid;gap:4px;font-size:13px}.wl{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line)}.wl:last-child{border-bottom:0}.wl .muted{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wdet{margin:10px 0 4px}.wdet summary{cursor:pointer;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);list-style:none;display:inline-flex;align-items:center;gap:6px}.wdet summary::-webkit-details-marker{display:none}.wdet summary::before{content:'';width:6px;height:6px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(-45deg);transition:transform .2s}.wdet[open] summary::before{transform:rotate(45deg)}.wdet .wlog{margin-top:8px}
 .ledg td.r,.ledg th.r{white-space:nowrap;padding-left:12px;font-variant-numeric:tabular-nums}.ledg{width:100%}.ledg td:first-child{min-width:0;width:100%;white-space:normal}.ledg .chip{white-space:normal;display:inline-flex;align-items:baseline;gap:6px;line-height:1.3}.ledg .chip .dot{flex:none;align-self:center}@media (max-width:520px){.ledg{font-size:13px}.ledg td.r,.ledg th.r{padding-left:8px}.ledg .note{font-size:11px}}
+.qbox{display:flex;align-items:center;gap:10px;background:var(--raise);border-radius:14px;padding:0 14px}.qbox svg{width:18px;height:18px;flex:none;color:var(--muted)}.qbox input{flex:1;min-width:0;background:none!important;border:0!important;font-size:18px;padding:14px 0;outline:none;box-shadow:none!important}
+.qres{margin-top:12px;max-height:min(60vh,520px);overflow:auto;display:grid;gap:2px}.qres .qg{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:10px 8px 4px}
+.qres button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;border-radius:12px;padding:10px 10px;color:var(--fg);font:inherit;cursor:pointer;min-height:44px}.qres button[aria-selected=true],.qres button:hover{background:var(--raise)}
+.qres .qt{flex:1;min-width:0}.qres .qt b{font-weight:400;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qres .qt span{font-size:12px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.qres .dot{flex:none}.qres kbd{font:inherit;font-size:11px;color:var(--muted)}
+.scrim.search{align-items:flex-start}.scrim.search .modal{margin-top:max(8vh,env(safe-area-inset-top,0px));width:min(640px,calc(100vw - 32px))}
+.tb.on{background:var(--fg);color:var(--bg);border-radius:999px}
+.tstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}@media (max-width:560px){.tstats .stat{padding:12px}.tstats .stat .v{font-size:24px}.tstats .stat .s{display:none}.tstats .eyebrow{font-size:9.5px;letter-spacing:.08em}}
+.cg-links{display:flex;flex-wrap:wrap;gap:6px 18px;padding:8px 4px 2px}.cg-links .link{flex:none;min-height:36px}
+.fbar{display:grid;gap:10px;margin:0 0 14px}.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;background:var(--surface);border-radius:var(--r);padding:12px}.fgrid label.f span{font-size:10px}
+.fchips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.fchip{background:var(--raise);border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;color:var(--fg);cursor:pointer;min-height:32px}.fchip span{color:var(--muted);margin-left:4px}
+.jlist{display:grid}.jm{font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:14px 4px 6px}
+.jrow{display:grid;grid-template-columns:44px 18px 1fr auto;gap:12px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 4px;font:inherit;color:var(--fg);cursor:pointer}.jrow:hover{background:var(--raise)}
+.jrow .jd{display:grid;justify-items:center;line-height:1}.jrow .jd b{font-weight:300;font-size:22px}.jrow .jd small{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.jrow .jt{min-width:0}.jrow .jt b{font-weight:400;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.jrow .jt span{font-size:12px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.jrow .je{display:grid;justify-items:end;gap:4px;font-size:13px}.jrow .mkw{display:grid;place-items:center}
+.cgroup{background:var(--surface);border-radius:var(--r);margin-bottom:12px;overflow:hidden}.cg-head{display:flex;align-items:center;gap:6px;padding:10px 14px 10px 8px;box-shadow:inset 3px 0 0 var(--c)}
+.cg-tog{width:36px;height:36px;border-radius:50%;border:0;background:none;display:grid;place-items:center;color:var(--muted);flex:none;cursor:pointer}.cg-tog svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;transition:transform .2s var(--ease)}.cgroup.shut .cg-tog svg{transform:rotate(-90deg)}
+.cg-name{display:flex;align-items:center;gap:10px;background:none;border:0;font:inherit;color:var(--fg);cursor:pointer;min-width:0;flex:1;text-align:left;padding:6px 0}.cg-name b{font-weight:400;font-size:17px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cg-meta{font-size:12px;color:var(--muted);white-space:nowrap}.cg-meta b{color:var(--fg);font-weight:400}
+.cg-body{padding:0 14px 10px 14px}.prow{display:flex;align-items:center;gap:12px;border-top:1px solid var(--line);padding:10px 4px}.prow.done{opacity:.6}.prow .pt{flex:1;min-width:0;background:none;border:0;font:inherit;color:var(--fg);text-align:left;cursor:pointer;padding:2px 0}.prow .pt b{font-weight:400;display:block}.prow .pt span{font-size:12px;color:var(--muted);display:block}.prow .pe{display:flex;gap:8px;align-items:center;flex:none}
+.pill.st-open{color:var(--fg);border-color:var(--line-strong)}.pgr{display:flex;gap:8px;align-items:center;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:12px 4px 0}
+@media (max-width:560px){.cg-meta{display:none}.prow{flex-wrap:wrap}.prow .pe{margin-left:auto}}
+.ladder{display:flex;align-items:flex-start;gap:0;margin:10px 0 6px;position:relative}.ladder.off{opacity:.45}
+.lstep{flex:1;display:grid;justify-items:start;gap:6px;background:none;border:0;padding:0 6px 0 0;font:inherit;color:var(--muted);cursor:pointer;text-align:left;position:relative;min-width:0}
+.lstep i{width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line-strong);background:var(--bg);position:relative;z-index:1}
+.lstep:not(:last-of-type)::after{content:'';position:absolute;left:14px;right:0;top:6.25px;height:1.5px;background:var(--line-strong)}
+.lstep.on{color:var(--fg)}.lstep.on i{background:var(--fg);box-shadow:none}.lstep.on:not(:last-of-type)::after{background:var(--fg)}
+.lstep span{display:grid;line-height:1.2}.lstep b{font-weight:500;font-size:12px}.lstep small{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loff{position:absolute;right:0;top:-2px;font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--warn)}
+.cjob{border-top:1px solid var(--line);padding:12px 0}.cjob:first-of-type{border-top:0}.cjob.off .t{opacity:.6}.cjob .t{font-size:15px}.cjob .meta{font-size:12px;color:var(--muted)}
+.tm{background:var(--surface);border-radius:var(--r);margin-bottom:10px;overflow:hidden}.tm-head{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;padding:12px 14px;font:inherit;color:var(--fg);text-align:left;cursor:pointer}
+.tm-head .av{width:36px;height:36px;border-radius:50%;background:var(--raise);display:grid;place-items:center;flex:none;font-weight:500}.tm-n{flex:1;min-width:0}.tm-n b{font-weight:400;display:block}.tm-n span{font-size:12px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tm-s{font-size:12px;color:var(--muted);white-space:nowrap}.tm-s b{color:var(--fg);font-weight:500}.tm-head svg{width:16px;height:16px;fill:none;stroke:var(--muted);stroke-width:1.6;flex:none;transition:transform .2s var(--ease)}.tm.open .tm-head svg{transform:rotate(180deg)}
+.tm-body{padding:4px 14px 14px}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
@@ -481,7 +513,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
       <b>quiet media</b><span>Studio</span>
     </div>
     <div class="seg" id="personSeg" role="group" aria-label="Who is using this device"></div>
-    <span id="syncDot" class="syncdot idle" title="Not synced"></span><button class="iconbtn" id="themeBtn" aria-label="Switch light or dark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg></button>
+    <button class="iconbtn" data-act="search" aria-label="Search (⌘K)" title="Search  ⌘K"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg></button><span id="syncDot" class="syncdot idle" title="Not synced"></span><button class="iconbtn" id="themeBtn" aria-label="Switch light or dark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg></button>
     <button class="iconbtn" data-act="nav" data-v="settings" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="11" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg></button>
   </header>
   <nav class="tabs" id="tabs"></nav>
@@ -493,11 +525,15 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 <script>
 (function(){
 const PEOPLE = [{id:'samuel',def:'Samuel'},{id:'tamy',def:'Tamy'}];
-const CATS = ['Filming','Editing','Pre-production','Meeting','Admin','Travel'];
-const BILLABLE_DEFAULT = {Filming:true,Editing:true,'Pre-production':true,Meeting:false,Admin:false,Travel:false};
+const CATS = ['Filming','Editing','Web design','Software design','Pre-production','Meeting','Admin','Travel'];
+const BILLABLE_DEFAULT = {Filming:true,Editing:true,'Web design':true,'Software design':true,'Pre-production':true,Meeting:false,Admin:false,Travel:false};
 const COLOURS = ['#B4725A','#C49A4A','#6E86A0','#B07A8A','#8A6E9E','#A65E3E','#7C8C94','#C7B48A','#5E6E8C','#9C6B5A'];
-const EVTYPES = ['Shoot','Edit','Meeting','Deadline','Unavailable','Other'];
-const BUSY_TYPES={Shoot:1,Edit:1,Unavailable:1};
+const EVTYPES = ['Shoot','Edit','Web design','Software design','Meeting','Deadline','Unavailable','Other'];
+const DESIGN_TYPES={'Web design':1,'Software design':1};
+const isEditLike=t=>t==='Edit'||!!DESIGN_TYPES[t];
+/* what kind of job it was: set on each booking, filterable everywhere */
+const GENRES=['Promo content','Feature film','Short film','Music video','Social media content','Advertisement','Showreel','Corporate','Event','Other'];
+const BUSY_TYPES={Shoot:1,Edit:1,'Web design':1,'Software design':1,Unavailable:1};
 const DEFAULT_CREW_TERMS='1. Confirmation. This booking is confirmed when you sign below. The fee shown is agreed and fixed for the dates and hours on this form. Overtime is only paid if agreed with us beforehand.\n\n2. Your commitment. Once confirmed, you keep these dates for us. If you cannot attend because of illness or emergency, tell us as soon as you know. Otherwise you may not pull out of a confirmed booking; if you need to, give us as much notice as possible and help us find a replacement of equal experience that we approve.\n\n3. If we cancel or move the job. More than 7 days before: no fee. Between 7 days and 48 hours before: 50% of the fee for the cancelled days. Less than 48 hours before: the full fee. If the client postpones, we offer you the new dates first.\n\n4. Payment. Invoice us after the job quoting the reference on this form. We pay within the payment terms shown. Agreed expenses are paid at cost against receipts.\n\n5. Status. You work as a self-employed freelancer and are responsible for your own tax and National Insurance, your own kit and its insurance, and your own public liability cover.\n\n6. Material and confidentiality. Everything you shoot or create on the job belongs to us and our client. Please do not share footage, stills, behind-the-scenes or client details, or post them online, without our written agreement.\n\n7. On set. Follow reasonable instructions from the Quiet Media lead on the day, including health and safety and location rules.';
 const DEFAULT_TERMS='A pencil holds the dates for you without obligation on either side. Once you confirm, the dates are yours and we turn other work away for them.\n\nMoving or cancelling a confirmed booking: free with more than 7 days\u2019 notice (one move per booking). Within 7 days, 50% of the fee is payable. Within 48 hours, the full fee is payable.\n\nFees are ex VAT and exclude travel and expenses, which are agreed in advance and itemised on the invoice. Payment is due within 30 days of invoice.\n\nWeather, access or illness on our side: we will offer the next available dates at no charge.';
 const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availWeeks:12,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS};
@@ -548,7 +584,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=35;
+const APP_VERSION=36;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -637,7 +673,7 @@ const availShown=pid=>{const a=S.settings.availPeople||{};return a[pid]!=null?!!
 function availabilityData(){
   const weeks=+S.settings.availWeeks||12;const t0=startOfDay(Date.now());const days={};
   const flexDef=S.settings.availEditFlex!==false;const canMove=e=>e.flex!=null?!!e.flex:flexDef;
-  const kind=evs=>evs.some(e=>e.type==='Shoot')?'filming':evs.some(e=>e.type==='Edit')?(evs.filter(e=>e.type==='Edit').every(canMove)&&!evs.some(e=>e.type!=='Edit')?'edit':'busy'):'busy';
+  const kind=evs=>evs.some(e=>e.type==='Shoot')?'filming':evs.some(e=>isEditLike(e.type))?(evs.filter(e=>isEditLike(e.type)).every(canMove)&&!evs.some(e=>!isEditLike(e.type))?'edit':'busy'):'busy';
   const shown=PEOPLE.filter(p=>availShown(p.id));
   for(let i=0;i<weeks*7;i++){const d=addDays(t0,i);const dd=new Date(d);const we=dd.getDay()===0||dd.getDay()===6;
     if(we&&!S.settings.availWeekends){days[dayKey(d)]='off';continue}
@@ -815,11 +851,11 @@ function ledger(from,to){const items=valueItems(from,to);const by={};items.forEa
 function annualValue(c){const r=rateCard(c);return r.billing==='retainer'?r.monthlyFee*(PERIODS_PER_YEAR[r.retainerPeriod||'month']||12):0}
 function bookedAhead(cid){const now=Date.now();const evs=Object.values(S.events).filter(e=>e.clientId===cid&&e.start>now&&e.status!=='cancelled');const ps=activeProjects(cid).filter(p=>pstatus(p)==='active');return {count:evs.length,projects:ps.length,total:evs.reduce((s,e)=>s+eventValue(e),0)+ps.reduce((s,p)=>s+projectValue(p),0),pencil:evs.filter(e=>evStatus(e)==='pencil').reduce((s,e)=>s+eventValue(e),0)}}
 /* ===== projects: the thing a client buys. Fee on the project; bookings are allocated days. ===== */
-const PLAN_TYPES=['Shoot','Edit','Meeting','Other'];
+const PLAN_TYPES=['Shoot','Edit','Web design','Software design','Meeting','Other'];
 const project=id=>S.projects[id];
 const pstatus=p=>p.invoiceId?'invoiced':(p.status||'active');
 function projectBookings(pid){return Object.values(S.events).filter(e=>e.projectId===pid&&e.status!=='cancelled').sort((a,b)=>a.start-b.start)}
-function projectAllocated(p){const o={};projectBookings(p.id).forEach(e=>{const k=e.type==='Shoot'?'Shoot':e.type==='Edit'?'Edit':e.type==='Meeting'?'Meeting':'Other';o[k]=(o[k]||0)+portion(e)});return o}
+function projectAllocated(p){const o={};projectBookings(p.id).forEach(e=>{const k=planType(e.type);o[k]=(o[k]||0)+portion(e)});return o}
 function planRemaining(p){const al=projectAllocated(p);return (p.plan||[]).map(x=>({type:x.type,planned:+x.days||0,allocated:al[x.type]||0,remaining:Math.max(0,(+x.days||0)-(al[x.type]||0))}))}
 function projectCost(p){return projectBookings(p.id).reduce((s,e)=>s+crewCost(e),0)}
 function projectHours(p){return Object.values(S.entries).filter(e=>e.projectId===p.id).reduce((s,e)=>s+entryH(e),0)}
@@ -827,8 +863,8 @@ function projectWorkedDays(p){return clockDays(Object.values(S.entries).filter(e
 /* How a project is priced: a quoted fee, per day as days are booked (rolling, open until closed), or within the client's retainer (no fee). */
 const PRICING_LABEL={fee:'Quoted fee',days:'Per day, rolling',retainer:'Within retainer'};
 function pricingOf(p){if(p.pricing)return p.pricing;const c=client(p.clientId);return c&&rateCard(c).billing==='retainer'?'retainer':'fee'}
-const planType=t=>t==='Shoot'?'Shoot':t==='Edit'?'Edit':t==='Meeting'?'Meeting':'Other';
-function projectRates(p){const c=client(p.clientId);const r=c?rateCard(c):{};const pr=p.rates||{};return {Shoot:+pr.Shoot||r.fullDay||0,Edit:+pr.Edit||r.editDay||0,Meeting:+pr.Meeting||0,Other:+pr.Other||0}}
+const planType=t=>t==='Shoot'||t==='Edit'||t==='Meeting'||DESIGN_TYPES[t]?t:'Other';
+function projectRates(p){const c=client(p.clientId);const r=c?rateCard(c):{};const pr=p.rates||{};const ed=+pr.Edit||r.editDay||0;const dz=+pr.Design||ed;return {Shoot:+pr.Shoot||r.fullDay||0,Edit:ed,'Web design':dz,'Software design':dz,Design:dz,Meeting:+pr.Meeting||0,Other:+pr.Other||0}}
 /* Base value of the project. Extra fees typed on individual bookings flow through eventValue() and are not included here. */
 function projectValue(p){const pr=pricingOf(p);if(pr==='retainer')return 0;if(pr==='days'){const rt=projectRates(p);return projectBookings(p.id).filter(e=>e.status!=='pencil').reduce((s,e)=>s+portion(e)*(rt[planType(e.type)]||0),0)}return +p.fee||0}
 function projectExtras(p){return projectBookings(p.id).reduce((s,e)=>s+(+e.fee||0),0)}
@@ -840,6 +876,8 @@ function workLogHtml(log,limit){if(!log.length)return '';const rows=log.slice(0,
 function projectAnchor(p){const b=projectBookings(p.id);return p.completedAt||(b.length?b[b.length-1].start:p.created||Date.now())}
 function activeProjects(cid){return Object.values(S.projects).filter(p=>(!cid||p.clientId===cid)&&pstatus(p)!=='cancelled').sort((a,b)=>(a.created||0)-(b.created||0))}
 function billableProjects(cid){return activeProjects(cid).filter(p=>pstatus(p)==='complete'&&projectValue(p)+projectExtras(p)>0)}
+/* a project's kinds of job, from its bookings */
+function projectGenre(pid){const c={};projectBookings(pid).forEach(e=>{if(e.genre)c[e.genre]=(c[e.genre]||0)+1});return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||''}
 function projectShort(p){const rem=planRemaining(p).filter(x=>x.remaining);return projectPriceLabel(p)+(rem.length?' · '+rem.map(x=>fmtDays(x.remaining)+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())).join(', ')+' to allocate':'')}
 /* Every booking belongs to a project. Retainer clients may also book general retainer work with no project. */
 function projectOptions(cid,sel){const c=client(cid);const isRet=!!(c&&rateCard(c).billing==='retainer');const ps=activeProjects(cid).filter(p=>pstatus(p)==='active'||p.id===sel);
@@ -875,13 +913,13 @@ const jobKey=(cid,pid)=>pid?'p:'+pid:'c:'+cid;
 function jobOf(v,legacy){if(!v)return null;if(v.startsWith('p:')){const p=S.projects[v.slice(2)];return p&&client(p.clientId)?{clientId:p.clientId,projectId:p.id}:null}if(v.startsWith('c:')){const c=client(v.slice(2));return c&&(legacy||rateCard(c).billing==='retainer')?{clientId:c.id,projectId:''}:null}return null}
 function jobName(cid,pid){const p=pid&&S.projects[pid];return p?p.title+' · '+cname(cid):cname(cid)}
 function jobOptions(sel,extra){let h='';activeClients().forEach(c=>{const ret=rateCard(c).billing==='retainer';const ps=activeProjects(c.id).filter(p=>pstatus(p)==='active'||'p:'+p.id===sel);const ex=extra&&extra.clientId===c.id&&!extra.projectId&&!ret?'<option value="c:'+c.id+'" '+(sel==='c:'+c.id?'selected':'')+'>No project (older entry)</option>':'';if(!ps.length&&!ret&&!ex)return;h+='<optgroup label="'+esc(c.name)+'">'+(ret?'<option value="c:'+c.id+'" '+(sel==='c:'+c.id?'selected':'')+'>General retainer work</option>':'')+ps.map(p=>'<option value="p:'+p.id+'" '+(sel==='p:'+p.id?'selected':'')+'>'+esc(p.title)+'</option>').join('')+ex+'</optgroup>'});return h}
-const evCat=e=>e.type==='Shoot'?'Filming':e.type==='Meeting'?'Meeting':'Editing';
+const evCat=e=>e.type==='Shoot'?'Filming':e.type==='Meeting'?'Meeting':DESIGN_TYPES[e.type]?e.type:'Editing';
 /* Time against a booking: entries linked by eventId, plus older entries for the same person, job and day. */
 function bookingEntries(ev,person){const d0=startOfDay(ev.start);return Object.values(S.entries).filter(x=>(!person||x.person===person)&&(x.eventId===ev.id||(!x.eventId&&(ev.people||[]).includes(x.person)&&x.clientId===ev.clientId&&(x.projectId||'')===(ev.projectId||'')&&startOfDay(x.start)===d0))).sort((a,b)=>a.start-b.start)}
 const bookedH=ev=>Math.max(0,(ev.end-ev.start)/3.6e6);
 function bookingFor(person,cid,pid,day){return Object.values(S.events).find(x=>x.status!=='cancelled'&&x.clientId===cid&&(x.projectId||'')===(pid||'')&&startOfDay(x.start)===startOfDay(day)&&(x.people||[]).includes(person))}
 function hoursLine(ev){const ppl=(ev.people||[]).length?ev.people:[];if(!ppl.length)return '';const b=bookedH(ev);return ppl.map(p=>{const w=bookingEntries(ev,p).reduce((t,x)=>t+entryH(x),0);return esc(name(p))+' '+(w?hrs(w):'—')+' of '+hrs(b)}).join(' · ')}
-function bookedToday(p,day){const d0=day||startOfDay(Date.now());return Object.values(S.events).filter(e=>e.status!=='cancelled'&&e.clientId&&(e.type==='Shoot'||e.type==='Edit'||e.type==='Meeting')&&startOfDay(e.start)===d0&&(e.people||[]).includes(p)&&jobOf(jobKey(e.clientId,e.projectId))).sort((a,b)=>a.start-b.start)}
+function bookedToday(p,day){const d0=day||startOfDay(Date.now());return Object.values(S.events).filter(e=>e.status!=='cancelled'&&e.clientId&&(e.type==='Shoot'||isEditLike(e.type)||e.type==='Meeting')&&startOfDay(e.start)===d0&&(e.people||[]).includes(p)&&jobOf(jobKey(e.clientId,e.projectId))).sort((a,b)=>a.start-b.start)}
 /* What to clock in to by default: today's booking for this person, else the last thing they worked on, else the first job available. */
 function defaultJob(p){const bt=bookedToday(p);if(bt.length)return {job:jobKey(bt[0].clientId,bt[0].projectId),category:evCat(bt[0])};
   const last=Object.values(S.entries).filter(e=>e.person===p&&e.end&&jobOf(jobKey(e.clientId,e.projectId))&&(!e.projectId||pstatus(S.projects[e.projectId])==='active')).sort((a,b)=>b.start-a.start)[0];if(last)return {job:jobKey(last.clientId,last.projectId),category:last.category};
@@ -915,7 +953,7 @@ window.QM={live(){const r=running(S.person);const t=Object.values(S.entries).fil
   go(view){S.view=view;render()}};
 async function stopTimer(p){const e=running(p);if(!e)return;await patch('entries',e.id,{end:Date.now()});toast('Clocked out. '+hrs(entryH(S.entries[e.id]))+' logged to '+jobName(e.clientId,e.projectId));dayPrompt(S.entries[e.id])}
 /* After clocking out (or adding time): was that a half day or a full day? Writes the answer to the calendar so bookings, project days and retainer tallies agree with the clock. */
-const DAY_CATS={Filming:'Shoot',Editing:'Edit','Pre-production':'Edit'};
+const DAY_CATS={Filming:'Shoot',Editing:'Edit','Pre-production':'Edit','Web design':'Web design','Software design':'Software design'};
 function dayPrompt(e){
   if(!e||!e.clientId||!e.end||!DAY_CATS[e.category]||!client(e.clientId))return;
   const day=startOfDay(e.start);const pid=e.projectId||'';
@@ -1008,10 +1046,10 @@ function gcalLink(ev){
 }
 
 /* ---------- views ---------- */
-const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['invoicing','To invoice'],['insights','Insights'],['settings','Settings']];
+const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['team','Team'],['invoicing','To invoice'],['insights','Insights'],['settings','Settings']];
 function renderChrome(){
   $('#personSeg').innerHTML=PEOPLE.map(p=>'<button data-act="person" data-v="'+p.id+'" aria-pressed="'+(S.person===p.id)+'">'+esc(name(p.id))+'</button>').join('');
-  const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
+  const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',team:'<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
   $('#tabs').innerHTML=TABS.map(([k,l])=>'<button class="t-'+k+'" data-act="nav" data-v="'+k+'" '+(S.view===k?'aria-current="page"':'')+'><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+l+'</button>').join('');
 }
 let renderQueued=false;
@@ -1021,8 +1059,8 @@ function doRender(){
   document.body.classList.toggle('locked',!!S.locked);if(S.locked){$('#view').innerHTML=vLock();renderLive();return}
   const v=S.view;let h='';
   if(v==='today')h=vToday();else if(v==='schedule')h=vSchedule();else if(v==='clients')h=S.client&&client(S.client)?vClient(S.client):vClients();
-  else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else h=vSettings();
-  const view=$('#view');const key=v+'|'+(S.client||'');
+  else if(v==='team')h=vTeam();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else h=vSettings();
+  const view=$('#view');const key=v+'|'+(S.client||'')+'|'+(v==='clients'?S.sub||'':'');
   view.innerHTML=h; if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
   renderLive();
 }
@@ -1246,6 +1284,31 @@ function renderModal(){
   const f=m.cls?null:root.querySelector('input,select');if(f)f.focus();
   if(m.type==='event'){feeNote();availNote()}
 }
+/* ===== global search: ⌘K / Ctrl+K, / or the search button. Type anything, jump straight to it. ===== */
+function searchIndex(){const out=[];const now=Date.now();
+  const page=(t,sub,act,v,ic)=>out.push({g:'Go to',t,sub,act,v,k:t+' '+sub});
+  page('Today','Clock in, today’s work','nav','today');page('Schedule','Calendar','nav','schedule');page('Clients & projects','','nav','clients');page('Team','Crew, pencils and bookings','nav','team');page('To invoice','','nav','invoicing');page('Insights','Money and hours','nav','insights');page('Settings','','nav','settings');
+  out.push({g:'Do',t:'New booking',sub:'',act:'newevent',k:'new booking add job book day'},{g:'Do',t:'New project',sub:'',act:'newproject',k:'new project'},{g:'Do',t:'Add client',sub:'',act:'newclient',k:'new client add'},{g:'Do',t:'Add team member',sub:'',act:'newcrew',k:'new crew team add person freelancer'},{g:'Do',t:'Add time',sub:'',act:'manual',k:'add time hours log'});
+  Object.values(S.clients).forEach(c=>out.push({g:'Clients',t:c.name,sub:(rateCard(c).billing==='retainer'?'Retainer':'Client')+(c.archived?' · archived':''),act:'openclient',v:c.id,c:c.colour,k:c.name+' '+(c.email||'')+' '+(c.notes||'')}));
+  Object.values(S.projects).filter(p=>pstatus(p)!=='cancelled').forEach(p=>out.push({g:'Projects',t:p.title,sub:cname(p.clientId)+' · '+(pstatus(p)==='active'?'open':pstatus(p))+' · '+projectPriceLabel(p),act:'qproject',v:p.id,c:colour(p.clientId),k:p.title+' '+cname(p.clientId)+' '+projectGenre(p.id)+' '+(p.notes||'')}));
+  const seen={};Object.values(S.events).filter(e=>e.status!=='cancelled').sort((a,b)=>Math.abs(a.start-now)-Math.abs(b.start-now)).forEach(e=>{const gk=e.groupId||e.id;if(seen[gk])return;seen[gk]=1;const g=groupOf(e);out.push({g:'Bookings',t:e.title||evTypeName(e),sub:fmtDate(g[0].start,{weekday:'short',day:'numeric',month:'short',year:'numeric'})+(g.length>1?' +'+(g.length-1)+' days':'')+' · '+evTypeName(e)+(e.clientId?' · '+cname(e.clientId):'')+(evStatus(e)==='pencil'?' · pencil':''),act:'qevent',v:e.id,c:colour(e.clientId),k:(e.title||'')+' '+cname(e.clientId)+' '+e.type+' '+(e.genre||'')+' '+(e.location||'')+' '+(e.notes||'')+' '+(e.crew||[]).map(x=>crewName(x.id)).join(' ')+' '+fmtDate(e.start,{day:'numeric',month:'long',year:'numeric'})+' '+fmtDate(e.start,{month:'short'}),when:e.start})});
+  Object.values(S.crew).filter(c=>!c.archived).forEach(c=>out.push({g:'Team',t:c.name,sub:[c.role,c.phone,c.email].filter(Boolean).join(' · '),act:'qteam',v:c.id,k:c.name+' '+(c.role||'')+' '+(c.phone||'').replace(/\s/g,'')+' '+(c.email||'')}));
+  Object.values(S.invoices).forEach(i=>out.push({g:'Invoices',t:i.number,sub:cname(i.clientId)+' · '+gbp2(i.total)+' · '+i.status,act:'openinvoice',v:i.id,c:colour(i.clientId),k:i.number+' '+cname(i.clientId)+' '+i.status}));
+  return out}
+function searchRun(q){q=(q||'').trim().toLowerCase();const idx=searchIndex();if(!q)return idx.filter(x=>x.g==='Go to'||x.g==='Do').concat(idx.filter(x=>x.g==='Bookings'&&x.when>=startOfDay(Date.now())).slice(0,5));
+  const toks=q.split(/\s+/);const sc=x=>{const t=x.t.toLowerCase(),k=(x.t+' '+x.sub+' '+x.k).toLowerCase();if(!toks.every(w=>k.includes(w)))return -1;return (t.startsWith(q)?100:0)+(t.includes(q)?40:0)+toks.filter(w=>t.includes(w)).length*10+({Clients:6,Projects:5,Team:5,'Go to':4,Bookings:3,Do:2,Invoices:1}[x.g]||0)};
+  return idx.map(x=>[sc(x),x]).filter(a=>a[0]>=0).sort((a,b)=>b[0]-a[0]).slice(0,30).map(a=>a[1])}
+function searchHtml(q){const rs=searchRun(q);S.qres=rs;if(S.qsel>=rs.length)S.qsel=0;if(!rs.length)return '<p class="note" style="padding:12px 8px">Nothing matches “'+esc(q)+'”.</p>';let g='',h='';
+  rs.forEach((x,i)=>{if(x.g!==g){g=x.g;h+='<div class="qg">'+esc(g)+'</div>'}h+='<button data-act="qgo" data-v="'+i+'" aria-selected="'+(i===(S.qsel||0))+'">'+(x.c?'<span class="dot" style="background:'+x.c+'"></span>':'<span class="dot" style="background:var(--line-strong)"></span>')+'<span class="qt"><b>'+esc(x.t)+'</b>'+(x.sub?'<span>'+esc(x.sub)+'</span>':'')+'</span>'+(i===(S.qsel||0)?'<kbd>↵</kbd>':'')+'</button>'});return h}
+function openSearch(){S.qsel=0;S.modal={type:'search',cls:'search',html:()=>'<div class="qbox"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="qin" type="search" placeholder="Search clients, projects, bookings, team…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"></div><div class="qres" id="qres">'+searchHtml('')+'</div>'};renderModal();setTimeout(()=>{const i=document.getElementById('qin');if(i)i.focus()},30)}
+function searchGo(i){const x=(S.qres||[])[i];if(!x)return;closeModal();
+  if(x.act==='nav'){S.view=x.v;S.client=null;S.sub=null;render();window.scrollTo(0,0)}
+  else if(x.act==='openclient'){S.view='clients';S.client=x.v;render();window.scrollTo(0,0)}
+  else if(x.act==='qproject'){const p=S.projects[x.v];S.view='clients';S.client=null;S.sub=null;S.clShut={...(S.clShut||{}),[p.clientId]:false};S.clQuery='';render();openProjectModal(x.v)}
+  else if(x.act==='qevent'){const e=S.events[x.v];S.view='schedule';S.cal.mode='day';S.cal.cursor=startOfDay(e.start);S.cal.sel=startOfDay(e.start);render();window.scrollTo(0,0);setTimeout(()=>openEventSheet(x.v),60)}
+  else if(x.act==='qteam'){S.view='team';S.teamOpen=x.v;render();setTimeout(()=>{const el=document.getElementById('tm-'+x.v);if(el)el.scrollIntoView({block:'start',behavior:'smooth'})},80)}
+  else if(x.act==='openinvoice')openInvoiceModal(x.v);
+  else if(x.act==='newevent')openEventModal(null,dayKey(Date.now()));else if(x.act==='newproject')openProjectModal(null,'');else if(x.act==='newclient')openClientModal();else if(x.act==='newcrew')openCrewModal();else if(x.act==='manual')openEntryModal(null)}
 function closeModal(){S.modal=null;renderModal();if(S.updateReady)setTimeout(()=>{if(!S.modal)location.reload()},400)}
 
 function openClientModal(cid){
@@ -1311,7 +1374,7 @@ function crewState(x){const f=x.forms||{};const d=t=>fmtDate(t,{day:'numeric',mo
 function eventNet(ev){return eventValue(ev)-crewCost(ev)}
 function contrast(hex){const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');if(!m)return '#fff';const [r,g,b]=[1,2,3].map(i=>parseInt(m[i],16));return (r*299+g*587+b*114)/1000>150?'#0A0A0A':'#FFFFFF'}
 function evInitials(ev){const ppl=(ev.people||[]).map(p=>'<i title="'+esc(name(p))+'">'+esc(name(p).slice(0,1))+'</i>');const cr=(ev.crew||[]).filter(x=>x.status!=='declined').map(x=>'<i class="cr" title="'+esc(crewName(x.id))+'">'+esc(crewName(x.id).slice(0,1))+'</i>');return '<span class="ini">'+ppl.concat(cr).join('')+'</span>'}
-function dayTags(de){const live=de.filter(e=>e.status!=='cancelled');return {shoot:live.some(e=>e.type==='Shoot'),edit:live.some(e=>e.type==='Edit'),off:live.some(e=>e.type==='Unavailable'),pencil:live.some(e=>evStatus(e)==='pencil')}}
+function dayTags(de){const live=de.filter(e=>e.status!=='cancelled');return {shoot:live.some(e=>e.type==='Shoot'),edit:live.some(e=>isEditLike(e.type)),off:live.some(e=>e.type==='Unavailable'),pencil:live.some(e=>evStatus(e)==='pencil')}}
 function tagHtml(t){return (t.shoot?'<em class="tag shoot">Filming</em>':'')+(t.edit?'<em class="tag edit">Edit</em>':'')+(t.off&&!t.shoot&&!t.edit?'<em class="tag off">Off</em>':'')}
 function evVisible(ev){const w=S.cal.who;if(!w||w==='all')return true;return (ev.people||[]).includes(w)}
 function groupOf(ev){return Object.values(S.events).filter(e=>ev.groupId?e.groupId===ev.groupId:e.id===ev.id).sort((a,b)=>a.start-b.start)}
@@ -1322,7 +1385,7 @@ function evLine(ev,all){
   const money=v?'<b style="font-weight:500">'+gbp(v)+'</b>'+(cost?' · crew '+gbp(cost)+' · <b style="font-weight:500">'+gbp(v-cost)+' net</b>':''):(cost?'crew '+gbp(cost):'');
   const pj=ev.projectId&&S.projects[ev.projectId];const crew=(pj?'<div class="meta note">Project: '+esc(pj.title)+' · '+projectPriceLabel(pj)+(planRemaining(pj).some(x=>x.remaining)?' · '+planRemaining(pj).filter(x=>x.remaining).map(x=>fmtDays(x.remaining)+' '+x.type.toLowerCase()).join(', ')+' still to allocate':'')+'</div>':'')+((ev.crew||[]).length?'<div class="meta note">Crew: '+(ev.crew||[]).map(x=>esc(crewName(x.id))+(x.status==='confirmed'?' ✓':x.status==='declined'?' ✗':' (pencil)')).join(', ')+(ev.callTime?' · call '+esc(ev.callTime):'')+'</div>':'');
   return '<div class="ev'+(evVisible(ev)?'':' dim')+'"><span style="background:'+colour(ev.clientId)+'"></span><div class="main"><div>'+esc(ev.title)+(cl?' <span class="pill" style="color:var(--warn);border-color:var(--warn)">Clash</span>':'')+'</div><div class="meta note">'+fmtTime(ev.start)+'–'+fmtTime(ev.end)+' · '+esc(cname(ev.clientId))+' · '+esc((ev.people||[]).map(name).join(' & ')||'Unassigned')+(money?' · '+money:'')+(ev.location?' · '+esc(ev.location):'')+(ev.start<=Date.now()&&ev.clientId&&(ev.people||[]).length&&bookingEntries(ev).length?' · worked '+hrs(bookingEntries(ev).reduce((t,x)=>t+entryH(x),0)):'')+'</div>'+crew+
-  '<div class="row" style="gap:14px;margin-top:6px"><button class="link" data-act="sendsheet" data-v="'+ev.id+'">Send</button><button class="link" data-act="ical" data-v="'+ev.id+'">Apple Calendar</button><a class="link" href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Google</a><button class="link" data-act="hours" data-v="'+ev.id+'">Hours</button><button class="link" data-act="editevent" data-v="'+ev.id+'">Edit</button></div></div><span style="display:grid;gap:4px;justify-items:end"><span class="pill">'+esc(ev.type)+(portion(ev)===0.5?' · ½':'')+'</span><span class="pill st-'+st+'">'+STATUS_LABEL[st]+'</span>'+(inv?'<span class="pill paid">'+esc(inv.number)+'</span>':'')+'</span></div>';
+  '<div class="row" style="gap:14px;margin-top:6px"><button class="link" data-act="sendsheet" data-v="'+ev.id+'" data-k="client">Client booking</button>'+((ev.crew||[]).length||ev.type==='Shoot'?'<button class="link" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team</button>':'')+'<button class="link" data-act="ical" data-v="'+ev.id+'">Apple Calendar</button><a class="link" href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Google</a><button class="link" data-act="hours" data-v="'+ev.id+'">Hours</button><button class="link" data-act="editevent" data-v="'+ev.id+'">Edit</button></div></div><span style="display:grid;gap:4px;justify-items:end"><span class="pill">'+esc(ev.type)+(portion(ev)===0.5?' · ½':'')+'</span><span class="pill st-'+st+'">'+STATUS_LABEL[st]+'</span>'+(inv?'<span class="pill paid">'+esc(inv.number)+'</span>':'')+'</span></div>';
 }
 
 /* ===== schedule ===== */
@@ -1341,11 +1404,28 @@ function monthStats(m0){
 const CAL_LEVELS=['year','month','week','day'];
 function calMode(){return CAL_LEVELS.includes(S.cal.mode)?S.cal.mode:'day'}
 const EV_ORDER={Shoot:0,Edit:1,Deadline:2,Meeting:3,Other:4,Unavailable:5};
-const evLetter=ev=>({Shoot:'F',Edit:'E',Meeting:'M',Deadline:'!',Unavailable:'–',Other:'•'})[ev.type]||'•';
-const evTypeName=ev=>ev.type==='Shoot'?'Filming':ev.type;
-function evKind(ev){const k=ev.type==='Shoot'?'s':ev.type==='Edit'?'e':ev.type==='Meeting'?'m':ev.type==='Deadline'?'d':ev.type==='Unavailable'?'u':'o';const st=evStatus(ev);return k+(st==='pencil'&&(k==='s'||k==='e')?' p':'')+(st==='cancelled'?' x':'')}
+const evLetter=ev=>({Shoot:'F',Edit:'E','Web design':'W','Software design':'S',Meeting:'M',Deadline:'!',Unavailable:'–',Other:'•'})[ev.type]||'•';
+const evTypeName=ev=>(ev.type==='Shoot'?'Filming':ev.type)+(ev.genre?' · '+ev.genre:'');
+function evKind(ev){const k=ev.type==='Shoot'?'s':isEditLike(ev.type)?'e':ev.type==='Meeting'?'m':ev.type==='Deadline'?'d':ev.type==='Unavailable'?'u':'o';const st=evStatus(ev);return k+(st==='pencil'&&(k==='s'||k==='e')?' p':'')+(st==='cancelled'?' x':'')}
 function evMarker(ev){if(ev.type==='Unavailable')return '<i class="mk u"></i>';return '<i class="mk '+evKind(ev)+(portion(ev)===0.5?' h':'')+'" style="--c:'+colour(ev.clientId)+'"></i>'}
-function calEvents(){const w=S.cal.who;return Object.values(S.events).filter(e=>!w||w==='all'||(e.people||[]).includes(w)||(e.type==='Unavailable'&&!(e.people||[]).length))}
+/* schedule filters: who (us), client, project, kind of job, type, team member, status */
+const calF=()=>S.cal.f||(S.cal.f={});
+const calFCount=()=>Object.values(calF()).filter(Boolean).length;
+function evPass(e){const f=calF();if(!calFCount())return true;if(e.type==='Unavailable')return false;
+  if(f.client&&e.clientId!==f.client)return false;if(f.project&&e.projectId!==f.project)return false;if(f.genre&&(e.genre||'')!==f.genre)return false;if(f.type&&e.type!==f.type)return false;
+  if(f.crew&&!(e.crew||[]).some(x=>x.id===f.crew&&x.status!=='released'&&x.status!=='declined'))return false;if(f.status&&evStatus(e)!==f.status)return false;return true}
+function calEvents(){const w=S.cal.who;return Object.values(S.events).filter(e=>(!w||w==='all'||(e.people||[]).includes(w)||(e.type==='Unavailable'&&!(e.people||[]).length))&&evPass(e))}
+function filterBar(){const f=calF();const n=calFCount();const opt=(k,label,items)=>'<label class="f"><span>'+label+'</span><select data-calf="'+k+'"><option value="">All</option>'+items.map(([v,l])=>'<option value="'+esc(v)+'" '+(f[k]===v?'selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';
+  const chips=Object.entries(f).filter(([k,v])=>v).map(([k,v])=>{const lab=k==='client'?cname(v):k==='project'?((S.projects[v]||{}).title||'Project'):k==='crew'?crewName(v):k==='type'?(v==='Shoot'?'Filming':v):k==='status'?STATUS_LABEL[v]:v;return '<button class="fchip" data-act="calfclear" data-v="'+k+'">'+esc(lab)+' <span aria-hidden="true">×</span></button>'}).join('');
+  return '<div class="fbar">'+(S.cal.fo?'<div class="fgrid">'+opt('client','Client',activeClients().map(c=>[c.id,c.name]))+opt('project','Project',Object.values(S.projects).filter(p=>pstatus(p)!=='cancelled'&&(!f.client||p.clientId===f.client)).sort((a,b)=>a.title.localeCompare(b.title)).map(p=>[p.id,p.title+(f.client?'':' · '+cname(p.clientId))]))+opt('genre','Kind of job',GENRES.map(g=>[g,g]))+opt('type','Type',EVTYPES.filter(t=>t!=='Unavailable').map(t=>[t,t==='Shoot'?'Filming':t]))+opt('crew','Team member',activeCrew().map(c=>[c.id,c.name]))+opt('status','Status',[['confirmed','Confirmed'],['pencil','Pencil'],['cancelled','Cancelled']])+'</div>':'')+
+    (n?'<div class="fchips">'+chips+'<button class="link" data-act="calfclear" data-v="*">Clear all</button></div>':'')+'</div>'}
+function vJobList(){const now=Date.now();const seen={};const jobs=calEvents().filter(e=>e.type!=='Unavailable').sort((a,b)=>a.start-b.start).filter(e=>{const k=e.groupId||e.id;if(seen[k])return false;seen[k]=1;return true});
+  if(!jobs.length)return '<div class="panel empty">No jobs match these filters.</div>';
+  const fut=jobs.filter(e=>groupOf(e).slice(-1)[0].end>=startOfDay(now)),past=jobs.filter(e=>groupOf(e).slice(-1)[0].end<startOfDay(now)).reverse();
+  const row=e=>{const g=groupOf(e).filter(x=>x.status!=='cancelled'||e.status==='cancelled');const pj=e.projectId&&S.projects[e.projectId];const crew=(e.crew||[]).filter(x=>x.status!=='released'&&x.status!=='declined');const tot=g.reduce((t,x)=>t+(x.projectId?0:eventValue(x)),0);
+    return '<button class="jrow" data-act="openev" data-v="'+e.id+'"><span class="jd"><b>'+new Date(g[0].start).getDate()+'</b><small>'+fmtDate(g[0].start,{month:'short'})+'</small></span><span class="mkw">'+evMarker(e)+'</span><span class="jt"><b>'+esc(e.title||evTypeName(e))+'</b><span>'+[evTypeName(e),e.clientId?cname(e.clientId):'',pj?pj.title:'',g.length>1?g.length+' days':'',(e.people||[]).map(name).join(' & '),crew.length?crew.map(x=>crewName(x.id).split(' ')[0]).join(', '):''].filter(Boolean).map(esc).join(' · ')+'</span></span><span class="je">'+(evStatus(e)!=='confirmed'?'<span class="pill st-'+evStatus(e)+'">'+STATUS_LABEL[evStatus(e)]+'</span>':'')+(tot?'<span class="num">'+gbp(tot)+'</span>':'')+'</span></button>'};
+  const grp=(list)=>{let m='',h='';list.forEach(e=>{const k=fmtDate(e.start,{month:'long',year:'numeric'});if(k!==m){m=k;h+='<div class="jm">'+esc(k)+'</div>'}h+=row(e)});return h};
+  return (fut.length?'<section class="panel"><div class="panel-head"><h3>Coming up</h3><span class="note">'+fut.length+' job'+(fut.length===1?'':'s')+'</span></div><div class="jlist">'+grp(fut)+'</div></section>':'')+(past.length?'<section class="panel" style="margin-top:16px"><div class="panel-head"><h3>Done</h3><span class="note">'+past.length+' job'+(past.length===1?'':'s')+'</span></div><div class="jlist">'+grp(past.slice(0,80))+'</div></section>':'')}
 function dayEvs(x,pool){return (pool||calEvents()).filter(e=>startOfDay(e.start)===x).sort((a,b)=>(EV_ORDER[a.type]??4)-(EV_ORDER[b.type]??4)||a.start-b.start)}
 function evAvatars(ev){const ppl=(ev.people||[]).map(p=>'<i title="'+esc(name(p))+'">'+esc(name(p).slice(0,1))+'</i>');const cr=(ev.crew||[]).filter(x=>x.status!=='declined').map(x=>'<i class="cr" title="'+esc(crewName(x.id))+'">'+esc(crewName(x.id).slice(0,1))+'</i>');return ppl.length||cr.length?'<span class="avs">'+ppl.concat(cr).join('')+'</span>':''}
 function evCard(ev){
@@ -1364,7 +1444,7 @@ function dayAgenda(x){
   else{const n=nextAfter(x);const wk=new Date(x).getDay()%6===0;h+='<div class="empty"><b>Nothing booked.</b> '+(wk?'Weekend.':'A free day.')+'</div>'+(n?'<button class="next" data-act="gotoday" data-v="'+startOfDay(n.start)+'">'+evMarker(n)+'Next up: '+fmtDate(n.start,{weekday:'short',day:'numeric',month:'short'})+' · '+evTypeName(n)+(n.clientId?' · '+esc(cname(n.clientId)):'')+'</button>':'')}
   return h;
 }
-function calCounts(evs){const o={S:0,E:0,p:0};evs.forEach(e=>{if(e.status==='cancelled')return;if(e.type==='Shoot')o.S+=portion(e);if(e.type==='Edit')o.E+=portion(e);if(evStatus(e)==='pencil')o.p++});return o}
+function calCounts(evs){const o={S:0,E:0,p:0};evs.forEach(e=>{if(e.status==='cancelled')return;if(e.type==='Shoot')o.S+=portion(e);if(isEditLike(e.type))o.E+=portion(e);if(evStatus(e)==='pencil')o.p++});return o}
 function calSum(evs,label){const c=calCounts(evs);return '<div class="calsum"><span><i class="mk s" style="--c:var(--fg)"></i><b>'+fmtDays(c.S)+'</b> filming</span><span><i class="mk e" style="--c:var(--muted)"></i><b>'+fmtDays(c.E)+'</b> edit</span>'+(c.p?'<span><i class="mk s p" style="--c:var(--muted)"></i><b>'+c.p+'</b> pencil'+(c.p>1?'s':'')+'</span>':'')+(label?'<span>'+label+'</span>':'')+'</div>'}
 function vMonthCal(){
   const sel=startOfDay(S.cal.cursor);const m0=startOfMonth(sel);const d=new Date(m0);const g0=startOfWeek(m0);const t0=startOfDay(Date.now());
@@ -1374,7 +1454,7 @@ function vMonthCal(){
     const c=['mcell',inM?'':'out',dd.getDay()%6?'':'wk',x===t0?'today':'',x===sel?'sel':'',film?'film':''].filter(Boolean).join(' ');
     const shown=evs.slice(0,3);
     cells.push('<button class="'+c+'" data-act="selday" data-v="'+x+'"><span class="n">'+dd.getDate()+'</span><span class="mks">'+shown.map(evMarker).join('')+'</span>'+
-      '<span class="lbls">'+shown.map(e=>'<span class="lb '+evKind(e)+'" style="--c:'+colour(e.clientId)+'">'+evMarker(e)+'<span>'+esc(e.type==='Shoot'||e.type==='Edit'?(e.clientId?cname(e.clientId).split(' ')[0]:e.title):e.title||evTypeName(e))+(portion(e)===0.5?' ½':'')+'</span></span>').join('')+(evs.length>3?'<span class="more">+'+(evs.length-3)+' more</span>':'')+'</span></button>')}
+      '<span class="lbls">'+shown.map(e=>'<span class="lb '+evKind(e)+'" style="--c:'+colour(e.clientId)+'">'+evMarker(e)+'<span>'+esc(e.type==='Shoot'||isEditLike(e.type)?(e.clientId?cname(e.clientId).split(' ')[0]:e.title):e.title||evTypeName(e))+(portion(e)===0.5?' ½':'')+'</span></span>').join('')+(evs.length>3?'<span class="more">+'+(evs.length-3)+' more</span>':'')+'</span></button>')}
   const mEvs=pool.filter(e=>new Date(e.start).getMonth()===d.getMonth()&&new Date(e.start).getFullYear()===d.getFullYear());
   return '<div class="two"><div><div class="dow">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(s=>'<span>'+s+'</span>').join('')+'</div><div class="mgrid">'+cells.join('')+'</div>'+calSum(mEvs,'this month')+'</div><div class="side">'+dayAgenda(sel)+'</div></div>';
 }
@@ -1395,7 +1475,7 @@ function vYearCal(){
     const mEvs=pool.filter(e=>new Date(e.start).getMonth()===m);const mc=calCounts(mEvs);
     let g='';for(let i=0;i<off;i++)g+='<i class="yd o"></i>';
     for(let dn=1;dn<=dim;dn++){const x=new Date(y,m,dn).getTime();const evs=dayEvs(x,mEvs).filter(e=>e.status!=='cancelled');const top=evs[0];
-      g+='<i class="yd'+(top?' '+(top.type==='Shoot'?(evStatus(top)==='pencil'?'p':'s'):top.type==='Edit'?'e':''):'')+(x===t0?' t':'')+'" style="--c:'+(top?colour(top.clientId):'')+'"></i>'}
+      g+='<i class="yd'+(top?' '+(top.type==='Shoot'?(evStatus(top)==='pencil'?'p':'s'):isEditLike(top.type)?'e':''):'')+(x===t0?' t':'')+'" style="--c:'+(top?colour(top.clientId):'')+'"></i>'}
     h+='<button class="ym'+(m===curM?' cur':'')+'" data-act="gomonth" data-v="'+m0+'"><h4>'+new Date(m0).toLocaleDateString('en-GB',{month:'short'})+(mc.S||mc.E?'<small>'+fmtDays(mc.S)+'F · '+fmtDays(mc.E)+'E</small>':'')+'</h4><div class="yg">'+g+'</div></button>'}
   return h+'</div>';
 }
@@ -1408,14 +1488,15 @@ function calTitle(){
 }
 function vSchedule(){
   const L=calMode();const who=S.cal.who||'all';const anim=S.calAnim||'';S.calAnim=null;const zf=S.calFrom;setTimeout(()=>{S.calFrom=null},0);
-  const body=L==='year'?vYearCal():L==='month'?vMonthCal():L==='week'?vWeekCal():vDayCal();
+  const body=S.cal.list?vJobList():L==='year'?vYearCal():L==='month'?vMonthCal():L==='week'?vWeekCal():vDayCal();const fc=calFCount();
   return '<div class="calbar"><button class="ttl" data-act="calzoom" data-v="-1" aria-label="Zoom out">'+calTitle()+'</button>'+
     '<button class="iconbtn" data-act="calnav" data-v="-1" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>'+
     '<button class="iconbtn" data-act="calnav" data-v="1" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>'+
     '<button class="tb" data-act="calnav" data-v="0">Today</button></div>'+
-    '<div class="calsub"><div class="seg">'+[['year','Year'],['month','Month'],['week','Week'],['day','Day']].map(([k,l])=>'<button data-act="calmode" data-v="'+k+'" aria-pressed="'+(L===k)+'">'+l+'</button>').join('')+'</div>'+
+    '<div class="calsub"><div class="seg">'+[['year','Year'],['month','Month'],['week','Week'],['day','Day']].map(([k,l])=>'<button data-act="calmode" data-v="'+k+'" aria-pressed="'+(!S.cal.list&&L===k)+'">'+l+'</button>').join('')+'<button data-act="callist" aria-pressed="'+!!S.cal.list+'">List</button></div>'+
+    '<button class="tb'+(fc?' on':'')+'" data-act="calfopen" aria-expanded="'+!!S.cal.fo+'">Filter'+(fc?' · '+fc:'')+'</button>'+
     '<div class="who"><span>'+(who==='all'?'Both of us':esc(name(who))+' only')+'</span>'+PEOPLE.map(p=>'<button class="av" data-act="calwho" data-v="'+p.id+'" aria-pressed="'+(who===p.id)+'" title="'+esc(name(p.id))+'">'+esc(name(p.id).slice(0,1))+'</button>').join('')+'</div></div>'+
-    '<div class="stage '+anim+'" id="calstage" style="'+(S.calFrom?'--zfrom:'+S.calFrom:'')+'">'+body+'</div>'+
+    filterBar()+'<div class="stage '+anim+'" id="calstage" style="'+(S.calFrom?'--zfrom:'+S.calFrom:'')+'">'+body+'</div>'+
     '<p class="calhint ph">Pinch to zoom between year, month, week and day. Swipe sideways to move. Tap a day twice to open it.</p><p class="calhint dk">Pinch the trackpad or ⌘‑scroll to zoom. Scroll sideways or use ← → to move, ↑ ↓ to zoom, T for today, N for a new booking.</p>'+
     '<button class="fab" data-act="newevent" '+(L==='day'||(L!=='year'&&S.cal.sel)?'data-v="'+dayKey(startOfDay(S.cal.cursor))+'"':'')+' aria-label="New booking"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>';
 }
@@ -1427,10 +1508,10 @@ function openEventSheet(id){S.modal={type:'evsheet',cls:'sheet',html:()=>{const 
   const v=eventValue(ev),cost=crewCost(ev);
   const when=grp.length>1?fmtDate(grp[0].start,{day:'numeric',month:'short'})+' – '+fmtDate(grp[grp.length-1].start,{day:'numeric',month:'short',year:'numeric'})+' · '+grp.length+' days':fmtDate(ev.start,{weekday:'long',day:'numeric',month:'long'});
   const kv=[['When',when+(ev.type!=='Deadline'?', '+fmtTime(ev.start)+'–'+fmtTime(ev.end):'')+(portion(ev)===0.5?' · half day':'')],ev.callTime?['Call time',ev.callTime]:null,ev.location?['Where',esc(ev.location)]:null,['Who',(ev.people||[]).map(name).join(' & ')||'Unassigned'],
-    (ev.crew||[]).length?['Crew',(ev.crew||[]).map(x=>esc(crewName(x.id))+' <span class="muted">· '+crewState(x)+'</span>').join('<br>')+'<div><button class="link" data-act="sendsheet" data-v="'+ev.id+'">Pencil, book or release crew</button></div>']:null,
+    (ev.crew||[]).length?['Crew',(ev.crew||[]).map(x=>esc(crewName(x.id))+' <span class="muted">· '+crewState(x)+'</span>').join('<br>')+'<div><button class="link" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team booking</button></div>']:null,
     pj?['Project',esc(pj.title)+' · '+projectPriceLabel(pj)]:null,r&&r.billing==='retainer'?['Billing','Within '+(c.retainerPeriod||'monthly')+' retainer']:null,inv?['Invoice',esc(inv.number)]:null,ev.notes?['Notes',esc(ev.notes)]:null,(BUSY_TYPES[ev.type]||ev.type==='Meeting')&&ev.type!=='Unavailable'&&ev.start<=Date.now()&&(ev.people||[]).length?['Hours',hoursLine(ev)]:null].filter(Boolean);
   const cs=ev.type==='Shoot'?'<button class="btn'+(st==='confirmed'?'':' ghost')+'" data-act="callsheet" data-v="'+ev.id+'">Call sheet'+(sheetAnchor(ev).sheet&&sheetAnchor(ev).sheet.publishedAt?' v'+sheetAnchor(ev).sheet.version:'')+'</button>':'';
-  const stBtns=st==='pencil'?'<button class="btn" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Confirm booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'">Client page</button>'+cs:st==='cancelled'?'<button class="btn ghost" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Reinstate</button>':cs+(ev.clientId?'<button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'">Client page</button>':'');
+  const stBtns=st==='pencil'?'<button class="btn" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Confirm booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="client">Client booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team booking</button>'+cs:st==='cancelled'?'<button class="btn ghost" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Reinstate</button>':cs+(ev.clientId?'<button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="client">Client booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team booking</button>':'');
   return '<div class="sh-top '+evKind(ev)+'" style="--c:'+colour(ev.clientId)+'"><span class="bd">'+evLetter(ev)+'</span><div style="min-width:0"><h2>'+esc(ev.title||evTypeName(ev))+'</h2><p>'+evTypeName(ev)+(st!=='confirmed'?' · '+STATUS_LABEL[st].toLowerCase():'')+(ev.clientId?' · '+esc(cname(ev.clientId)):'')+'</p></div></div>'+
   '<dl class="kv l">'+kv.map(([k,val])=>'<dt>'+k+'</dt><dd>'+val+'</dd>').join('')+'</dl>'+
   '<div class="sh-act">'+stBtns+'<button class="btn ghost" data-act="editevent" data-v="'+ev.id+'">Edit</button><button class="btn ghost" data-act="ical" data-v="'+ev.id+'">iPhone calendar</button><button class="btn ghost" data-act="hours" data-v="'+ev.id+'">Hours worked</button>'+(st!=='cancelled'?'<button class="btn ghost" style="color:var(--danger)" data-act="evstatus" data-e="'+ev.id+'" data-v="cancelled">Cancel booking</button>':'')+'</div>'+
@@ -1464,18 +1545,77 @@ function openEventSheet(id){S.modal={type:'evsheet',cls:'sheet',html:()=>{const 
 })();
 
 /* ===== clients and crew ===== */
+/* ===== Clients & projects: each client with its projects underneath, or every project in one filterable list ===== */
+function prow(p){const st=pstatus(p);const b=projectBookings(p.id);const now=Date.now();const next=b.find(e=>e.end>=now);const al=projectAllocated(p);const bd=Object.values(al).reduce((t,x)=>t+x,0);const h=projectHours(p);const rem=planRemaining(p).filter(x=>x.remaining);const g=projectGenre(p.id);
+  return '<div class="prow'+(st!=='active'?' done':'')+'"><button class="pt" data-act="editproject" data-v="'+p.id+'"><b>'+esc(p.title)+'</b><span>'+[projectPriceLabel(p),g,bd?fmtDays(bd)+' day'+(bd===1?'':'s')+' booked':'',h?hrs(h)+' worked':'',next?'next '+fmtDate(next.start,{day:'numeric',month:'short'}):'',rem.length?rem.map(x=>fmtDays(x.remaining)+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())).join(', ')+' to book':''].filter(Boolean).map(esc).join(' · ')+'</span></button>'+
+    '<span class="pe">'+(rem.length&&st==='active'?'<button class="btn ghost small" data-act="allocate" data-v="'+p.id+'">Book days</button>':'')+'<span class="pill st-'+(st==='active'?'open':st==='complete'?'confirmed':st)+'">'+(st==='active'?'open':st==='complete'?'closed':st)+'</span></span></div>'}
+function clQ(){return (S.clQuery||'').trim().toLowerCase()}
+function projMatch(p,q){return !q||(p.title+' '+cname(p.clientId)+' '+projectGenre(p.id)+' '+(p.notes||'')).toLowerCase().includes(q)}
+function clientsListHtml(){const q=clQ();const shut=S.clShut||{};
+  if(S.sub==='projects'){const f=S.pf||{};let ps=Object.values(S.projects).filter(p=>pstatus(p)!=='cancelled'&&client(p.clientId));
+    if(f.client)ps=ps.filter(p=>p.clientId===f.client);if(f.status)ps=ps.filter(p=>pstatus(p)===f.status);else ps=ps.filter(p=>pstatus(p)!=='invoiced');if(f.pricing)ps=ps.filter(p=>pricingOf(p)===f.pricing);if(f.genre)ps=ps.filter(p=>projectBookings(p.id).some(e=>e.genre===f.genre));
+    ps=ps.filter(p=>projMatch(p,q)).sort((a,b)=>(pstatus(a)==='active'?0:1)-(pstatus(b)==='active'?0:1)||((projectBookings(a.id).find(e=>e.end>=Date.now())||{start:9e15}).start-(projectBookings(b.id).find(e=>e.end>=Date.now())||{start:9e15}).start));
+    if(S.pview==='cards')return ps.length?'<div class="grid g2">'+ps.map(projectCard).join('')+'</div>':'<div class="panel empty">No projects match.</div>';
+    return ps.length?'<section class="panel">'+ps.map(p=>'<div class="pgr"><span class="dot" style="background:'+colour(p.clientId)+'"></span><span class="muted">'+esc(cname(p.clientId))+'</span></div>'+prow(p)).join('')+'</section>':'<div class="panel empty">No projects match.</div>'}
+  const cs=activeClients().filter(c=>!q||c.name.toLowerCase().includes(q)||Object.values(S.projects).some(p=>p.clientId===c.id&&pstatus(p)!=='cancelled'&&projMatch(p,q)));
+  if(!cs.length)return '<div class="panel empty">'+(q?'Nothing matches “'+esc(S.clQuery)+'”.':'<b>No clients yet.</b> Add a client, then its projects live underneath it.')+'</div>';
+  return cs.map(c=>{const nameHit=!q||c.name.toLowerCase().includes(q);const all=Object.values(S.projects).filter(p=>p.clientId===c.id&&pstatus(p)!=='cancelled').filter(p=>nameHit||projMatch(p,q));const open=all.filter(p=>pstatus(p)==='active'),closed=all.filter(p=>pstatus(p)!=='active');const isShut=!q&&shut[c.id];const u=unbilled(c.id);const r=rateCard(c);
+    return '<section class="cgroup'+(isShut?' shut':'')+'"><div class="cg-head" style="--c:'+c.colour+'"><button class="cg-tog" data-act="cltog" data-v="'+c.id+'" aria-expanded="'+!isShut+'" aria-label="'+(isShut?'Show':'Hide')+' projects"><svg viewBox="0 0 16 16"><path d="M5 6l3 3 3-3"/></svg></button><button class="cg-name" data-act="openclient" data-v="'+c.id+'"><span class="dot" style="background:'+c.colour+'"></span><b>'+esc(c.name)+'</b>'+(r.billing==='retainer'?'<span class="pill">Retainer</span>':'')+'</button><span class="cg-meta">'+open.length+' open'+(u.total?' · <b>'+gbp(u.total)+'</b> to invoice':'')+'</span></div>'+
+      (isShut?'':'<div class="cg-body">'+(open.length?open.map(prow).join(''):'<p class="note" style="padding:8px 4px">No open projects.</p>')+(closed.length?'<details class="wdet"'+(q?' open':'')+'><summary>'+closed.length+' closed or invoiced</summary>'+closed.map(prow).join('')+'</details>':'')+'<div class="cg-links"><button class="link" data-act="newproject" data-c="'+c.id+'">New project</button><button class="link" data-act="newevent" data-c="'+c.id+'">Book a day</button><button class="link" data-act="openclient" data-v="'+c.id+'">Client page</button></div></div>')+'</section>'}).join('')}
 function vClients(){
-  if(S.sub==='crew')return vCrew();if(S.sub==='projects')return vProjects();
-  const cs=activeClients();
-  const cards=cs.map(c=>{const u=unbilled(c.id);const li=lastInvoice(c.id);const r=rateCard(c);
-    return '<button class="ccard" data-act="openclient" data-v="'+c.id+'"><div class="hd" style="background:'+c.colour+';color:'+contrast(c.colour)+'"><h3>'+esc(c.name)+'</h3>'+(r.billing==='retainer'?'<span class="pill" style="border-color:currentColor;color:inherit">Retainer</span>':'')+'</div>'+
-    '<div class="figs"><div><b>'+gbp(u.total)+'</b><span>To invoice</span></div><div><b>'+gbp(annualValue(c)?annualValue(c)+bookedAhead(c.id).total:bookedAhead(c.id).total)+'</b><span>'+(annualValue(c)?'Annual value':'Booked ahead')+'</span></div></div>'+
-    '<div class="note">'+hrs(u.hours)+' since last invoice'+(li?' · last invoiced '+fmtDate(li.date,{day:'numeric',month:'short'}):'')+'</div></button>'}).join('');
-  const arch=Object.values(S.clients).filter(c=>c.archived);
-  return '<div class="panel-head"><h1>Clients</h1><div class="row" style="flex:0 1 auto;align-items:center"><div class="seg"><button data-act="sub" data-v="clients" aria-pressed="true">Clients</button><button data-act="sub" data-v="projects" aria-pressed="false">Projects</button><button data-act="sub" data-v="crew" aria-pressed="false">Crew</button></div><button class="btn small" data-act="newclient">Add client</button></div></div>'+
-  (cs.length?'<div class="grid g3">'+cards+'</div>':'<div class="panel empty"><b>No clients yet.</b> Add a client with their colour and rates, and every hour you log against them is priced automatically.</div>')+
-  (arch.length?'<p class="note" style="margin-top:20px">Archived: '+arch.map(c=>'<button class="link" data-act="openclient" data-v="'+c.id+'">'+esc(c.name)+'</button>').join(', ')+'</p>':'');
+  if(S.sub==='crew'){S.view='team';return vTeam()}
+  const arch=Object.values(S.clients).filter(c=>c.archived);const f=S.pf||{};const sel=(k,items,label)=>'<label class="f"><span>'+label+'</span><select data-pf="'+k+'"><option value="">'+(k==='status'?'Open and closed':'All')+'</option>'+items.map(([v,l])=>'<option value="'+esc(v)+'" '+(f[k]===v?'selected':'')+'>'+esc(l)+'</option>').join('')+'</select></label>';
+  return '<div class="panel-head"><h1>Clients &amp; projects</h1><div class="row" style="flex:0 1 auto;align-items:center"><div class="seg"><button data-act="sub" data-v="clients" aria-pressed="'+(S.sub!=='projects')+'">By client</button><button data-act="sub" data-v="projects" aria-pressed="'+(S.sub==='projects')+'">All projects</button></div><button class="btn ghost small" data-act="newproject">New project</button><button class="btn small" data-act="newclient">Add client</button></div></div>'+
+  '<div class="row" style="align-items:center;margin-bottom:14px"><div class="qbox" style="flex:1;min-width:200px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="clq" type="search" placeholder="'+(S.sub==='projects'?'Search projects':'Search clients and projects')+'" value="'+esc(S.clQuery||'')+'" autocomplete="off" style="font-size:15px;padding:11px 0"></div>'+
+  (S.sub==='projects'?'<div class="seg"><button data-act="pview" data-v="rows" aria-pressed="'+(S.pview!=='cards')+'">Rows</button><button data-act="pview" data-v="cards" aria-pressed="'+(S.pview==='cards')+'">Cards</button></div>':'<button class="link" data-act="clall">'+(Object.values(S.clShut||{}).some(Boolean)?'Expand all':'Collapse all')+'</button>')+'</div>'+
+  (S.sub==='projects'?'<div class="fgrid" style="margin-bottom:14px">'+sel('client',activeClients().map(c=>[c.id,c.name]),'Client')+sel('status',[['active','Open'],['complete','Closed'],['invoiced','Invoiced']],'Status')+sel('pricing',[['fee','Quoted fee'],['days','Per day'],['retainer','In retainer']],'Priced as')+sel('genre',GENRES.map(g=>[g,g]),'Kind of job')+'</div>':'')+
+  '<div id="cllist">'+clientsListHtml()+'</div>'+
+  (arch.length&&S.sub!=='projects'?'<p class="note" style="margin-top:20px">Archived: '+arch.map(c=>'<button class="link" data-act="openclient" data-v="'+c.id+'">'+esc(c.name)+'</button>').join(', ')+'</p>':'');
 }
+/* ===== Team: everyone you book, what they are on, and where each booking stands ===== */
+/* one person on one job: pencilled → holding → booked, with the forms and an override */
+function crewLadder(ev,x){const st=x.status||'pencil';const f=x.forms||{};const off=st==='released'||st==='declined';const held=st==='confirmed'||!!(f.pencil&&f.pencil.reply&&f.pencil.reply.hold);
+  const steps=[['pencil','Pencilled',true,f.pencil&&f.pencil.sid?'sent '+fmtDate(f.pencil.at,{day:'numeric',month:'short'}):'not sent'],['hold','Holding',held,f.pencil&&f.pencil.reply&&f.pencil.reply.hold?(f.pencil.reply.manual?'by you':'replied'):''],['book','Booked',st==='confirmed',f.book&&f.book.signed?'signed '+fmtDate(f.book.signed.at,{day:'numeric',month:'short'}):st==='confirmed'?'by you':f.book&&f.book.sid?'form sent':'']];
+  return '<div class="ladder'+(off?' off':'')+'" role="group" aria-label="Booking stage">'+steps.map(([k,l,on,sub])=>'<button class="lstep'+(on&&!off?' on':'')+'" data-act="ladder" data-e="'+ev.id+'" data-c="'+x.id+'" data-v="'+k+'" title="Set to '+l.toLowerCase()+'"><i></i><span><b>'+l+'</b>'+(sub?'<small>'+esc(sub)+'</small>':'')+'</span></button>').join('')+(off?'<span class="loff">'+CREW_ST[st]+'</span>':'')+'</div>'}
+function crewJobRow(ev,x,showJob){const cr=S.crew[x.id]||{};const st=x.status||'pencil';const f=x.forms||{};const days=crewDays(ev,x.id);const tot=days.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===x.id)||{}).rate||0),0);const clientOk=evStatus(ev)!=='pencil';
+  const b=(k,l,v,ghost,extra)=>'<button class="btn small'+(ghost?' ghost':'')+'" data-act="'+k+'" data-e="'+ev.id+'" data-c="'+x.id+'"'+(v?' data-v="'+v+'"':'')+(extra||'')+'>'+l+'</button>';
+  const acts=st==='released'||st==='declined'?b('crewform','Pencil again','pencil',1):st==='confirmed'?(f.book&&f.book.signed?'<a class="btn small ghost" target="_blank" rel="noopener" href="'+crewFormUrl(f.book)+'">View signed form</a>':b('crewform',f.book&&f.book.sid?'Resend booking form':'Send booking form','book',1)):
+    b('crewform',f.pencil&&f.pencil.sid?'Resend pencil':'Send pencil','pencil',1)+(clientOk?b('crewform',f.book&&f.book.sid?'Resend booking form':'Book · send form','book',0):'<button class="btn small" disabled title="The client has not confirmed this job yet">Book · send form</button>')+b('crewrelease','Release','',1);
+  const head=showJob?'<div class="t"><button class="link" style="color:var(--fg);text-decoration:none;font-weight:400;text-align:left" data-act="openev" data-v="'+ev.id+'">'+esc(ev.title||evTypeName(ev))+'</button> <span class="muted">· '+esc(cname(ev.clientId))+'</span>'+(evStatus(ev)==='pencil'?' <span class="pill st-pencil">client pencil</span>':'')+'</div><div class="meta">'+days.map(e=>fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})).join(', ')+' · '+gbp(tot)+(days.length>1?' ('+gbp(x.rate)+'/day)':'')+(ev.projectId&&S.projects[ev.projectId]?' · '+esc(S.projects[ev.projectId].title):'')+'</div>'
+    :'<div class="t">'+esc(cr.name||'Crew')+' <span class="muted">· '+esc(cr.role||'')+(cr.role?' · ':'')+gbp(x.rate)+(days.length>1?'/day, '+gbp(tot)+' total':'')+'</span></div><div class="meta">'+crewState(x)+'</div>';
+  return '<div class="cjob'+(st==='released'||st==='declined'?' off':'')+'">'+head+crewLadder(ev,x)+'<div class="row" style="gap:8px;margin-top:4px">'+acts+'</div>'+(!clientOk&&st!=='released'&&st!=='declined'?'<p class="note" style="margin:6px 0 0">The client has not confirmed yet, so this is a pencil. Booking unlocks when the client confirms (or tap Booked twice to override).</p>':'')+'</div>'}
+async function ladderSet(evid,cid,step){const ev=S.events[evid];if(!ev)return;
+  if(step==='book'&&evStatus(ev)==='pencil'&&S.ladderOk!==evid+cid){S.ladderOk=evid+cid;toast('The client hasn’t confirmed this job yet. Tap Booked again to book anyway.');return}S.ladderOk=null;
+  await setCrew(ev,cid,y=>{const f={...(y.forms||{})};if(step==='pencil'){f.pencil={...(f.pencil||{}),reply:null,releasedAt:null};return {...y,status:'pencil',forms:f}}
+    if(step==='hold'){f.pencil={...(f.pencil||{}),reply:{hold:true,note:'',at:Date.now(),manual:true},releasedAt:null};return {...y,status:'pencil',forms:f}}return {...y,status:'confirmed',forms:f}});
+  toast(crewName(cid)+': '+({pencil:'pencilled',hold:'holding',book:'booked'}[step]));if(S.modal)renderModal()}
+function crewJobs(cid){const seen={};return Object.values(S.events).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(x=>x.id===cid)).sort((a,b)=>a.start-b.start).filter(e=>{const k=e.groupId||e.id;if(seen[k])return false;seen[k]=1;return true})}
+function teamListHtml(){const q=(S.tmQuery||'').trim().toLowerCase();const now=startOfDay(Date.now());const cs=activeCrew().filter(c=>!q||(c.name+' '+(c.role||'')+' '+(c.phone||'')+' '+(c.email||'')).toLowerCase().includes(q));
+  if(!cs.length)return '<div class="panel empty">'+(q?'Nobody matches “'+esc(S.tmQuery)+'”.':'<b>No team yet.</b> Add the freelancers you work with and their rates.')+'</div>';
+  return cs.map(c=>{const jobs=crewJobs(c.id);const x0=e=>(e.crew||[]).find(y=>y.id===c.id);const up=jobs.filter(e=>groupOf(e).slice(-1)[0].end>=now),past=jobs.filter(e=>groupOf(e).slice(-1)[0].end<now&&!['released','declined'].includes(x0(e).status)).reverse();
+    const live=up.filter(e=>!['released','declined'].includes(x0(e).status));const waiting=live.filter(e=>{const f=x0(e).forms||{};return (f.pencil&&f.pencil.sid&&!f.pencil.reply&&x0(e).status==='pencil')||(f.book&&f.book.sid&&!f.book.signed&&!f.book.declined)}).length;
+    const projs={};jobs.forEach(e=>{if(e.projectId&&S.projects[e.projectId])projs[e.projectId]=1});const open=S.teamOpen===c.id;const dg=(c.phone||'').replace(/[^0-9+]/g,'');
+    return '<section class="tm'+(open?' open':'')+'" id="tm-'+c.id+'"><button class="tm-head" data-act="teamopen" data-v="'+c.id+'" aria-expanded="'+open+'"><span class="av">'+esc((c.name||'?').slice(0,1))+'</span><span class="tm-n"><b>'+esc(c.name)+'</b><span>'+esc(c.role||'')+(ratesOf(c).length?' · '+ratesOf(c).map(r=>gbp(r.amount)+' '+r.label.toLowerCase()).join(', '):'')+'</span></span><span class="tm-s">'+(live.length?'<b>'+live.length+'</b> upcoming':'')+(waiting?' · <span style="color:var(--warn)">'+waiting+' waiting</span>':'')+(live.length&&!waiting?'':'')+'</span><svg viewBox="0 0 16 16"><path d="M5 6l3 3 3-3"/></svg></button>'+
+      (open?'<div class="tm-body"><div class="row" style="gap:8px;margin-bottom:12px">'+(dg?'<a class="btn ghost small" href="tel:'+esc(dg)+'">Call</a><a class="btn ghost small" target="_blank" rel="noopener" href="'+waLink(c.phone,'')+'">WhatsApp</a>':'')+(c.email?'<a class="btn ghost small" href="mailto:'+esc(c.email)+'">Email</a>':'')+'<button class="btn small" data-act="teamadd" data-c="'+c.id+'">Add to a job</button><button class="btn ghost small" data-act="editcrew" data-v="'+c.id+'">Edit</button></div>'+
+        '<div class="eyebrow" style="margin:6px 0 8px">On jobs</div>'+(up.length?up.map(e=>crewJobRow(e,x0(e),true)).join(''):'<p class="note">Nothing coming up. Use Add to a job to pencil them.</p>')+
+        (Object.keys(projs).length?'<div class="eyebrow" style="margin:16px 0 8px">Projects</div><div class="row" style="gap:8px">'+Object.keys(projs).map(pid=>'<button class="fchip" data-act="editproject" data-v="'+pid+'"><span class="dot" style="background:'+colour(S.projects[pid].clientId)+';display:inline-block;width:8px;height:8px;margin-right:6px;vertical-align:middle"></span>'+esc(S.projects[pid].title)+'</button>').join('')+'</div>':'')+
+        '<div class="eyebrow" style="margin:16px 0 8px">History</div>'+(past.length?'<div class="tbl"><table><tbody>'+past.slice(0,30).map(e=>{const d=crewDays(e,c.id);const t=d.reduce((s,y)=>s+(+((y.crew||[]).find(z=>z.id===c.id)||{}).rate||0),0);return '<tr><td>'+fmtDate(d[0].start,{day:'numeric',month:'short',year:'numeric'})+'</td><td><button class="link" style="color:var(--fg);text-decoration:none" data-act="openev" data-v="'+e.id+'">'+esc(e.title)+'</button><div class="note">'+esc(cname(e.clientId))+(d.length>1?' · '+d.length+' days':'')+'</div></td><td class="r">'+gbp(t)+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="note">No past jobs yet.</p>')+(c.notes?'<p class="note" style="margin-top:10px">'+esc(c.notes)+'</p>':'')+'</div>':'')+'</section>'}).join('')}
+function vTeam(){const now=startOfDay(Date.now());let pen=0,wait=0,booked=0;activeCrew().forEach(c=>crewJobs(c.id).filter(e=>groupOf(e).slice(-1)[0].end>=now).forEach(e=>{const x=(e.crew||[]).find(y=>y.id===c.id);const f=x.forms||{};if(x.status==='confirmed')booked++;else if(x.status==='pencil'){pen++;if((f.pencil&&f.pencil.sid&&!f.pencil.reply)||(f.book&&f.book.sid&&!f.book.signed))wait++}}));
+  return '<div class="panel-head"><h1>Team</h1><button class="btn small" data-act="newcrew">Add person</button></div>'+
+  '<div class="tstats"><div class="panel stat"><span class="eyebrow">Booked</span><span class="v">'+booked+'</span><span class="s">upcoming jobs with crew confirmed</span></div><div class="panel stat"><span class="eyebrow">Pencilled</span><span class="v">'+pen+'</span><span class="s">holding dates, not booked</span></div><div class="panel stat"><span class="eyebrow">Waiting on a reply</span><span class="v"'+(wait?' style="color:var(--warn)"':'')+'>'+wait+'</span><span class="s">pencil or booking form sent</span></div></div>'+
+  '<div class="qbox" style="margin-bottom:14px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="tmq" type="search" placeholder="Search team" value="'+esc(S.tmQuery||'')+'" autocomplete="off" style="font-size:15px;padding:11px 0"></div>'+
+  '<div id="tmlist">'+teamListHtml()+'</div><p class="note" style="margin-top:12px">Pencilled → Holding → Booked. Tap a step to set it yourself, or send the pencil and booking forms and it moves on its own when they reply. Crew can only be booked once the client has confirmed the job.</p>'}
+/* add someone to a job (or someone to this job) as a pencil */
+function openTeamAdd(cid,evid){const now=startOfDay(Date.now());const seen={};const jobs=Object.values(S.events).filter(e=>e.status!=='cancelled'&&e.clientId&&e.type!=='Unavailable'&&e.end>=now).sort((a,b)=>a.start-b.start).filter(e=>{const k=e.groupId||e.id;if(seen[k])return false;seen[k]=1;return true});
+  const c0=cid?S.crew[cid]:null;S.modal={type:'teamadd',cls:'sheet',html:()=>{const cr=S.crew[(document.getElementById('ta-c')||{}).value||cid]||c0;const rate=cr?(ratesOf(cr)[0]||{}).amount||'':'';
+    return '<h2>'+(cid?'Add '+esc(c0.name.split(' ')[0])+' to a job':'Add to this job')+'</h2>'+
+    (cid?'<label class="f">Job<select id="ta-e">'+jobs.filter(e=>!(e.crew||[]).some(x=>x.id===cid&&!['released','declined'].includes(x.status))).map(e=>{const g=groupOf(e);return '<option value="'+e.id+'" '+(e.id===evid?'selected':'')+'>'+fmtDate(g[0].start,{day:'numeric',month:'short'})+(g.length>1?'–'+fmtDate(g[g.length-1].start,{day:'numeric',month:'short'}):'')+' · '+esc(e.title)+' · '+esc(cname(e.clientId))+(evStatus(e)==='pencil'?' (client pencil)':'')+'</option>'}).join('')+'</select></label>'
+      :'<label class="f">Who<select id="ta-c" data-act="tarecalc">'+activeCrew().filter(c=>!(S.events[evid].crew||[]).some(x=>x.id===c.id&&!['released','declined'].includes(x.status))).map(c=>'<option value="'+c.id+'">'+esc(c.name)+(c.role?' · '+esc(c.role):'')+'</option>').join('')+'</select></label>')+
+    '<label class="f">Agreed fee per day (£)<input type="number" id="ta-r" min="0" value="'+rate+'"></label>'+
+    '<div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn ghost" data-act="taddsave" data-v="0">Add as pencil</button><button class="btn" data-act="taddsave" data-v="1">Add and send pencil</button></div>'}};S.modal.cid=cid;S.modal.evid=evid;renderModal()}
+async function teamAddSave(send){const m=S.modal;const evid=m.cid?(document.getElementById('ta-e')||{}).value:m.evid;const cid=m.cid||(document.getElementById('ta-c')||{}).value;const rate=+(document.getElementById('ta-r')||{}).value||0;if(!evid||!cid){toast('Pick a job and a person.');return}
+  const ev=S.events[evid];closeModal();for(const e of groupOf(ev)){if(e.status==='cancelled')continue;const cur=e.crew||[];const has=cur.find(x=>x.id===cid);await patch('events',e.id,{crew:has?cur.map(x=>x.id===cid?{...x,rate:rate||x.rate,status:'pencil'}:x):cur.concat([{id:cid,rate,status:'pencil'}])})}
+  toast(crewName(cid)+' pencilled on '+ev.title);if(send)await crewFormAction(evid,cid,'pencil')}
 function vCrew(){
   const cs=activeCrew();const now=Date.now();const y0=new Date(new Date().getFullYear(),0,1).getTime();
   const rows=cs.map(c=>{const h=payHistory(c.id);const past=h.filter(x=>!x.future&&x.date>=y0),future=h.filter(x=>x.future);const pr=payRange(c.id);const open=S.crewOpen===c.id;
@@ -1490,7 +1630,7 @@ function openProjectModal(id,presetClient){
   S.modal={type:'project',p:pr,html:()=>{const p=S.modal.p;const rem=id?planRemaining(p):[];return '<h2>'+(id?'Edit project':'New project')+'</h2>'+
     (()=>{const c=client(p.clientId);const isRet=!!(c&&rateCard(c).billing==='retainer');const pr=p.pricing||'fee';return '<div class="row"><label class="f">Client<select id="j-client" data-act="jclient">'+clientOptions(p.clientId)+'</select></label><label class="f">Priced as<select id="j-pricing" data-act="jpricing"><option value="fee" '+(pr==='fee'?'selected':'')+'>Quoted fee</option><option value="days" '+(pr==='days'?'selected':'')+'>Per day, rolling</option>'+(isRet?'<option value="retainer" '+(pr==='retainer'?'selected':'')+'>Within the retainer</option>':'')+'</select></label></div>'+
     '<label class="f">Title<input type="text" id="j-title" value="'+esc(p.title)+'" placeholder="Autumn brand film, Website, Conference highlights"></label>'+
-    (pr==='fee'?'<label class="f">Project fee, ex VAT (£)<input type="number" id="j-fee" min="0" value="'+(p.fee||'')+'"></label>':pr==='days'?'<div class="row"><label class="f">Filming day (£)<input type="number" id="j-rs" min="0" value="'+(p.rates.Shoot||'')+'"></label><label class="f">Edit day (£)<input type="number" id="j-re" min="0" value="'+(p.rates.Edit||'')+'"></label></div><p class="note" style="margin:-6px 0 0">Pre-filled from '+esc(c?c.name:'the client')+'’s rates; change them for this project only. Every day booked in adds to the price, half days count half. It stays open until you close it, then the total goes to invoicing.'+(id?' <b>'+gbp(projectValue(p))+' so far</b>'+(p.plan.some(x=>x.days)?', '+gbp(projectEstimate(p))+' if the plan below is done':'')+'.':'')+'</p>':'<p class="note" style="margin:-6px 0 0">No fee. Days and hours in this project count towards '+esc(c?c.name:'the client')+'’s promised retainer days.</p>')+
+    (pr==='fee'?'<label class="f">Project fee, ex VAT (£)<input type="number" id="j-fee" min="0" value="'+(p.fee||'')+'"></label>':pr==='days'?'<div class="row"><label class="f">Filming day (£)<input type="number" id="j-rs" min="0" value="'+(p.rates.Shoot||'')+'"></label><label class="f">Edit day (£)<input type="number" id="j-re" min="0" value="'+(p.rates.Edit||'')+'"></label><label class="f">Design day (£)<input type="number" id="j-rd" min="0" value="'+(p.rates.Design||'')+'" placeholder="as edit"></label></div><p class="note" style="margin:-6px 0 0">Pre-filled from '+esc(c?c.name:'the client')+'’s rates; change them for this project only. Every day booked in adds to the price, half days count half. It stays open until you close it, then the total goes to invoicing.'+(id?' <b>'+gbp(projectValue(p))+' so far</b>'+(p.plan.some(x=>x.days)?', '+gbp(projectEstimate(p))+' if the plan below is done':'')+'.':'')+'</p>':'<p class="note" style="margin:-6px 0 0">No fee. Days and hours in this project count towards '+esc(c?c.name:'the client')+'’s promised retainer days.</p>')+
     '<div><div class="eyebrow" style="margin-bottom:8px">'+(pr==='fee'?'What the fee covers':pr==='days'?'Expected days (a guide, not a limit)':'Days this covers')+'</div>'})()+'<div class="grid" style="gap:8px">'+p.plan.map((x,i)=>'<div class="row" style="flex-wrap:nowrap;align-items:center"><select data-pt="'+i+'" style="flex:2">'+PLAN_TYPES.map(t=>'<option '+(x.type===t?'selected':'')+'>'+(t==='Shoot'?'Filming':t)+'</option>').join('')+'</select><input type="number" data-pd="'+i+'" min="0" step="0.5" value="'+x.days+'" style="flex:1" aria-label="Days"><span class="note" style="flex:0 0 auto">days'+(id&&rem[i]?' · '+rem[i].allocated+' allocated':'')+'</span><button type="button" class="link" data-act="planrm" data-v="'+i+'" style="flex:0 0 auto">✕</button></div>').join('')+'</div><div style="margin-top:8px"><button type="button" class="link" data-act="planadd">Add a line</button></div><p class="note" style="margin-top:8px">'+((p.pricing||'fee')==='fee'?'Internal plan. The client sees one fee; you see how many days it buys and which are still to allocate.':(p.pricing==='days'?'Days get added as you book them; this is only what you expect it to take.':'These days come out of the client’s promised retainer days.'))+'</p></div>'+
     '<div class="row"><label class="f">Status<select id="j-status"><option value="active" '+(pstatus(p)==='active'?'selected':'')+'>Open</option><option value="complete" '+(pstatus(p)==='complete'?'selected':'')+'>'+((p.pricing||'fee')==='retainer'?'Closed':'Closed, ready to invoice')+'</option><option value="cancelled" '+(pstatus(p)==='cancelled'?'selected':'')+'>Cancelled</option></select></label><label class="f">Deadline (optional)<input type="date" id="j-due" value="'+(p.due?dayKey(p.due):'')+'"></label></div>'+
     (p.invoiceId?'<p class="note" style="color:var(--warn)">On invoice '+esc((S.invoices[p.invoiceId]||{}).number||'')+'.</p>':'')+
@@ -1501,7 +1641,7 @@ function openProjectModal(id,presetClient){
   renderModal();
 }
 function readProjectModal(){const p=S.modal.p;const g=id=>{const el=document.getElementById(id);return el?el.value:undefined};
-  if(g('j-title')!==undefined){p.clientId=g('j-client');p.title=g('j-title').trim();if(g('j-fee')!==undefined)p.fee=+g('j-fee')||0;p.pricing=g('j-pricing')||'fee';if(g('j-rs')!==undefined)p.rates={...(p.rates||{}),Shoot:+g('j-rs')||0,Edit:+g('j-re')||0};p.status=g('j-status');p.notes=g('j-notes').trim();p.due=g('j-due')?parseLocal(g('j-due'),'00:00'):null}
+  if(g('j-title')!==undefined){p.clientId=g('j-client');p.title=g('j-title').trim();if(g('j-fee')!==undefined)p.fee=+g('j-fee')||0;p.pricing=g('j-pricing')||'fee';if(g('j-rs')!==undefined)p.rates={...(p.rates||{}),Shoot:+g('j-rs')||0,Edit:+g('j-re')||0,Design:+g('j-rd')||0};p.status=g('j-status');p.notes=g('j-notes').trim();p.due=g('j-due')?parseLocal(g('j-due'),'00:00'):null}
   p.plan=p.plan.map((x,i)=>{const t=document.querySelector('[data-pt="'+i+'"]'),d=document.querySelector('[data-pd="'+i+'"]');return {type:t?(t.value==='Filming'?'Shoot':t.value):x.type,days:d?(+d.value||0):x.days}});
 }
 function projectCard(p){
@@ -1570,6 +1710,7 @@ function openEventModal(evid,date,startAt,presetClient){
   const crewSel={};(ev?ev.crew||[]:[]).forEach(x=>crewSel[x.id]=x);
   S.modal={type:'event',evid:evid||null,days:(ev||date)?[day0]:[],calMonth:day0,crewSel,html:()=>'<h2>'+(ev?'Edit booking':'New booking')+'</h2>'+
     '<div class="row"><label class="f">Client<select id="v-client">'+clientOptions(ev?ev.clientId:(presetClient||''),true)+'</select></label><label class="f">Type<select id="v-type">'+EVTYPES.map(x=>'<option '+(ev&&ev.type===x?'selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'+
+    '<label class="f" id="v-genrewrap">Kind of job<select id="v-genre"><option value="">Not set</option>'+GENRES.map(g=>'<option '+(((ev&&ev.genre)||(!ev&&S.presetProject&&projectGenre(S.presetProject)))===g?'selected':'')+'>'+g+'</option>').join('')+'</select></label>'+
     '<div id="v-projwrap"><label class="f">Project<select id="v-project">'+projectOptions(ev?ev.clientId:(presetClient||''),ev?ev.projectId:(S.presetProject||''))+'</select></label><p class="note" id="v-projnote" style="margin:-8px 0 0"></p>'+
     '<div id="v-newproj" hidden style="display:grid;gap:12px;padding:12px 14px;border-radius:var(--r);background:var(--raise)"><div class="row"><label class="f">New project title<input type="text" id="v-npt" placeholder="Website, Autumn brand film…"></label><label class="f">Priced as<select id="v-npp" data-np="1"><option value="fee">Quoted fee</option><option value="days">Per day, rolling</option></select></label></div><div class="row" id="v-npfw"><label class="f">Project fee, ex VAT (£)<input type="number" id="v-npf" min="0"></label></div><div class="row" id="v-nprw" hidden><label class="f">Filming day (£)<input type="number" id="v-nps" min="0"></label><label class="f">Edit day (£)<input type="number" id="v-npe" min="0"></label></div></div></div><div id="v-retwrap" hidden></div>'+
     '<label class="f">Title <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(optional)</span><input type="text" id="v-title" value="'+esc(ev?ev.title:'')+'" placeholder="Leave blank to use the client or project name"></label>'+
@@ -1603,7 +1744,7 @@ function availNote(){const n=document.getElementById('v-availnote');if(!n)return
   n.innerHTML=msgs.length?'<div class="banner warn" style="margin:0">Already booked. '+esc(msgs.join('. '))+'. You can still save it.</div>':'';
   const strip=document.getElementById('v-strip');if(strip)strip.innerHTML=miniCal();
 }
-function feeNote(){const n=document.getElementById('v-feenote');if(!n)return;const g=id=>(document.getElementById(id)||{}).value;const fxw=document.getElementById('v-flexwrap');if(fxw)fxw.style.display=g('v-type')==='Edit'?'':'none';const day=S.modal.days[0]||startOfDay(Date.now());let st=parseLocal(dayKey(day),g('v-start')||'09:00'),en=parseLocal(dayKey(day),g('v-end')||'17:00');if(en<=st)en=st+3600e3;const sug=suggestFee({clientId:g('v-client'),type:g('v-type'),start:st,end:en});const f=g('v-fee');
+function feeNote(){const n=document.getElementById('v-feenote');if(!n)return;const g=id=>(document.getElementById(id)||{}).value;const fxw=document.getElementById('v-flexwrap');if(fxw)fxw.style.display=isEditLike(g('v-type'))?'':'none';const gw=document.getElementById('v-genrewrap');if(gw)gw.style.display=['Unavailable','Deadline'].includes(g('v-type'))?'none':'';const day=S.modal.days[0]||startOfDay(Date.now());let st=parseLocal(dayKey(day),g('v-start')||'09:00'),en=parseLocal(dayKey(day),g('v-end')||'17:00');if(en<=st)en=st+3600e3;const sug=suggestFee({clientId:g('v-client'),type:g('v-type'),start:st,end:en});const f=g('v-fee');
   const pn=document.getElementById('v-projnote');const psel=document.getElementById('v-project');
   const rc=client(g('v-client'));const isRet=!!(rc&&rateCard(rc).billing==='retainer');const rw=document.getElementById('v-retwrap'),pw=document.getElementById('v-projwrap'),fw=document.getElementById('v-feewrap');
   if(psel&&psel.dataset.client!==g('v-client')){const cur=psel.value;const keep=S.projects[cur]&&S.projects[cur].clientId===g('v-client')?cur:(cur==='__new'?'__new':'');psel.innerHTML=projectOptions(g('v-client'),keep);psel.dataset.client=g('v-client')}
@@ -1630,7 +1771,7 @@ async function saveEventForm(evid){
     const same=Object.values(S.projects).find(x=>x.clientId===clientId&&pstatus(x)==='active'&&x.title.trim().toLowerCase()===t.toLowerCase());if(same){toast(cname(clientId)+' already has '+same.title+'. Pick it from the list instead.');document.getElementById('v-project').value=same.id;feeNote();return}const pricing=gv('v-npp')||'fee';
     projectId=await put('projects',null,{clientId,title:t,pricing,fee:pricing==='fee'?Math.max(0,+gv('v-npf')||0):0,rates:pricing==='days'?{Shoot:+gv('v-nps')||0,Edit:+gv('v-npe')||0}:undefined,plan:[],status:'active',created:Date.now()})}
   const pj=projectId&&S.projects[projectId];
-  const base={title:(g('v-title').trim())||(pj?pj.title:title),clientId,projectId,type,people,crew,portion:(document.getElementById('v-portion')||{}).value==='0.5'?0.5:1,callTime:g('v-call'),location:g('v-loc').trim(),notes:g('v-notes').trim(),status:g('v-status'),flex:!!(document.getElementById('v-flex')||{}).checked};
+  const base={title:(g('v-title').trim())||(pj?pj.title:title),clientId,projectId,type,genre:(document.getElementById('v-genre')||{}).value||'',people,crew,portion:(document.getElementById('v-portion')||{}).value==='0.5'?0.5:1,callTime:g('v-call'),location:g('v-loc').trim(),notes:g('v-notes').trim(),status:g('v-status'),flex:!!(document.getElementById('v-flex')||{}).checked};
   const mk=(day)=>{let s=parseLocal(dayKey(day),g('v-start')),e=parseLocal(dayKey(day),g('v-end'));if(e<=s)e=s+3600e3;const d={...base,start:s,end:e};d.fee=projectId?(feeRaw===''?0:Math.max(0,+feeRaw||0)):(feeRaw===''?suggestFee(d):Math.max(0,+feeRaw||0));if(d.type==='Unavailable'){d.fee=0;d.clientId=''}return d};
   const docs=days.map(mk);closeModal();
   if(evid){const old=S.events[evid];const d=docs[0];if(old&&old.invoiceId)d.invoiceId=old.invoiceId;if(old&&old.groupId)d.groupId=old.groupId;if(old&&old.sheetKey)d.sheetKey=old.sheetKey;if(old&&old.pencilSent)d.pencilSent=old.pencilSent;await patch('events',evid,d);S.cal.cursor=d.start;S.cal.sel=startOfDay(d.start);toast('Booking saved');return}
@@ -1680,7 +1821,7 @@ function openCrewShare(evid,cid,kind,url){const ev=S.events[evid];const cr=S.cre
   S.modal={type:'crewshare',evid,cls:'sheet',html:()=>'<h2>'+t+'</h2><p class="note" style="margin:-4px 0 12px">'+esc(cr.name||'')+(cr.phone?' · '+esc(cr.phone):'')+(cr.email?' · '+esc(cr.email):'')+'</p><textarea id="cs-msg" rows="5" style="width:100%">'+esc(msg)+'</textarea>'+
     '<div class="row" style="gap:8px;margin-top:12px">'+(cr.phone?'<a class="btn" data-act="crewsend" data-k="wa" href="'+waLink(cr.phone,msg)+'" target="_blank" rel="noopener">WhatsApp</a><a class="btn ghost" data-act="crewsend" data-k="sms" href="'+smsLink(cr.phone,msg)+'">Text</a>':'')+(cr.email?'<a class="btn'+(cr.phone?' ghost':'')+'" data-act="crewsend" data-k="mail" href="'+mailLink(cr.email,{crewpencil:'Pencil: ',crewbook:'Booking: ',release:'Released: '}[kind]+ev.title,msg)+'">Email</a>':'')+(url?'<button class="btn ghost" data-act="crewcopy" data-v="'+esc(url)+'">Copy link</button><a class="btn ghost" href="'+esc(url)+'" target="_blank" rel="noopener">Preview</a>':'')+'</div>'+
     (!cr.phone&&!cr.email?'<p class="note" style="color:var(--warn)">No phone or email for '+esc(cr.name||'them')+'. Copy the link, or add their details under Crew.</p>':'')+
-    '<div class="acts"><button class="btn ghost" data-act="sendsheet" data-v="'+evid+'">Back</button><button class="btn" data-act="closemodal">Done</button></div>'};renderModal()}
+    '<div class="acts"><button class="btn ghost" data-act="sendsheet" data-v="'+evid+'" data-k="team">Back</button><button class="btn" data-act="closemodal">Done</button></div>'};renderModal()}
 async function crewFormAction(evid,cid,slot){const ev=S.events[evid];if(!ev)return;const kind=slot==='book'?'crewbook':'crewpencil';
   if(!sb||!ORG){toast('Not connected. Try again when online.');return}
   try{if(slot==='pencil'){const x=(ev.crew||[]).find(y=>y.id===cid);if(x&&(x.status==='released'||x.status==='declined')){await setCrew(ev,cid,y=>({...y,status:'pencil',forms:{...(y.forms||{}),pencil:{...((y.forms||{}).pencil||{}),reply:null,releasedAt:null}}}))}}
@@ -1702,24 +1843,27 @@ async function applyCrewResponse(r){const slot=r.kind==='crewbook'?'book':'penci
     else{await setCrew(ev,x.id,y=>({...y,status:'declined',forms:{...(y.forms||{}),book:{...f,rid:r.id,declined:{note:String(d.note||'').slice(0,500),at}}}}));toast(who+' turned down '+ev.title)}}}
 function smsLink(phone,body){return 'sms:'+(phone||'').replace(/\s+/g,'')+(/(iPhone|iPad|Mac)/.test(navigator.userAgent)?'&':'?')+'body='+encodeURIComponent(body)}
 function mailLink(to,subject,body){return 'mailto:'+encodeURIComponent(to||'')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body)}
-function openSendModal(evid){
-  const ev=S.events[evid];if(!ev)return;const grp=groupOf(ev);const c=client(ev.clientId);
-  S.modal={type:'send',evid,html:()=>{const ev=S.events[evid];if(!ev)return '';const s=S.settings;const dates=grp.map(e=>fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})).join(', ');const st=evStatus(ev);
+function openSendModal(evid,mode){
+  const ev=S.events[evid];if(!ev)return;const grp=groupOf(ev);const c=client(ev.clientId);mode=mode==='team'?'team':'client';
+  S.modal={type:'send',evid,mode,html:()=>{const ev=S.events[evid];if(!ev)return '';const s=S.settings;const dates=grp.map(e=>fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})).join(', ');const st=evStatus(ev);
     const crewUrl=S.sheetUrls&&S.sheetUrls[evid+'c'];const clientUrl=S.sheetUrls&&S.sheetUrls[evid+'k'];
     const crewMsg=(x)=>'Hi '+crewName(x.id).split(' ')[0]+', '+(x.status==='confirmed'?'confirming':'pencilling')+' you for '+esc(ev.title)+' on '+dates+(ev.callTime?', call time '+ev.callTime:'')+'. Call sheet: '+(crewUrl||'[publish first]')+' – '+(s.senderName||'Samuel');
     const pencilAge=ev.pencilSent?Math.floor((Date.now()-ev.pencilSent)/DAYMS):null;
     const clientBody=(reminder)=>(reminder?'Hi, a quick nudge on the dates we are holding for you: ':'Hi, we have pencilled the following dates for you: ')+dates+'. '+(ev.type==='Shoot'?'Filming':ev.type)+(ev.location?' at '+ev.location:'')+'. Everything is on your booking page, including how to confirm: '+(clientUrl||'[publish first]')+'\n\nBest,\n'+(s.senderName||'Samuel')+'\nQuiet Media';
-    return '<h2>Send</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+
-    (ev.type==='Shoot'||(ev.crew||[]).length?'<section class="panel" style="padding:16px"><div class="panel-head"><h3 class="small">Crew</h3><button class="btn ghost small" data-act="callsheet" data-v="'+evid+'">Call sheet</button></div>'+
-    ((ev.crew||[]).length?'<div class="list">'+(ev.crew||[]).map(x=>{const cr=S.crew[x.id]||{};const st=x.status||'pencil';const f=x.forms||{};const days=groupOf(ev).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(y=>y.id===x.id));const tot=days.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===x.id)||{}).rate||0),0);
+    const tabs='<div class="seg" style="margin:4px 0 14px"><button data-act="sendsheet" data-v="'+evid+'" data-k="client" aria-pressed="'+(mode==='client')+'">Client booking</button><button data-act="sendsheet" data-v="'+evid+'" data-k="team" aria-pressed="'+(mode==='team')+'">Team booking</button></div>';
+    const teamPart='<section class="panel" style="padding:16px"><div class="panel-head"><h3 class="small">Team on this job</h3><div class="row" style="gap:8px;flex:0 1 auto"><button class="btn ghost small" data-act="teamadd" data-e="'+evid+'">Add someone</button>'+((ev.crew||[]).some(x=>x.status==='confirmed')?'<button class="btn ghost small" data-act="callsheet" data-v="'+evid+'">Call sheet</button>':'')+'</div></div>'+
+      (st==='pencil'?'<div class="banner warn" style="margin:0 0 12px">The client hasn’t confirmed this job, so crew can only be pencilled. <button class="link" data-act="sendsheet" data-v="'+evid+'" data-k="client">Client booking</button></div>':'')+
+      ((ev.crew||[]).length?(ev.crew||[]).map(x=>crewJobRow(ev,x,false)).join(''):'<p class="note">Nobody on this job yet.</p>')+'<p class="note" style="margin-top:10px">Send pencil asks them to hold the dates. Book sends the booking form with fee, dates and your terms to sign. Tap a step to set it yourself. Only booked crew go on the call sheet.</p></section>';
+    if(mode==='team')return '<h2>Team booking</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+tabs+teamPart+'<div class="acts"><button class="btn" data-act="closemodal">Done</button></div>';
+    return '<h2>Client booking</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+tabs+(false?''+(false?'<div class="list">'+(ev.crew||[]).map(x=>{const cr=S.crew[x.id]||{};const st=x.status||'pencil';const f=x.forms||{};const days=groupOf(ev).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(y=>y.id===x.id));const tot=days.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===x.id)||{}).rate||0),0);
       const btn=(k,l,g)=>'<button class="btn small'+(g?' ghost':'')+'" data-act="'+k+'" data-e="'+evid+'" data-c="'+x.id+'">'+l+'</button>';
       const acts=st==='released'||st==='declined'?btn('crewform','Pencil again',1).replace('data-act="crewform"','data-act="crewform" data-v="pencil"'):st==='confirmed'?(f.book&&f.book.signed?'<a class="btn small ghost" target="_blank" rel="noopener" href="'+crewFormUrl(f.book)+'">View signed form</a>':btn('crewform',f.book&&f.book.sid?'Resend booking form':'Send booking form',1).replace('data-act="crewform"','data-act="crewform" data-v="book"')):
         btn('crewform',f.pencil&&f.pencil.sid?'Resend pencil':'Ask to pencil',1).replace('data-act="crewform"','data-act="crewform" data-v="pencil"')+btn('crewform',f.book&&f.book.sid?'Resend booking form':'Book · send form',0).replace('data-act="crewform"','data-act="crewform" data-v="book"')+(f.pencil&&f.pencil.sid||st==='pencil'?btn('crewrelease','Release',1):'');
       return '<div class="item" style="align-items:flex-start;flex-wrap:wrap"><span class="sw" style="background:'+(st==='confirmed'?'var(--ok,var(--fg))':st==='pencil'?'var(--warn)':'var(--line-strong)')+'"></span><div class="main" style="min-width:min(100%,220px)"><div class="t">'+esc(cr.name||'Crew')+' <span class="muted">· '+esc(cr.role||'')+(cr.role?' · ':'')+gbp(x.rate)+(days.length>1?'/day, '+gbp(tot)+' total':'')+'</span></div><div class="meta">'+crewState(x)+'</div><div class="row" style="gap:8px;margin-top:8px">'+acts+'</div></div><div class="end"><select data-act="crewstatus" data-e="'+evid+'" data-c="'+x.id+'" aria-label="Status for '+esc(cr.name||'crew')+'">'+crewStOpts(x)+'</select></div></div>'}).join('')+'</div>':'<p class="note">No crew on this booking. Add them in Edit booking.</p>')+'<p class="note" style="margin-top:8px">Ask to pencil holds dates that might happen; they reply holding or not. Book sends the booking form with the fee, dates and your terms to sign, which books them. If you have already agreed it, just set them to Booked. Only booked crew go on the call sheet.</p></section>':'')+
-    (c?'<section class="panel" style="padding:16px"><div class="panel-head"><h3 class="small">Client booking page</h3><button class="btn ghost small" data-act="pubsheet" data-v="'+evid+'" data-k="client">'+(clientUrl?'Update page':'Publish page')+'</button></div>'+
+    (c?'<section class="panel" style="padding:16px"><div class="panel-head"><h3 class="small">Booking page for '+esc(c.name)+'</h3><button class="btn ghost small" data-act="pubsheet" data-v="'+evid+'" data-k="client">'+(clientUrl?'Update page':'Publish page')+'</button></div>'+
     (clientUrl?'<div class="linkbox"><span>'+esc(clientUrl)+'</span><button class="link" data-act="copy" data-v="'+esc(clientUrl)+'">Copy</button></div>':'<p class="note">The client sees the dates, fee, your terms, and Confirm / Ask to change buttons.</p>')+
     '<div class="row" style="margin-top:10px;align-items:center"><a class="btn small'+(clientUrl?'':' ghost')+'" href="'+mailLink(c.email||'',(st==='pencil'?'Pencilled: ':'Booking confirmed: ')+ev.title+' · '+dates,clientBody(false))+'">Email '+(st==='pencil'?'pencil':'confirmation')+'</a>'+(st==='pencil'&&pencilAge!=null?'<a class="btn ghost small" href="'+mailLink(c.email||'','Reminder: dates held for you · '+dates,clientBody(true))+'">Send reminder</a><span class="note">Pencilled '+pencilAge+' day'+(pencilAge===1?'':'s')+' ago'+(pencilAge>=(+s.pencilDays||7)?', <b style="color:var(--warn)">waiting too long</b>':'')+'</span>':'')+'</div>'+
-    '<div class="row" style="margin-top:12px;align-items:center"><div class="seg">'+['pencil','confirmed','cancelled'].map(k=>'<button data-act="evstatus" data-v="'+k+'" data-e="'+evid+'" aria-pressed="'+(st===k)+'">'+STATUS_LABEL[k]+'</button>').join('')+'</div><span class="note">'+(grp.length>1?'Applies to all '+grp.length+' days.':'')+'</span></div>'+
+    '<div class="row" style="margin-top:12px;align-items:center"><div class="seg">'+['pencil','confirmed','cancelled'].map(k=>'<button data-act="evstatus" data-v="'+k+'" data-e="'+evid+'" aria-pressed="'+(st===k)+'">'+STATUS_LABEL[k]+'</button>').join('')+'</div><span class="note">'+(grp.length>1?'Applies to all '+grp.length+' days. ':'')+(st==='pencil'?'Once the client confirms, you can book the team.':'Client confirmed. You can book the team.')+'</span></div>'+
     (!c.email?'<p class="note" style="color:var(--warn)">Add an accounts/contact email to the client to pre-address the message.</p>':'')+'</section>':'')+
     '<div class="acts"><button class="btn" data-act="closemodal">Done</button></div>'}};
   renderModal();
@@ -1807,7 +1951,7 @@ async function publishCallSheet(b){const m=S.modal;const ev=S.events[m.evid];rea
 function pencilsPanel(){
   const now=Date.now();const seen={};const list=Object.values(S.events).filter(e=>evStatus(e)==='pencil'&&e.start>=startOfDay(now)&&e.clientId).sort((a,b)=>a.start-b.start).filter(e=>{const k=e.groupId||e.id;if(seen[k])return false;seen[k]=1;return true});
   if(!list.length)return '';
-  return '<section class="panel"><div class="panel-head"><h3>Pencils waiting</h3><span class="note">'+list.length+' to confirm</span></div><div class="list">'+list.map(e=>{const age=e.pencilSent?Math.floor((now-e.pencilSent)/DAYMS):null;const late=age!=null&&age>=(+S.settings.pencilDays||7);return '<div class="item"><span class="sw" style="background:'+colour(e.clientId)+'"></span><div class="main"><div class="t">'+esc(cname(e.clientId))+' <span class="muted">· '+esc(e.title)+'</span></div><div class="meta">'+groupOf(e).map(x=>fmtDate(x.start,{day:'numeric',month:'short'})).join(', ')+' · '+(age==null?'not sent yet':'sent '+age+' day'+(age===1?'':'s')+' ago')+'</div></div><div class="end"><button class="btn ghost small'+(late?' danger':'')+'" data-act="sendsheet" data-v="'+e.id+'">'+(age==null?'Send pencil':late?'Chase':'Open')+'</button></div></div>'}).join('')+'</div></section>';
+  return '<section class="panel"><div class="panel-head"><h3>Pencils waiting</h3><span class="note">'+list.length+' to confirm</span></div><div class="list">'+list.map(e=>{const age=e.pencilSent?Math.floor((now-e.pencilSent)/DAYMS):null;const late=age!=null&&age>=(+S.settings.pencilDays||7);return '<div class="item"><span class="sw" style="background:'+colour(e.clientId)+'"></span><div class="main"><div class="t">'+esc(cname(e.clientId))+' <span class="muted">· '+esc(e.title)+'</span></div><div class="meta">'+groupOf(e).map(x=>fmtDate(x.start,{day:'numeric',month:'short'})).join(', ')+' · '+(age==null?'not sent yet':'sent '+age+' day'+(age===1?'':'s')+' ago')+'</div></div><div class="end"><button class="btn ghost small'+(late?' danger':'')+'" data-act="sendsheet" data-v="'+e.id+'" data-k="client">'+(age==null?'Send pencil':late?'Chase':'Open')+'</button></div></div>'}).join('')+'</div></section>';
 }
 
 function openInvoiceModal(iid){
@@ -1859,7 +2003,7 @@ document.addEventListener('click',async ev=>{
     case 'saveevent':await saveEventForm(v||null);break;
     case 'askdelevent':confirmBox('v-confirm','Remove this booking from the schedule?','delevent',v);break;
     case 'delevent':closeModal();await remove('events',v);break;
-    case 'logevent':{const e=S.events[v];if(!e.clientId){toast('Give the booking a client first.');break}const cat=e.type==='Shoot'?'Filming':e.type==='Edit'?'Editing':'Meeting';const ppl=(e.people&&e.people.length)?e.people:[S.person];
+    case 'logevent':{const e=S.events[v];if(!e.clientId){toast('Give the booking a client first.');break}const cat=evCat(e);const ppl=(e.people&&e.people.length)?e.people:[S.person];
       for(const p of ppl){await put('entries',null,{person:p,clientId:e.clientId,category:cat,task:e.title,start:e.start,end:e.end,billable:BILLABLE_DEFAULT[cat]!==false,created:Date.now(),fromEvent:v})}
       toast('Logged '+hrs((e.end-e.start)/3.6e6)+' for '+ppl.map(name).join(' & '));break}
     case 'ical':addToAppleCalendar(S.events[v]);break;
@@ -1872,7 +2016,7 @@ document.addEventListener('click',async ev=>{
       const att={};document.querySelectorAll('[data-attach]').forEach(cb=>att[cb.dataset.attach]=cb.checked);closeModal();const pid=await put('projects',v||null,stripId(p));
       for(const [eid,on] of Object.entries(att)){const e=S.events[eid];if(!e)continue;if(on&&e.projectId!==pid)await patch('events',eid,{projectId:pid,fee:0});else if(!on&&e.projectId===pid)await patch('events',eid,{projectId:''})}
       toast('Saved '+p.title);break}
-    case 'toproject':{const ev=S.events[v];if(!ev)return;const grp=groupOf(ev);const plan={};grp.forEach(e=>{const k=e.type==='Shoot'?'Shoot':e.type==='Edit'?'Edit':e.type==='Meeting'?'Meeting':'Other';plan[k]=(plan[k]||0)+portion(e)});const fee=grp.reduce((s,e)=>s+eventValue(e),0);
+    case 'toproject':{const ev=S.events[v];if(!ev)return;const grp=groupOf(ev);const plan={};grp.forEach(e=>{const k=planType(e.type);plan[k]=(plan[k]||0)+portion(e)});const fee=grp.reduce((s,e)=>s+eventValue(e),0);
       const pj={clientId:ev.clientId,title:ev.title,fee,pricing:'fee',plan:Object.entries(plan).map(([type,days])=>({type,days})),status:'active',created:Date.now()};closeModal();const pid=await put('projects',null,pj);
       for(const e of grp){await patch('events',e.id,{projectId:pid,fee:0})}
       toast('Project created from '+grp.length+' booking'+(grp.length===1?'':'s')+'. Fee '+gbp(fee)+' moved to the project.');openProjectModal(pid);break}
@@ -1893,7 +2037,11 @@ document.addEventListener('click',async ev=>{
     case 'mcnav':readCrewForm();S.modal.calMonth=addMonths(S.modal.calMonth,Number(v));availNote();break;
     case 'mcpick':{readCrewForm();const d=Number(v);const m=S.modal;if(m.evid){m.days=[d]}else{const i=m.days.indexOf(d);if(i>=0)m.days.splice(i,1);else m.days.push(d)}availNote();feeNote();break}
     case 'calwho':S.cal.who=S.cal.who===v?'all':v;render();break;
-    case 'sendsheet':openSendModal(v);break;
+    case 'sendsheet':openSendModal(v,b.dataset.k);break;
+    case 'ladder':await ladderSet(b.dataset.e,b.dataset.c,v);break;
+    case 'teamopen':S.teamOpen=S.teamOpen===v?null:v;render();break;
+    case 'teamadd':openTeamAdd(b.dataset.c||null,b.dataset.e||null);break;
+    case 'taddsave':await teamAddSave(v==='1');break;
     case 'callsheet':openCallSheet(v);break;
     case 'cstab':readSheetForm();S.modal.tab=v;renderModal();csPreview();break;
     case 'csrow':{readSheetForm();const d=S.modal.sheet.days[+b.dataset.d];if(v==='add')d.schedule.push({time:'',item:''});else d.schedule.splice(+b.dataset.j,1);renderModal();csPreview();break}
@@ -1918,7 +2066,7 @@ document.addEventListener('click',async ev=>{
     case 'portion':{document.getElementById('v-portion').value=v;document.querySelectorAll('#v-portionseg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));if(v==='0.5'){const st=document.getElementById('v-start'),en=document.getElementById('v-end');if(st&&en&&st.value&&en.value){const a=parseLocal('2000-01-01',st.value),bb=parseLocal('2000-01-01',en.value);if(bb-a>5*3.6e6)en.value=fmtTime(a+4*3.6e6)}}feeNote();break}
     case 'calspan':S.cal.span=Number(v);render();break;
     case 'gomonth':S.view='schedule';S.cal.mode='month';S.cal.cursor=Number(v);S.cal.sel=Number(v);S.calAnim='zi';try{localStorage.setItem('qm-calmode','month')}catch(e){}render();window.scrollTo(0,0);break;
-    case 'calmode':{const i=CAL_LEVELS.indexOf(v),j=CAL_LEVELS.indexOf(calMode());if(i===j)break;S.cal.mode=v;S.calAnim=i>j?'zi':'zo';try{localStorage.setItem('qm-calmode',v)}catch(e){}render();break}
+    case 'calmode':{if(S.cal.list){S.cal.list=false;S.cal.mode=v;render();break}const i=CAL_LEVELS.indexOf(v),j=CAL_LEVELS.indexOf(calMode());if(i===j)break;S.cal.mode=v;S.calAnim=i>j?'zi':'zo';try{localStorage.setItem('qm-calmode',v)}catch(e){}render();break}
     case 'gotoday':{S.view='schedule';S.cal.cursor=Number(v);S.cal.sel=Number(v);if(calMode()==='year'){S.cal.mode='month'}closeModal();render();window.scrollTo(0,0);break}
     case 'selday':{const x=Number(v);if(S.cal.sel===x&&startOfDay(S.cal.cursor)===x){S.cal.mode='day';S.calAnim='zi';try{localStorage.setItem('qm-calmode','day')}catch(e){}}S.cal.cursor=x;S.cal.sel=x;render();break}
     case 'quick':{S.draft.job=b.dataset.j;S.draft.category=b.dataset.k;startTimer();break}
@@ -1946,6 +2094,15 @@ document.addEventListener('click',async ev=>{
     case 'xero':{const invs=Object.values(S.invoices).filter(i=>i.clientId===v&&i.status==='draft');if(!invs.length){toast('No draft invoices for this client.');break}download('xero-'+(cname(v).replace(/[^a-z0-9]+/gi,'-'))+'.csv',xeroCSV(invs));break}
     case 'xeroall':{const invs=Object.values(S.invoices).filter(i=>i.status==='draft');download('xero-drafts-'+dayKey(Date.now())+'.csv',xeroCSV(invs));break}
     case 'period':S.period=v;render();break;
+    case 'cltog':S.clShut={...(S.clShut||{}),[v]:!(S.clShut||{})[v]};render();break;
+    case 'clall':{const any=Object.values(S.clShut||{}).some(Boolean);S.clShut={};if(!any)activeClients().forEach(c=>S.clShut[c.id]=true);render();break}
+    case 'pview':S.pview=v;render();break;
+    case 'calfopen':S.cal.fo=!S.cal.fo;render();break;
+    case 'calfclear':if(v==='*')S.cal.f={};else{calF()[v]='';if(v==='client')calF().project=''}render();break;
+    case 'callist':S.cal.list=!S.cal.list;render();window.scrollTo(0,0);break;
+    case 'openev':openEventSheet(v);break;
+    case 'search':openSearch();break;
+    case 'qgo':searchGo(+v);break;
     case 'resyncall':{toast('Re-downloading everything…');try{const r=await reconcile(true);await syncAll();toast('Done. '+(r?r.total+' records checked'+(r.fetched?', '+r.fetched+' updated':''):''));}catch(e){toast('Could not re-download: '+(e.message||'try again'))}render();break}
     case 'appreload':try{const r=await navigator.serviceWorker.getRegistration();if(r)await r.update()}catch(e){}location.reload();break;
     case 'insmonth':S.insMonth=Number(v);render();break;
@@ -1959,6 +2116,9 @@ document.addEventListener('change',ev=>{
   const t=ev.target;
   if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}
   if(t.dataset.act==='billing'){readClientForm();renderModal()}
+  if(t.dataset.act==='tarecalc'){const cr=S.crew[t.value];const r=document.getElementById('ta-r');if(cr&&r)r.value=(ratesOf(cr)[0]||{}).amount||''}
+  if(t.dataset.pf){S.pf={...(S.pf||{}),[t.dataset.pf]:t.value};render()}
+  if(t.dataset.calf){calF()[t.dataset.calf]=t.value;if(t.dataset.calf==='client'&&calF().project&&(S.projects[calF().project]||{}).clientId!==t.value)calF().project='';render()}
   if(t.dataset.act==='jpricing'||t.dataset.act==='jclient'){readProjectModal();const p=S.modal.p;if(t.dataset.act==='jclient'){const c=client(p.clientId);if(p.pricing==='retainer'&&!(c&&rateCard(c).billing==='retainer'))p.pricing='fee';p.rates=projectRates({...p,rates:{}})}renderModal()}
   if(t.dataset.set){const k=t.dataset.set;let val=t.type==='number'?(+t.value||0):t.value;
     if(k==='availPublish'||k==='availWeekends')val=val==='1';
@@ -1980,6 +2140,11 @@ document.addEventListener('submit',async ev=>{if(ev.target.id!=='lockForm')retur
 });
 document.addEventListener('change',ev=>{if(ev.target.id==='importFile'&&ev.target.files[0])importBackup(ev.target.files[0])});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.id==='d-task'){ev.preventDefault();startTimer()}});
+document.addEventListener('keydown',ev=>{if(S.locked)return;const typing=ev.target.matches&&ev.target.matches('input,select,textarea');
+  if((ev.metaKey||ev.ctrlKey)&&ev.key.toLowerCase()==='k'){ev.preventDefault();if(S.modal&&S.modal.type==='search')closeModal();else openSearch();return}
+  if(ev.key==='/'&&!typing&&!S.modal){ev.preventDefault();openSearch();return}
+  if(S.modal&&S.modal.type==='search'&&ev.target.id==='qin'){const n=(S.qres||[]).length;if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault();S.qsel=((S.qsel||0)+(ev.key==='ArrowDown'?1:-1)+n)%Math.max(1,n);document.getElementById('qres').innerHTML=searchHtml(ev.target.value);const el=document.querySelector('.qres [aria-selected=true]');if(el)el.scrollIntoView({block:'nearest'})}else if(ev.key==='Enter'){ev.preventDefault();searchGo(S.qsel||0)}}},true);
+document.addEventListener('input',ev=>{if(ev.target.id==='tmq'){S.tmQuery=ev.target.value;const l=document.getElementById('tmlist');if(l)l.innerHTML=teamListHtml();return}if(ev.target.id==='clq'){S.clQuery=ev.target.value;const l=document.getElementById('cllist');if(l)l.innerHTML=clientsListHtml();return}if(ev.target.id==='qin'){S.qsel=0;document.getElementById('qres').innerHTML=searchHtml(ev.target.value)}});
 document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='callsheet'&&ev.target.closest('#csb-form')){readSheetForm();csPreview()}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}if(S.modal&&S.modal.type==='event'){feeNote();availNote()}
   if(t.id==='cs-msg'){const msg=t.value;document.querySelectorAll('[data-act="crewsend"]').forEach(a=>{const h=a.getAttribute('href');if(a.dataset.k==='wa')a.href=h.replace(/text=.*$/,'text='+encodeURIComponent(msg));else a.href=h.replace(/body=.*$/,'body='+encodeURIComponent(msg))})}
