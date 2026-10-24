@@ -548,7 +548,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=34;
+const APP_VERSION=35;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -592,11 +592,30 @@ async function push(){
 }
 async function syncAll(){setTimeout(()=>{if(!pushing)pullCrewResponses().catch(()=>{})},1500);
   if(!sb||!ORG||pushing)return;pushing=true;S.sync.state='syncing';renderSyncDot();
-  try{await push();await pull();S.sync.state='ok';S.sync.last=Date.now();S.sync.err='';S.loaded.all=true}
+  try{await push();await pull();try{await reconcile()}catch(e){console.warn('reconcile',e)}S.sync.state='ok';S.sync.last=Date.now();S.sync.err='';S.loaded.all=true}
   catch(e){S.sync.state=navigator.onLine?'error':'offline';S.sync.err=(e&&e.message)||'Sync failed';console.warn('sync',e)}
   pushing=false;renderSyncDot();render();
 }
 function schedulePush(){clearTimeout(pushTimer);pushTimer=setTimeout(syncAll,600)}
+/* The guarantee both devices match: list every record the database holds (id + edit time only, a few KB), fetch anything
+   missing or different here, drop what was deleted, and re-send anything here the database never got. Runs after syncs (at most
+   once a minute) and on demand from Settings. */
+let lastCheck=0;
+async function reconcile(force){
+  if(!sb||!ORG)return null;if(!force&&Date.now()-lastCheck<60000)return null;lastCheck=Date.now();
+  const srv=[];for(let page=0;page<100;page++){const {data,error}=await sb.from('records').select('col,id,updated_at,deleted_at').eq('org_id',ORG).order('id',{ascending:true}).range(page*1000,page*1000+999);if(error)throw error;srv.push(...(data||[]));if(!data||data.length<1000)break}
+  const seen={};let fetched=0,removed=0,resent=0;const need={};
+  for(const r of srv){if(!COLS.includes(r.col))continue;(seen[r.col]=seen[r.col]||{})[r.id]=1;const dirty=DIRTY[r.col]&&DIRTY[r.col][r.id];
+    const local=r.col==='settings'?(S.settings._u?S.settings:null):S[r.col][r.id];
+    if(r.deleted_at){if(r.col!=='settings'&&local&&!(dirty&&(local._u||0)>r.updated_at)){delete S[r.col][r.id];(DEAD[r.col]=DEAD[r.col]||{})[r.id]=r.deleted_at;removed++}continue}
+    if(dirty&&local&&(local._u||0)>=r.updated_at)continue;
+    if(force||!local||(local._u||0)!==r.updated_at)(need[r.col]=need[r.col]||[]).push(r.id)}
+  for(const [col,ids] of Object.entries(need)){for(let i=0;i<ids.length;i+=150){const {data,error}=await sb.from('records').select('col,id,data,updated_at,deleted_at').eq('org_id',ORG).eq('col',col).in('id',ids.slice(i,i+150));if(error)throw error;(data||[]).forEach(r=>{const before=JSON.stringify(r.col==='settings'?S.settings:S[r.col][r.id]||null);if(r.col!=='settings'&&S[r.col][r.id]&&(S[r.col][r.id]._u||0)>r.updated_at&&!(DIRTY[r.col]&&DIRTY[r.col][r.id]))delete S[r.col][r.id];applyRow(r);if(JSON.stringify(r.col==='settings'?S.settings:S[r.col][r.id]||null)!==before)fetched++})}}
+  if(srv.length){const local=COLS.filter(c=>c!=='settings').reduce((t,c)=>t+Object.keys(S[c]).length,0);const orphans=[];COLS.forEach(c=>{if(c==='settings')return;Object.keys(S[c]).forEach(id=>{if(!(seen[c]&&seen[c][id])&&!(DIRTY[c]&&DIRTY[c][id]))orphans.push([c,id])})});
+    if(orphans.length&&orphans.length<=Math.max(20,local*0.3)){orphans.forEach(([c,id])=>{(DIRTY[c]=DIRTY[c]||{})[id]=true});resent=orphans.length}}
+  S.sync.check={at:Date.now(),fetched,removed,resent,total:srv.filter(r=>!r.deleted_at).length};
+  if(fetched||removed||resent){cacheSave();render();if(resent)schedulePush();console.info('reconcile',S.sync.check)}
+  return S.sync.check}
 function subscribeRealtime(){
   if(chan){try{sb.removeChannel(chan)}catch(e){}}
   chan=sb.channel('records-'+ORG).on('postgres_changes',{event:'*',schema:'public',table:'records',filter:'org_id=eq.'+ORG},p=>{const r=p.new&&p.new.id?p.new:null;if(!r)return;applyRow(r);if(r.updated_at>SINCE)SINCE=r.updated_at;cacheSave();if(!S.modal||S.modal.type==='evsheet')render()}).subscribe();
@@ -657,6 +676,10 @@ async function resetPassword(email){const {error}=await sb.auth.resetPasswordFor
 async function setPassword(pass){const {error}=await sb.auth.updateUser({password:pass});if(error)throw new Error(error.message);S.recovery=false;toast('Password set')}
 async function invite(email){const {error}=await sb.from('invites').upsert({email:email.toLowerCase(),org_id:ORG,role:'owner'});if(error)throw new Error(error.message)}
 
+/* both devices run the same version: check version.json (never cached) when the app is opened or comes back, and update */
+async function checkVersion(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=+(await r.json()).v||0;if(v<=APP_VERSION)return;
+  try{const reg=await navigator.serviceWorker.getRegistration();if(reg)await reg.update()}catch(e){}
+  if(!S.modal){location.reload();return}S.updateReady=v;renderSyncDot();toast('Update '+v+' ready. It installs when you close this.')}catch(e){}}
 async function boot(){
   S.locked=true;render();
   if(!window.supabase){banner('Could not load the database library. Check the connection and reload.','warn');return}
@@ -664,7 +687,7 @@ async function boot(){
   sb.auth.onAuthStateChange((ev,session)=>{if(ev==='PASSWORD_RECOVERY'){S.recovery=true;S.locked=true;render()}});
   const {data:{session}}=await sb.auth.getSession();
   if(session&&!S.recovery)await startSession(session);
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncAll()});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){syncAll();checkVersion()}});setTimeout(checkVersion,3000);setInterval(()=>{if(document.visibilityState==='visible')checkVersion()},5*60000);
   window.addEventListener('online',syncAll);
   if('serviceWorker' in navigator){
     const had=!!navigator.serviceWorker.controller;
@@ -1193,7 +1216,7 @@ function vLock(){
 function vSettings(){
   const s=S.settings;
   return '<div class="panel-head"><h1>Settings</h1></div><div class="grid g2">'+
-  '<section class="panel grid"><h3>Account</h3><dl class="kv"><dt>Signed in as</dt><dd>'+esc(S.user?S.user.email:'')+'</dd><dt>Sync</dt><dd>'+(S.sync.state==='ok'?'Up to date, '+fmtTime(S.sync.last):S.sync.state==='offline'?'Offline, saved locally':S.sync.state==='syncing'?'Syncing':esc(S.sync.err||'Not synced yet'))+'</dd><dt>Where</dt><dd>Quiet Media database, London</dd><dt>App version</dt><dd>'+APP_VERSION+' · <button class="link" data-act="appreload">check for update</button></dd></dl>'+
+  '<section class="panel grid"><h3>Account</h3><dl class="kv"><dt>Signed in as</dt><dd>'+esc(S.user?S.user.email:'')+'</dd><dt>Sync</dt><dd>'+(S.sync.state==='ok'?'Up to date, '+fmtTime(S.sync.last):S.sync.state==='offline'?'Offline, saved locally':S.sync.state==='syncing'?'Syncing':esc(S.sync.err||'Not synced yet'))+'</dd><dt>Where</dt><dd>Quiet Media database, London</dd><dt>App version</dt><dd>'+APP_VERSION+' · <button class="link" data-act="appreload">check for update</button></dd><dt>Matches database</dt><dd>'+(S.sync.check?(S.sync.check.fetched||S.sync.check.removed||S.sync.check.resent?'Fixed at '+fmtTime(S.sync.check.at)+': '+[S.sync.check.fetched?S.sync.check.fetched+' fetched':'',S.sync.check.removed?S.sync.check.removed+' removed':'',S.sync.check.resent?S.sync.check.resent+' re-sent':''].filter(Boolean).join(', '):'Yes, '+S.sync.check.total+' records checked at '+fmtTime(S.sync.check.at)):'Not checked yet')+' · <button class="link" data-act="resyncall">re-download everything</button></dd></dl>'+
   '<div class="row" style="align-items:end"><label class="f">Invite a teammate by email<input type="email" id="s-invite" placeholder="name@quietmedia.co.uk"></label><button class="btn ghost small" data-act="invite" style="flex:0 0 auto">Invite</button></div><p class="note">They create an account with that email and see everything you see.</p>'+
   '<label class="chip"><input type="checkbox" data-set="haptics" '+(s.haptics===false?'':'checked')+'> Haptic taps on the phone</label>'+
   '<div class="row"><button class="btn ghost small" data-act="syncnow">Sync now</button><button class="btn ghost small" data-act="changepass">Change password</button><button class="btn danger small" data-act="signout">Sign out of this device</button></div></section>'+
@@ -1223,7 +1246,7 @@ function renderModal(){
   const f=m.cls?null:root.querySelector('input,select');if(f)f.focus();
   if(m.type==='event'){feeNote();availNote()}
 }
-function closeModal(){S.modal=null;renderModal()}
+function closeModal(){S.modal=null;renderModal();if(S.updateReady)setTimeout(()=>{if(!S.modal)location.reload()},400)}
 
 function openClientModal(cid){
   const c=cid?{...client(cid)}:{name:'',colour:COLOURS[Object.keys(S.clients).length%COLOURS.length],billing:'card',shortRate:300,halfDay:475,fullDay:750,editDay:350,editHours:8,hourlyRate:150,monthlyFee:0,vat:true,email:'',notes:''};
@@ -1859,7 +1882,9 @@ document.addEventListener('click',async ev=>{
     case 'allocate':{const p=S.projects[v];if(S.modal&&S.modal.type==='project'){readProjectModal();const pp={...S.modal.p};if(pp.title&&pp.clientId){if(!pp.created)pp.created=Date.now();await put('projects',v,stripId(pp))}}closeModal();S.presetProject=v;openEventModal(null,null,null,p.clientId);const rem=planRemaining(p).filter(x=>x.remaining);if(rem.length){const t=document.getElementById('v-type');if(t)t.value=rem[0].type}S.presetProject=null;feeNote();break}
     case 'newcrew':openCrewModal();break;
     case 'editcrew':openCrewModal(v);break;
-    case 'savecrew':{readCrewModal();const c={...S.modal.c};c.rates=c.rates.filter(r=>r.label&&+r.amount>0);c.dayRate=c.rates.length?c.rates[0].amount:0;delete c.halfRate;if(!c.name){document.getElementById('w-name').focus();return}closeModal();await put('crew',v||null,stripId(c));toast('Saved '+c.name);break}
+    case 'savecrew':{readCrewModal();const c={...S.modal.c};c.rates=c.rates.filter(r=>r.label&&+r.amount>0);c.dayRate=c.rates.length?c.rates[0].amount:0;delete c.halfRate;if(!c.name){document.getElementById('w-name').focus();return}
+      if(!v&&!S.modal.dupOk){const dg=x=>(x||'').replace(/\D/g,'').replace(/^44/,'0').slice(-10);const same=Object.values(S.crew).find(x=>!x.archived&&((x.name||'').trim().toLowerCase()===c.name.trim().toLowerCase()||(dg(c.phone).length>=10&&dg(x.phone)===dg(c.phone))));if(same){S.modal.dupOk=true;toast(same.name+' is already in your crew. Save again only if this is someone else.');return}}
+      closeModal();await put('crew',v||null,stripId(c));toast('Saved '+c.name);break}
     case 'ratepick':{const cb=document.querySelector('[data-crew="'+b.dataset.c+'"]');const r=document.querySelector('[data-crewrate="'+b.dataset.c+'"]');if(cb&&!cb.checked){cb.checked=true;r.disabled=false}if(r){r.value=v}readCrewForm();break}
     case 'rateadd':readCrewModal();S.modal.c.rates.push({label:'',amount:''});renderModal();break;
     case 'raterm':readCrewModal();S.modal.c.rates.splice(Number(v),1);if(!S.modal.c.rates.length)S.modal.c.rates.push({label:'Day',amount:''});renderModal();break;
@@ -1921,6 +1946,7 @@ document.addEventListener('click',async ev=>{
     case 'xero':{const invs=Object.values(S.invoices).filter(i=>i.clientId===v&&i.status==='draft');if(!invs.length){toast('No draft invoices for this client.');break}download('xero-'+(cname(v).replace(/[^a-z0-9]+/gi,'-'))+'.csv',xeroCSV(invs));break}
     case 'xeroall':{const invs=Object.values(S.invoices).filter(i=>i.status==='draft');download('xero-drafts-'+dayKey(Date.now())+'.csv',xeroCSV(invs));break}
     case 'period':S.period=v;render();break;
+    case 'resyncall':{toast('Re-downloading everything…');try{const r=await reconcile(true);await syncAll();toast('Done. '+(r?r.total+' records checked'+(r.fetched?', '+r.fetched+' updated':''):''));}catch(e){toast('Could not re-download: '+(e.message||'try again'))}render();break}
     case 'appreload':try{const r=await navigator.serviceWorker.getRegistration();if(r)await r.update()}catch(e){}location.reload();break;
     case 'insmonth':S.insMonth=Number(v);render();break;
     case 'merge':openMerge(b.dataset.a,b.dataset.b);break;
