@@ -464,6 +464,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 .paused{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);border:1px dashed var(--line-strong);animation:zi .4s var(--ease)}.paused .pt{min-width:0;flex:1}.paused .pt b{display:block;font-weight:400;font-size:15px}.paused .eyebrow{display:block;margin-bottom:2px}
 .wlog{display:grid;gap:4px;font-size:13px}.wl{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--line)}.wl:last-child{border-bottom:0}.wl .muted{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wdet{margin:10px 0 4px}.wdet summary{cursor:pointer;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);list-style:none;display:inline-flex;align-items:center;gap:6px}.wdet summary::-webkit-details-marker{display:none}.wdet summary::before{content:'';width:6px;height:6px;border-right:1px solid currentColor;border-bottom:1px solid currentColor;transform:rotate(-45deg);transition:transform .2s}.wdet[open] summary::before{transform:rotate(45deg)}.wdet .wlog{margin-top:8px}
+.ledg td.r,.ledg th.r{white-space:nowrap;padding-left:12px;font-variant-numeric:tabular-nums}.ledg{width:100%}.ledg td:first-child{min-width:0;width:100%;white-space:normal}.ledg .chip{white-space:normal;display:inline-flex;align-items:baseline;gap:6px;line-height:1.3}.ledg .chip .dot{flex:none;align-self:center}@media (max-width:520px){.ledg{font-size:13px}.ledg td.r,.ledg th.r{padding-left:8px}.ledg .note{font-size:11px}}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
@@ -497,6 +498,7 @@ const BILLABLE_DEFAULT = {Filming:true,Editing:true,'Pre-production':true,Meetin
 const COLOURS = ['#B4725A','#C49A4A','#6E86A0','#B07A8A','#8A6E9E','#A65E3E','#7C8C94','#C7B48A','#5E6E8C','#9C6B5A'];
 const EVTYPES = ['Shoot','Edit','Meeting','Deadline','Unavailable','Other'];
 const BUSY_TYPES={Shoot:1,Edit:1,Unavailable:1};
+const DEFAULT_CREW_TERMS='1. Confirmation. This booking is confirmed when you sign below. The fee shown is agreed and fixed for the dates and hours on this form. Overtime is only paid if agreed with us beforehand.\n\n2. Your commitment. Once confirmed, you keep these dates for us. If you cannot attend because of illness or emergency, tell us as soon as you know. Otherwise you may not pull out of a confirmed booking; if you need to, give us as much notice as possible and help us find a replacement of equal experience that we approve.\n\n3. If we cancel or move the job. More than 7 days before: no fee. Between 7 days and 48 hours before: 50% of the fee for the cancelled days. Less than 48 hours before: the full fee. If the client postpones, we offer you the new dates first.\n\n4. Payment. Invoice us after the job quoting the reference on this form. We pay within the payment terms shown. Agreed expenses are paid at cost against receipts.\n\n5. Status. You work as a self-employed freelancer and are responsible for your own tax and National Insurance, your own kit and its insurance, and your own public liability cover.\n\n6. Material and confidentiality. Everything you shoot or create on the job belongs to us and our client. Please do not share footage, stills, behind-the-scenes or client details, or post them online, without our written agreement.\n\n7. On set. Follow reasonable instructions from the Quiet Media lead on the day, including health and safety and location rules.';
 const DEFAULT_TERMS='A pencil holds the dates for you without obligation on either side. Once you confirm, the dates are yours and we turn other work away for them.\n\nMoving or cancelling a confirmed booking: free with more than 7 days\u2019 notice (one move per booking). Within 7 days, 50% of the fee is payable. Within 48 hours, the full fee is payable.\n\nFees are ex VAT and exclude travel and expenses, which are agreed in advance and itemised on the invoice. Payment is due within 30 days of invoice.\n\nWeather, access or illness on our side: we will offer the next available dates at no charge.';
 const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availWeeks:12,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS};
 
@@ -587,7 +589,7 @@ async function push(){
   cacheSave();
   if(rows.some(r=>r.col==='events'||r.col==='settings'))scheduleAvailability();
 }
-async function syncAll(){
+async function syncAll(){setTimeout(()=>{if(!pushing)pullCrewResponses().catch(()=>{})},1500);
   if(!sb||!ORG||pushing)return;pushing=true;S.sync.state='syncing';renderSyncDot();
   try{await push();await pull();S.sync.state='ok';S.sync.last=Date.now();S.sync.err='';S.loaded.all=true}
   catch(e){S.sync.state=navigator.onLine?'error':'offline';S.sync.err=(e&&e.message)||'Sync failed';console.warn('sync',e)}
@@ -685,7 +687,8 @@ async function importBackup(file){
 }
 
 /* ---------- valuation ---------- */
-function rateCard(c){return {billing:c.billing||'card',shortRate:+c.shortRate||0,halfDay:+c.halfDay||0,fullDay:+c.fullDay||0,editDay:+c.editDay||0,editHours:+c.editHours||8,hourlyRate:+c.hourlyRate||0,monthlyFee:+c.monthlyFee||0,retainerDays:c.retainerPlan?(+c.retainerPlan.Shoot||0)+(+c.retainerPlan.Edit||0):+c.retainerDays||0,retainerPlan:c.retainerPlan?{Shoot:+c.retainerPlan.Shoot||0,Edit:+c.retainerPlan.Edit||0}:{Shoot:0,Edit:+c.retainerDays||0},retainerBasis:c.retainerBasis||'time',retainerDayHours:+c.retainerDayHours||8,retainerStart:c.retainerStart||'',retainerPeriod:c.retainerPeriod||'month'}}
+const SPLIT_DEFAULT={month:1,quarter:3,term:3,year:12};
+function rateCard(c){return {retainerSplit:Math.max(1,+c.retainerSplit||SPLIT_DEFAULT[c.retainerPeriod||'month']||1),retainerSplitFrom:+c.retainerSplitFrom||0,billing:c.billing||'card',shortRate:+c.shortRate||0,halfDay:+c.halfDay||0,fullDay:+c.fullDay||0,editDay:+c.editDay||0,editHours:+c.editHours||8,hourlyRate:+c.hourlyRate||0,monthlyFee:+c.monthlyFee||0,retainerDays:c.retainerPlan?(+c.retainerPlan.Shoot||0)+(+c.retainerPlan.Edit||0):+c.retainerDays||0,retainerPlan:c.retainerPlan?{Shoot:+c.retainerPlan.Shoot||0,Edit:+c.retainerPlan.Edit||0}:{Shoot:0,Edit:+c.retainerDays||0},retainerBasis:c.retainerBasis||'time',retainerDayHours:+c.retainerDayHours||8,retainerStart:c.retainerStart||'',retainerPeriod:c.retainerPeriod||'month'}}
 function filmBand(h,r){if(h<=0)return null;if(h<=2)return['up to 2 hrs',r.shortRate];if(h<=4)return['half day',r.halfDay];return['full day',r.fullDay]}
 /* The fee lives on the booking. The rate card only SUGGESTS a fee when a booking is created; once saved, the fee is fixed. */
 function suggestFee(ev){
@@ -736,6 +739,36 @@ function retainerDelivery(c,k){
   const daysBy={Shoot:clockDays(es.filter(e=>e.category==='Filming')),Edit:clockDays(es.filter(e=>e.category!=='Filming'))};
   return {key:k,label:pr.label,start:a,end:b,hours,promised,promisedDays:r.retainerDays,days,booked,bookedBy,daysBy,pct:r.retainerDays?days/r.retainerDays*100:0,byPerson,byCat,fee:r.monthlyFee,targetRate:promised?r.monthlyFee/promised:0};
 }
+/* A retainer fee per period can be invoiced in monthly instalments (Marlborough: the term fee over three months). Each instalment is an invoice line and is what counts towards that month. */
+function retainerInstalments(c,upto){const r=rateCard(c);if(r.billing!=='retainer'||!r.monthlyFee)return [];const n=r.retainerSplit,off=r.retainerSplitFrom;const out=[];const lim=upto==null?Date.now():upto;
+  retainerPeriods(c,lim).forEach(p=>{const base=Math.floor(r.monthlyFee/n*100)/100;for(let i=0;i<n;i++){const m=addMonths(p.start,off+i);if(m>lim)break;out.push({key:n===1?p.key:p.key+'#'+(i+1),periodKey:p.key,label:p.label+(n>1?', '+(i+1)+' of '+n:''),month:m,amount:i===n-1?Math.round((r.monthlyFee-base*(n-1))*100)/100:base})}});return out}
+const instInvoiced=(c,x)=>{const ri=c.retainerInvoiced||{};return !!(ri[x.key]||ri[x.periodKey])};
+/* ===== what work is worth, by date. One source for Insights, the year table and client value. =====
+   Retainer instalments are earned evenly through their month. Fixed-fee projects are spread over their booked days
+   (and over planned days not yet booked, which land on the deadline). Per-day projects and one-off bookings count on the day. */
+function valueItems(from,to){
+  const now=Date.now();const out=[];
+  activeClients().forEach(c=>retainerInstalments(c,to-1).forEach(x=>{const mEnd=addMonths(x.month,1);const lo=Math.max(x.month,from),hi=Math.min(mEnd,to);if(hi<=lo)return;const amt=x.amount*(hi-lo)/(mEnd-x.month);const df=now>=hi?1:now<=lo?0:(now-lo)/(hi-lo);
+    out.push({cid:c.id,kind:'retainer',key:'r:'+c.id,label:'Retainer · '+x.label,done:amt*df,booked:amt*(1-df),pencil:0,crew:0,days:0})}));
+  const pDays={};Object.values(S.events).forEach(e=>{if(e.projectId&&e.status!=='cancelled')pDays[e.projectId]=(pDays[e.projectId]||0)+portion(e)});
+  const planDays=p=>(p.plan||[]).reduce((t,x)=>t+(+x.days||0),0);
+  Object.values(S.events).forEach(e=>{if(e.status==='cancelled'||!e.clientId||e.start<from||e.start>=to||e.type==='Unavailable')return;const p=e.projectId&&S.projects[e.projectId];if(p&&pstatus(p)==='cancelled')return;
+    let v=0,key,label,kind;
+    if(p){kind='project';key='p:'+p.id;label=p.title;const pr=pricingOf(p);
+      if(pr==='fee')v=(+p.fee||0)*portion(e)/Math.max(pDays[p.id]||0,planDays(p),portion(e));else if(pr==='days')v=portion(e)*(projectRates(p)[planType(e.type)]||0);
+      v+=(+e.fee||0)}
+    else{v=eventValue(e);kind='booking';key='b:'+e.clientId;label='Day bookings'}
+    const pen=evStatus(e)==='pencil';const done=!pen&&e.end<=now;
+    out.push({cid:e.clientId,kind,key,label,done:done?v:0,booked:!pen&&!done?v:0,pencil:pen?v:0,crew:pen?0:crewCost(e),days:portion(e),type:e.type})});
+  Object.values(S.projects).forEach(p=>{if(pstatus(p)==='cancelled'||pricingOf(p)!=='fee'||!(+p.fee))return;const bd=pDays[p.id]||0,pl=planDays(p);const den=Math.max(bd,pl);const rest=den?(+p.fee)*(1-bd/den):(+p.fee);if(rest<0.5)return;
+    const b=projectBookings(p.id);const a=p.due||(b.length?b[b.length-1].start:p.created||now);if(a<from||a>=to)return;const done=pstatus(p)!=='active';
+    out.push({cid:p.clientId,kind:'project',key:'p:'+p.id,label:p.title,done:done?rest:0,booked:done?0:rest,pencil:0,crew:0,days:0,unbooked:rest})});
+  return out;
+}
+function ledger(from,to){const items=valueItems(from,to);const by={};items.forEach(x=>{const k=x.cid+'|'+x.key;const g=by[k]=by[k]||{cid:x.cid,kind:x.kind,key:x.key,label:x.label,done:0,booked:0,pencil:0,crew:0,days:0,n:0,unbooked:0};g.done+=x.done;g.booked+=x.booked;g.pencil+=x.pencil;g.crew+=x.crew;g.days+=x.days||0;g.unbooked+=x.unbooked||0;if(x.kind!=='retainer'&&!x.unbooked)g.n++;if(x.kind==='retainer')g.label=x.label});
+  const rows=Object.values(by).filter(g=>g.done+g.booked+g.pencil+g.crew>0.004);const sum=k=>rows.reduce((t,g)=>t+g[k],0);
+  const dayT=t=>items.filter(x=>x.type===t&&!x.pencil).reduce((a,x)=>a+(x.days||0),0);
+  return {rows,done:sum('done'),booked:sum('booked'),total:sum('done')+sum('booked'),pencil:sum('pencil'),crew:sum('crew'),shoot:dayT('Shoot'),edit:dayT('Edit')}}
 function annualValue(c){const r=rateCard(c);return r.billing==='retainer'?r.monthlyFee*(PERIODS_PER_YEAR[r.retainerPeriod||'month']||12):0}
 function bookedAhead(cid){const now=Date.now();const evs=Object.values(S.events).filter(e=>e.clientId===cid&&e.start>now&&e.status!=='cancelled');const ps=activeProjects(cid).filter(p=>pstatus(p)==='active');return {count:evs.length,projects:ps.length,total:evs.reduce((s,e)=>s+eventValue(e),0)+ps.reduce((s,p)=>s+projectValue(p),0),pencil:evs.filter(e=>evStatus(e)==='pencil').reduce((s,e)=>s+eventValue(e),0)}}
 /* ===== projects: the thing a client buys. Fee on the project; bookings are allocated days. ===== */
@@ -773,22 +806,20 @@ function unbilled(cid){
   const c=client(cid);const li=lastInvoice(cid);const since=li?li.date:0;
   const bookings=billableBookings(cid);
   const lines=bookings.map(bookingLine);
-  const r=rateCard(c);const retMonths=r.billing==='retainer'&&r.monthlyFee?retainerMonths(c).filter(k=>!(c.retainerInvoiced||{})[k]):[];
-  retMonths.forEach(k=>lines.push({desc:'Retainer, '+periodByKey(c,k).label,qty:1,unit:r.monthlyFee,month:k}));
+  const r=rateCard(c);const retInst=retainerInstalments(c,Date.now()).filter(x=>!instInvoiced(c,x));const retMonths=retInst.map(x=>x.key);
+  retInst.forEach(x=>lines.push({desc:'Retainer, '+x.label,qty:1,unit:x.amount,month:x.key}));
   const projs=billableProjects(cid);projs.forEach(p=>{const pr=pricingOf(p);const al=projectAllocated(p);const desc=p.title+(pr==='days'?' ('+Object.entries(al).filter(([k,v])=>v>0).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())+' day'+(v===1?'':'s')+' at '+gbp(projectRates(p)[k])).join(', ')+')':p.plan&&p.plan.length?' ('+p.plan.map(x=>x.days+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+' day'+(x.days==1?'':'s')).join(', ')+')':'');lines.push({desc,qty:1,unit:projectValue(p)+projectExtras(p),projectId:p.id})});
   const es=Object.values(S.entries).filter(e=>e.clientId===cid&&e.start>=since);
   const done=es.filter(e=>e.end);
   const hours=done.reduce((s,e)=>s+entryH(e),0);
   const billH=done.filter(e=>e.billable!==false).reduce((s,e)=>s+entryH(e),0);
   const byPerson={};done.forEach(e=>{byPerson[e.person]=(byPerson[e.person]||0)+entryH(e)});
-  return {bookings,retMonths,projs,entries:es,done,lines,total:linesTotal(lines),hours,billH,byPerson,since};
+  return {bookings,retMonths,retInst,projs,entries:es,done,lines,total:linesTotal(lines),hours,billH,byPerson,since};
 }
 /* Client value over a period: fees for bookings in the period vs hours logged in the period */
 function clientValue(cid,from,to){
   const evs=Object.values(S.events).filter(e=>e.clientId===cid&&e.status!=='cancelled'&&e.start>=from&&e.start<to);
-  let fees=evs.reduce((s,e)=>s+eventValue(e),0);
-  const c=client(cid);if(c&&rateCard(c).billing==='retainer'){fees+=retainerPeriods(c,to-1).filter(p=>p.end>from).length*rateCard(c).monthlyFee}
-  activeProjects(cid).forEach(p=>{const a=projectAnchor(p);if(a>=from&&a<to)fees+=projectValue(p)});
+  const fees=valueItems(from,to).filter(x=>x.cid===cid).reduce((s,x)=>s+x.done+x.booked,0);
   const es=Object.values(S.entries).filter(e=>e.clientId===cid&&e.start>=from&&e.start<to);
   const hours=es.reduce((s,e)=>s+entryH(e),0);
   const byPerson={};es.forEach(e=>{byPerson[e.person]=(byPerson[e.person]||0)+entryH(e)});
@@ -802,6 +833,11 @@ function jobOf(v,legacy){if(!v)return null;if(v.startsWith('p:')){const p=S.proj
 function jobName(cid,pid){const p=pid&&S.projects[pid];return p?p.title+' · '+cname(cid):cname(cid)}
 function jobOptions(sel,extra){let h='';activeClients().forEach(c=>{const ret=rateCard(c).billing==='retainer';const ps=activeProjects(c.id).filter(p=>pstatus(p)==='active'||'p:'+p.id===sel);const ex=extra&&extra.clientId===c.id&&!extra.projectId&&!ret?'<option value="c:'+c.id+'" '+(sel==='c:'+c.id?'selected':'')+'>No project (older entry)</option>':'';if(!ps.length&&!ret&&!ex)return;h+='<optgroup label="'+esc(c.name)+'">'+(ret?'<option value="c:'+c.id+'" '+(sel==='c:'+c.id?'selected':'')+'>General retainer work</option>':'')+ps.map(p=>'<option value="p:'+p.id+'" '+(sel==='p:'+p.id?'selected':'')+'>'+esc(p.title)+'</option>').join('')+ex+'</optgroup>'});return h}
 const evCat=e=>e.type==='Shoot'?'Filming':e.type==='Meeting'?'Meeting':'Editing';
+/* Time against a booking: entries linked by eventId, plus older entries for the same person, job and day. */
+function bookingEntries(ev,person){const d0=startOfDay(ev.start);return Object.values(S.entries).filter(x=>(!person||x.person===person)&&(x.eventId===ev.id||(!x.eventId&&(ev.people||[]).includes(x.person)&&x.clientId===ev.clientId&&(x.projectId||'')===(ev.projectId||'')&&startOfDay(x.start)===d0))).sort((a,b)=>a.start-b.start)}
+const bookedH=ev=>Math.max(0,(ev.end-ev.start)/3.6e6);
+function bookingFor(person,cid,pid,day){return Object.values(S.events).find(x=>x.status!=='cancelled'&&x.clientId===cid&&(x.projectId||'')===(pid||'')&&startOfDay(x.start)===startOfDay(day)&&(x.people||[]).includes(person))}
+function hoursLine(ev){const ppl=(ev.people||[]).length?ev.people:[];if(!ppl.length)return '';const b=bookedH(ev);return ppl.map(p=>{const w=bookingEntries(ev,p).reduce((t,x)=>t+entryH(x),0);return esc(name(p))+' '+(w?hrs(w):'—')+' of '+hrs(b)}).join(' · ')}
 function bookedToday(p,day){const d0=day||startOfDay(Date.now());return Object.values(S.events).filter(e=>e.status!=='cancelled'&&e.clientId&&(e.type==='Shoot'||e.type==='Edit'||e.type==='Meeting')&&startOfDay(e.start)===d0&&(e.people||[]).includes(p)&&jobOf(jobKey(e.clientId,e.projectId))).sort((a,b)=>a.start-b.start)}
 /* What to clock in to by default: today's booking for this person, else the last thing they worked on, else the first job available. */
 function defaultJob(p){const bt=bookedToday(p);if(bt.length)return {job:jobKey(bt[0].clientId,bt[0].projectId),category:evCat(bt[0])};
@@ -823,7 +859,8 @@ async function startTimer(opt){
   const prev=running(S.person);
   if(prev){const same=prev.clientId===cid&&(prev.projectId||'')===pj&&prev.category===cat&&(prev.task||'')===(d.task||'').trim();if(same)await patch('entries',prev.id,{end:Date.now()});else await pauseTimer(S.person)}
   const pj0=pausedJob(S.person);if(pj0&&(opt&&opt.resume||(pj0.clientId===cid&&(pj0.projectId||'')===pj&&pj0.category===cat&&(pj0.task||'')===(d.task||'').trim())))await setPaused(S.person,null);
-  await put('entries',null,{person:S.person,clientId:cid,projectId:pj,category:cat,task:(d.task||'').trim(),start:Date.now(),end:null,billable:BILLABLE_DEFAULT[cat]!==false,created:Date.now()});
+  const bk=bookingFor(S.person,cid,pj,Date.now());
+  await put('entries',null,{person:S.person,clientId:cid,projectId:pj,eventId:bk?bk.id:'',category:cat,task:(d.task||'').trim(),start:Date.now(),end:null,billable:BILLABLE_DEFAULT[cat]!==false,created:Date.now()});
   S.draft.task='';render();toast((opt&&opt.resume?'Back on ':'Clocked in for ')+jobName(cid,pj));
 }
 /* small API for the Mac menu bar app: what is running, clock out, resume the last job */
@@ -844,21 +881,45 @@ function dayPrompt(e){
   const ex=Object.values(S.events).find(x=>x.status!=='cancelled'&&x.clientId===e.clientId&&(x.projectId||'')===pid&&startOfDay(x.start)===day&&BUSY_TYPES[x.type]&&(x.people||[]).includes(e.person));
   const sug=h>=5?1:0.5;const pj=pid&&S.projects[pid];const type=DAY_CATS[e.category];const c=client(e.clientId);const isRet=rateCard(c).billing==='retainer';
   const towards=pj?(pricingOf(pj)==='days'?'the project, at '+gbp(projectRates(pj)[type]*1)+' a day':pricingOf(pj)==='retainer'?'the project and the retainer':'the project’s days'):isRet?'this '+(rateCard(c).retainerPeriod||'month')+'’s retainer days':'the client';
-  S.modal={type:'dayprompt',cls:'sheet',ctx:{e,ex,day,s0,e1,type,pid},html:()=>'<h2>'+hrs(h)+' on '+esc(jobName(e.clientId,pid))+'</h2><p class="note" style="margin:-4px 0 14px">'+fmtDate(day,{weekday:'long',day:'numeric',month:'long'})+' · '+fmtTime(s0)+'–'+fmtTime(e1)+(ex?' · in the calendar as a '+(portion(ex)===0.5?'half':'full')+' '+(ex.type==='Shoot'?'filming':'edit')+' day':' · not in the calendar yet')+'</p>'+
-    '<div class="dayopts">'+[[0.5,'Half day'],[1,'Full day']].map(([v,l])=>'<button class="btn'+(sug===v?'':' ghost')+'" data-act="dayset" data-v="'+v+'">'+l+'<small>'+(ex&&portion(ex)===v?'as booked':sug===v?'suggested from the hours':'')+'</small></button>').join('')+'<button class="btn ghost" data-act="closemodal">Just keep the hours<small>'+(ex?'leave the booking as it is':'nothing added to the calendar')+'</small></button></div>'+
+  S.modal={type:'dayprompt',cls:'sheet',ctx:{e,ex,day,s0,e1,type,pid,ids:es.map(x=>x.id),other:h-entryH(e)},html:()=>'<h2><span id="dp-h">'+hrs(h)+'</span> on '+esc(jobName(e.clientId,pid))+'</h2><p class="note" style="margin:-4px 0 14px">'+fmtDate(day,{weekday:'long',day:'numeric',month:'long'})+(ex?' · booked '+fmtTime(ex.start)+'–'+fmtTime(ex.end)+' as a '+(portion(ex)===0.5?'half':'full')+' '+(ex.type==='Shoot'?'filming':'edit')+' day':' · not in the calendar yet')+'</p>'+
+    '<div class="row" style="align-items:flex-end;margin-bottom:14px"><label class="f">This session started<input type="time" id="dp-s" value="'+fmtTime(e.start)+'"></label><label class="f">Finished<input type="time" id="dp-e" value="'+fmtTime(e.end)+'"></label></div><p class="note" style="margin:-8px 0 14px">Forgot to clock in or out? Fix the times here before choosing.'+(es.length>1?' Earlier sessions today: '+hrs(h-entryH(e))+'.':'')+'</p>'+
+    '<div class="dayopts">'+[[0.5,'Half day'],[1,'Full day']].map(([v,l])=>'<button class="btn'+(sug===v?'':' ghost')+'" data-act="dayset" data-v="'+v+'">'+l+'<small>'+(ex&&portion(ex)===v?'as booked':sug===v?'suggested from the hours':'')+'</small></button>').join('')+'<button class="btn ghost" data-act="daykeep">Just keep the hours<small>'+(ex?'leave the booking as it is':'nothing added to the calendar')+'</small></button></div>'+
     '<p class="note" style="margin-top:12px">'+(ex?'Half or full changes the booked day. ':'Half or full adds a'+(type==='Shoot'?' filming':'n edit')+' day for '+esc(name(e.person))+' to the calendar. ')+'It counts towards '+towards+'.</p>'};renderModal();
 }
-async function daySet(v){const m=S.modal;if(!m||m.type!=='dayprompt')return;const {e,ex,day,s0,e1,type,pid}=m.ctx;closeModal();
-  if(ex){if(portion(ex)!==v)await patch('events',ex.id,{portion:v});toast((v===0.5?'Half':'Full')+' day in the calendar');return}
-  const pj=pid&&S.projects[pid];await put('events',null,{title:pj?pj.title:cname(e.clientId),clientId:e.clientId,projectId:pid,type,people:[e.person],crew:[],portion:v,start:s0,end:Math.max(e1,s0+3600e3),status:'confirmed',fee:0,flex:false,fromClock:true,created:Date.now()});
+/* read the edited session times from the prompt and save them to the entry */
+async function dayTimes(){const m=S.modal;const {e,day}=m.ctx;const a=(document.getElementById('dp-s')||{}).value,b=(document.getElementById('dp-e')||{}).value;if(!a||!b)return;
+  let st=parseLocal(dayKey(day),a),en=parseLocal(dayKey(day),b);if(en<=st)en+=DAYMS;if(st!==e.start||en!==e.end){await patch('entries',e.id,{start:st,end:en});m.ctx.s0=Math.min(m.ctx.s0===e.start?st:m.ctx.s0,st);m.ctx.e1=Math.max(m.ctx.e1===e.end?en:m.ctx.e1,en);m.ctx.e={...e,start:st,end:en}}}
+async function daySet(v){const m=S.modal;if(!m||m.type!=='dayprompt')return;await dayTimes();const {e,ex,day,s0,e1,type,pid,ids}=m.ctx;closeModal();
+  if(ex){if(portion(ex)!==v)await patch('events',ex.id,{portion:v});for(const id of ids){if(S.entries[id]&&!S.entries[id].eventId)await patch('entries',id,{eventId:ex.id})}toast((v===0.5?'Half':'Full')+' day in the calendar');return}
+  const pj=pid&&S.projects[pid];const evid=await put('events',null,{title:pj?pj.title:cname(e.clientId),clientId:e.clientId,projectId:pid,type,people:[e.person],crew:[],portion:v,start:s0,end:Math.max(e1,s0+3600e3),status:'confirmed',fee:0,flex:false,fromClock:true,created:Date.now()});
+  for(const id of ids){if(S.entries[id])await patch('entries',id,{eventId:evid})}
   toast((v===0.5?'Half':'Full')+' '+(type==='Shoot'?'filming':'edit')+' day added to the calendar')}
+async function dayKeep(){const m=S.modal;if(!m||m.type!=='dayprompt')return;await dayTimes();const {ex,ids}=m.ctx;closeModal();if(ex){for(const id of ids){if(S.entries[id]&&!S.entries[id].eventId)await patch('entries',id,{eventId:ex.id})}}toast('Hours saved')}
+/* adjust when a running timer started (clocked in late) */
+function openStartFix(eid){const e=S.entries[eid];if(!e)return;S.modal={type:'startfix',cls:'sheet',html:()=>'<h2>When did you start?</h2><p class="note" style="margin:-4px 0 14px">'+esc(jobName(e.clientId,e.projectId))+' · running since '+fmtTime(e.start)+'</p><div class="row"><label class="f">Started at<input type="time" id="sf-t" value="'+fmtTime(e.start)+'"></label></div><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="startfixsave" data-v="'+eid+'">Save</button></div>'};renderModal()}
+/* hours worked on a booking: see and fix each person's time after the fact */
+function openHoursModal(evid){const ev=S.events[evid];if(!ev)return;const ppl=(ev.people&&ev.people.length)?ev.people:[S.person];
+  const rows=[];ppl.forEach(p=>{const es=bookingEntries(ev,p);es.forEach(x=>rows.push({id:x.id,person:p,start:fmtTime(x.start),end:x.end?fmtTime(x.end):'',running:!x.end,del:false}))});
+  S.modal={type:'hours',cls:'sheet',evid,rows,html:()=>{const m=S.modal;const ev=S.events[evid];if(!ev)return '';const b=bookedH(ev);
+    return '<h2>Hours worked</h2><p class="note" style="margin:-4px 0 14px">'+esc(ev.title)+' · '+fmtDate(ev.start,{weekday:'long',day:'numeric',month:'long'})+' · booked '+fmtTime(ev.start)+'–'+fmtTime(ev.end)+' ('+hrs(b)+')</p>'+
+    ppl.map(p=>{const mine=m.rows.map((r,i)=>[r,i]).filter(([r])=>r.person===p);const tot=mine.filter(([r])=>!r.del&&r.start&&r.end).reduce((t,[r])=>{let a=parseLocal(dayKey(ev.start),r.start),z=parseLocal(dayKey(ev.start),r.end);if(z<=a)z+=DAYMS;return t+(z-a)/3.6e6},0);
+      return '<div style="margin-bottom:16px"><div class="eyebrow" style="margin-bottom:8px;display:flex;justify-content:space-between"><span>'+esc(name(p))+'</span><span class="num">'+hrs(tot)+' of '+hrs(b)+'</span></div><div class="grid" style="gap:8px">'+
+      (mine.length?mine.map(([r,i])=>'<div class="row" style="flex-wrap:nowrap;align-items:center'+(r.del?';opacity:.4':'')+'"><input type="time" data-hs="'+i+'" value="'+r.start+'" aria-label="Start" style="flex:1;min-width:0"'+(r.del?' disabled':'')+'><span class="muted">to</span><input type="time" data-he="'+i+'" value="'+r.end+'" aria-label="End" style="flex:1;min-width:0"'+(r.del||r.running?' disabled':'')+'>'+(r.running?'<span class="note" style="flex:none">running</span>':'<button type="button" class="link" data-act="hrsdel" data-v="'+i+'" style="flex:none">'+(r.del?'Undo':'Remove')+'</button>')+'</div>').join(''):'<p class="note" style="margin:0">No time logged.</p>')+
+      '</div><div class="row" style="gap:14px;margin-top:8px"><button type="button" class="link" data-act="hrsadd" data-v="'+p+'">Add time</button>'+(mine.length?'':'<button type="button" class="link" data-act="hrsasbooked" data-v="'+p+'">Worked as booked</button>')+'</div></div>'}).join('')+
+    '<p class="note">Times on '+fmtDate(ev.start,{day:'numeric',month:'short'})+'. These hours stay internal; the fee does not change.</p><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="hrssave">Save hours</button></div>'}};renderModal()}
+function readHoursRows(){const m=S.modal;if(!m||m.type!=='hours')return;m.rows.forEach((r,i)=>{const a=document.querySelector('[data-hs="'+i+'"]'),b=document.querySelector('[data-he="'+i+'"]');if(a)r.start=a.value;if(b)r.end=b.value})}
+async function saveHours(){readHoursRows();const m=S.modal;const ev=S.events[m.evid];if(!ev){closeModal();return}const d=dayKey(ev.start);const rows=m.rows.slice();closeModal();let n=0;
+  for(const r of rows){if(r.id&&r.del){await remove('entries',r.id);n++;continue}if(r.del||!r.start||(!r.end&&!r.running))continue;let a=parseLocal(d,r.start),z=r.running?null:parseLocal(d,r.end);if(z!=null&&z<=a)z+=DAYMS;
+    if(r.id){const x=S.entries[r.id];if(!x)continue;const ch={eventId:ev.id};if(x.start!==a)ch.start=a;if(z!=null&&x.end!==z)ch.end=z;await patch('entries',r.id,ch);n++}
+    else{await put('entries',null,{person:r.person,clientId:ev.clientId,projectId:ev.projectId||'',eventId:ev.id,category:evCat(ev),task:'',start:a,end:z,billable:BILLABLE_DEFAULT[evCat(ev)]!==false,created:Date.now()});n++}}
+  toast(n?'Hours saved':'Nothing changed')}
 
 async function createInvoice(cid){
   const c=client(cid);const u=unbilled(cid);
   if(!u.lines.length)return;
   const num=(S.settings.prefix||'')+(S.settings.nextInvoice||1001);
   const sub=u.total;const vat=c.vat===false?0:sub*(+S.settings.vatRate||0)/100;
-  const starts=u.bookings.map(e=>e.start).concat(u.retMonths.map(k=>periodByKey(c,k).start));const ends=u.bookings.map(e=>e.end).concat(u.retMonths.map(k=>periodByKey(c,k).end-1));const from=Math.min(...starts);const to=Math.max(...ends);
+  const starts=u.bookings.map(e=>e.start).concat(u.retInst.map(x=>x.month));const ends=u.bookings.map(e=>e.end).concat(u.retInst.map(x=>addMonths(x.month,1)-1));if(!starts.length){starts.push(Date.now());ends.push(Date.now())}const from=Math.min(...starts);const to=Math.max(...ends);
   const id=await put('invoices',null,{clientId:cid,number:num,date:Date.now(),from,to,lines:u.lines,subtotal:sub,vat,total:sub+vat,hours:u.hours,status:'draft',eventIds:u.bookings.map(e=>e.id),retMonths:u.retMonths,projectIds:(u.projs||[]).map(p=>p.id)});
   await saveSettings({nextInvoice:(+S.settings.nextInvoice||1001)+1});
   for(const e of u.bookings){await patch('events',e.id,{invoiceId:id})}
@@ -948,7 +1009,7 @@ function vToday(){
       (r.task?'<div class="muted" style="font-size:14px">'+esc(r.task)+'</div>':'')+
       '<div class="big" data-since="'+r.start+'">'+elapsed(now-r.start)+'</div>'+
       (long?'<div class="note" style="color:var(--warn)">This timer has been running for over 10 hours. Did someone forget to clock out?</div>':'')+
-      '<div class="row" style="align-items:center"><button class="btn" data-act="stop" data-v="'+p.id+'">Clock out</button>'+(mine?'<button class="btn ghost" data-act="pause" data-v="'+p.id+'">Pause</button>':'')+'<span class="note">Started '+fmtTime(r.start)+'</span></div>'+(mine&&pausedJob(p.id)?pausedCard(p.id):'');
+      '<div class="row" style="align-items:center"><button class="btn" data-act="stop" data-v="'+p.id+'">Clock out</button>'+(mine?'<button class="btn ghost" data-act="pause" data-v="'+p.id+'">Pause</button>':'')+'<span class="note">Started '+fmtTime(r.start)+(mine?' · <button class="link" data-act="startfix" data-v="'+r.id+'">change</button>':'')+'</span></div>'+(mine&&pausedJob(p.id)?pausedCard(p.id):'');
     }else if(mine){
       const d=S.draft;const cs=activeClients();const pc=pausedJob(p.id)?pausedCard(p.id):'';
       const def=defaultJob(p.id);if(!d.job||!jobOf(d.job)){d.job=def?def.job:'';if(def&&!d.category)d.category=def.category}
@@ -967,7 +1028,7 @@ function vToday(){
       body='<div class="big muted">Not clocked in</div><div class="note">Switch to '+esc(name(p.id))+' at the top to clock in on this device.</div>';
     }
     return '<section class="panel clock'+(r?' running':'')+'"><div class="who"><div class="eyebrow">'+esc(name(p.id))+(mine?' · you':'')+'</div>'+(r?'<span class="pill live"><span class="pulse" style="background:var(--bg)"></span> Working</span>':'')+'</div>'+body+
-    '<div class="note num">Today '+hrs(todayH)+(todayH>0?' · '+(todayH>=5?'full day':'half day so far'):'')+'</div></section>';
+    '<div class="note num">'+(()=>{const bt=bookedToday(p.id);if(!bt.length)return 'Today '+hrs(todayH)+(todayH>0?' · '+(todayH>=5?'full day':'half day so far'):'');const b=bt.reduce((t,e)=>t+bookedH(e),0);const w=bt.reduce((t,e)=>t+bookingEntries(e,p.id).reduce((a,x)=>a+entryH(x),0),0);return 'Booked '+hrs(b)+' today · worked '+hrs(w)+(todayH>w+0.01?' · '+hrs(todayH)+' in all':'')+' · <button class="link" data-act="hours" data-v="'+bt[0].id+'">adjust</button>'})()+'</div></section>';
   }).join('');
 
   const todays=Object.values(S.entries).filter(e=>e.start>=d0).sort((a,b)=>b.start-a.start);
@@ -1013,7 +1074,7 @@ function vClient(cid){
   const byCat={};u.done.forEach(e=>{byCat[e.category]=(byCat[e.category]||0)+entryH(e)});
   const maxP=Math.max(1,...Object.values(u.byPerson));
   const people=PEOPLE.map(p=>{const h=u.byPerson[p.id]||0;return '<div class="bar"><span class="lab">'+esc(name(p.id))+'</span><span class="track"><i style="width:'+(h/maxP*100)+'%;background:'+c.colour+'"></i></span><span class="val">'+hrs(h)+'</span></div>'}).join('');
-  const lines=u.lines.length?'<div class="tbl"><table><thead><tr><th>Line</th><th class="r">Fee</th></tr></thead><tbody>'+u.bookings.map(e=>'<tr><td><button class="link" style="color:var(--fg);text-decoration:none;text-align:left" data-act="editevent" data-v="'+e.id+'">'+esc(e.title)+'</button><div class="note">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · '+esc(e.type)+' · '+esc((e.people||[]).map(name).join(' & '))+'</div></td><td class="r">'+gbp2(eventValue(e))+'</td></tr>').join('')+u.retMonths.map(k=>'<tr><td>Retainer, '+periodByKey(c,k).label+'<div class="note">Retainer fee</div></td><td class="r">'+gbp2(r.monthlyFee)+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Subtotal, ex VAT</td><td class="r">'+gbp2(u.total)+'</td></tr></tfoot></table></div>':'<div class="empty">Nothing waiting to be invoiced.'+(r.billing==='retainer'?' The next retainer period appears here when it starts.':' Future bookings appear here once their date has passed.')+'</div>';
+  const lines=u.lines.length?'<div class="tbl"><table><thead><tr><th>Line</th><th class="r">Fee</th></tr></thead><tbody>'+u.bookings.map(e=>'<tr><td><button class="link" style="color:var(--fg);text-decoration:none;text-align:left" data-act="editevent" data-v="'+e.id+'">'+esc(e.title)+'</button><div class="note">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · '+esc(e.type)+' · '+esc((e.people||[]).map(name).join(' & '))+'</div></td><td class="r">'+gbp2(eventValue(e))+'</td></tr>').join('')+u.retInst.map(x=>'<tr><td>Retainer, '+esc(x.label)+'<div class="note">Retainer fee'+(rateCard(c).retainerSplit>1?', instalment':'')+'</div></td><td class="r">'+gbp2(x.amount)+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Subtotal, ex VAT</td><td class="r">'+gbp2(u.total)+'</td></tr></tfoot></table></div>':'<div class="empty">Nothing waiting to be invoiced.'+(r.billing==='retainer'?' The next retainer period appears here when it starts.':' Future bookings appear here once their date has passed.')+'</div>';
   const y0=new Date(new Date().getFullYear(),0,1).getTime();const cv=clientValue(cid,y0,Date.now()+1);
   const ents=u.entries.sort((a,b)=>b.start-a.start);
   const upcoming=Object.values(S.events).filter(e=>e.clientId===cid&&e.start>Date.now()&&e.status!=='cancelled').sort((a,b)=>a.start-b.start);
@@ -1052,11 +1113,11 @@ function vInvoicing(){
 
 function yearTable(){
   const y=new Date().getFullYear();const t0=startOfMonth(Date.now());const ms=[];for(let m=0;m<12;m++)ms.push(monthStats(new Date(y,m,1).getTime()));
-  const tot=ms.reduce((a,m)=>({shoot:a.shoot+m.shoot,edit:a.edit+m.edit,gross:a.gross+m.gross,crew:a.crew+m.crew,net:a.net+m.net,invoiced:a.invoiced+m.invoiced}),{shoot:0,edit:0,gross:0,crew:0,net:0,invoiced:0});
+  const tot=ms.reduce((a,m)=>({shoot:a.shoot+m.shoot,edit:a.edit+m.edit,done:a.done+m.done,booked:a.booked+m.booked,gross:a.gross+m.gross,crew:a.crew+m.crew,net:a.net+m.net,invoiced:a.invoiced+m.invoiced}),{shoot:0,edit:0,done:0,booked:0,gross:0,crew:0,net:0,invoiced:0});const sel=S.insMonth||t0;
   const goal=+S.settings.monthlyGoal||0;
-  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>'+y+' by month</h3><span class="note">Gross is day bookings, project fees and retainers landing in the month.'+(goal?' Goal '+gbp(goal)+' a month.':'')+'</span></div><div class="tbl"><table><thead><tr><th>Month</th><th class="r">Filming</th><th class="r">Edit</th><th class="r">Gross</th><th class="r">Crew</th><th class="r">Net</th><th class="r">Invoiced</th></tr></thead><tbody>'+
-  ms.map(m=>'<tr'+(m.m0===t0?' style="font-weight:400"':m.past?'':' style="color:var(--muted)"')+'><td><button class="link" style="color:inherit;text-decoration:none" data-act="gomonth" data-v="'+m.m0+'">'+new Date(m.m0).toLocaleDateString('en-GB',{month:'long'})+'</button></td><td class="r">'+(m.shoot?fmtDays(m.shoot):'—')+'</td><td class="r">'+(m.edit?fmtDays(m.edit):'—')+'</td><td class="r">'+(m.gross?gbp(m.gross):'—')+'</td><td class="r">'+(m.crew?gbp(m.crew):'—')+'</td><td class="r"'+(goal&&m.gross&&m.gross<goal?' style="color:var(--warn)"':'')+'>'+(m.gross?gbp(m.net):'—')+'</td><td class="r">'+(m.invoiced?gbp(m.invoiced):'—')+'</td></tr>').join('')+
-  '</tbody><tfoot><tr><td>Year</td><td class="r">'+fmtDays(tot.shoot)+'</td><td class="r">'+fmtDays(tot.edit)+'</td><td class="r">'+gbp(tot.gross)+'</td><td class="r">'+gbp(tot.crew)+'</td><td class="r">'+gbp(tot.net)+'</td><td class="r">'+gbp(tot.invoiced)+'</td></tr></tfoot></table></div></section>';
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>'+y+' by month</h3><span class="note">Retainer instalments, project fees spread over their days and day bookings, by the month the work falls in. Tap a month for its breakdown.'+(goal?' Goal '+gbp(goal)+' a month.':'')+'</span></div><div class="tbl"><table><thead><tr><th>Month</th><th class="r">Filming</th><th class="r">Edit</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th><th class="r">Crew</th><th class="r">Net</th><th class="r">Invoiced</th></tr></thead><tbody>'+
+  ms.map(m=>'<tr'+(m.m0===sel?' style="font-weight:400;background:var(--raise)"':m.m0===t0?' style="font-weight:400"':m.past?'':' style="color:var(--muted)"')+'><td><button class="link" style="color:inherit;text-decoration:none" data-act="insmonth" data-v="'+m.m0+'">'+new Date(m.m0).toLocaleDateString('en-GB',{month:'long'})+'</button></td><td class="r">'+(m.shoot?fmtDays(m.shoot):'—')+'</td><td class="r">'+(m.edit?fmtDays(m.edit):'—')+'</td><td class="r">'+(m.done?gbp(m.done):'—')+'</td><td class="r">'+(m.booked?gbp(m.booked):'—')+'</td><td class="r">'+(m.gross?gbp(m.gross):'—')+'</td><td class="r">'+(m.crew?gbp(m.crew):'—')+'</td><td class="r"'+(goal&&m.gross&&m.gross<goal?' style="color:var(--warn)"':'')+'>'+(m.gross?gbp(m.net):'—')+'</td><td class="r">'+(m.invoiced?gbp(m.invoiced):'—')+'</td></tr>').join('')+
+  '</tbody><tfoot><tr><td>Year</td><td class="r">'+fmtDays(tot.shoot)+'</td><td class="r">'+fmtDays(tot.edit)+'</td><td class="r">'+gbp(tot.done)+'</td><td class="r">'+gbp(tot.booked)+'</td><td class="r">'+gbp(tot.gross)+'</td><td class="r">'+gbp(tot.crew)+'</td><td class="r">'+gbp(tot.net)+'</td><td class="r">'+gbp(tot.invoiced)+'</td></tr></tfoot></table></div></section>';
 }
 function vInsights(){
   const now=Date.now();const per=S.period;const who=S.insWho||'all';
@@ -1066,16 +1127,14 @@ function vInsights(){
   const tot=es.reduce((s,e)=>s+entryH(e),0);const bill=es.filter(e=>e.billable!==false).reduce((s,e)=>s+entryH(e),0);
   const byP={};es.forEach(e=>{byP[e.person]=(byP[e.person]||0)+entryH(e)});
   const maxP=Math.max(1,...Object.values(byP));
-  const m0=startOfMonth(now);
-  const invM=Object.values(S.invoices).filter(i=>i.date>=m0).reduce((s,i)=>s+i.subtotal,0);
+  const m0=S.insMonth||startOfMonth(now);const monthEnd=addMonths(m0,1);const isNow=m0===startOfMonth(now);const mName=new Date(m0).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+  const L=ledger(m0,monthEnd);
+  const invM=Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<monthEnd).reduce((s,i)=>s+i.subtotal,0);
   const unb=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);
-  const monthEnd=new Date(new Date(now).getFullYear(),new Date(now).getMonth()+1,1).getTime();
-  const evM=Object.values(S.events).filter(e=>e.start>=m0&&e.start<monthEnd&&e.status!=='cancelled');
-  const bookedM=evM.filter(e=>e.start>=now).reduce((s,e)=>s+eventValue(e),0);
-  const crewM=evM.reduce((s,e)=>s+crewCost(e),0);const pencilM=evM.filter(e=>evStatus(e)==='pencil').reduce((s,e)=>s+eventValue(e),0);
-  const retM=activeClients().filter(c=>rateCard(c).billing==='retainer').reduce((s,c)=>s+rateCard(c).monthlyFee,0);
-  const grossM=invM+unb+bookedM;
   const goal=+S.settings.monthlyGoal||0;
+  const kindName={retainer:'Retainer',project:'Project',booking:'Bookings'};
+  const brows=L.rows.slice().sort((a,b)=>cname(a.cid).localeCompare(cname(b.cid))||(a.kind>b.kind?1:-1));
+  const bTable=brows.length?'<div class="tbl" style="margin-top:16px"><table class="ledg"><thead><tr><th>Work in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'long'}))+'</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th></tr></thead><tbody>'+brows.map(g=>'<tr><td><span class="chip" style="background:none;padding:0"><span class="dot" style="background:'+colour(g.cid)+'"></span>'+esc(cname(g.cid))+'</span><div class="note">'+kindName[g.kind]+' · '+esc(g.kind==='booking'?g.n+' day'+(g.n===1?'':'s'):g.label.replace(/^Retainer · /,''))+(g.kind==='project'&&g.n?' · '+fmtDays(g.days)+' day'+(g.days===1?'':'s')+' this month':'')+(g.unbooked?' · '+gbp(g.unbooked)+' not on days yet':'')+(g.pencil?' · '+gbp(g.pencil)+' pencilled':'')+'</div></td><td class="r">'+(g.done?gbp(g.done):'—')+'</td><td class="r">'+(g.booked?gbp(g.booked):'—')+'</td><td class="r" style="font-weight:400">'+gbp(g.done+g.booked)+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Total</td><td class="r">'+gbp(L.done)+'</td><td class="r">'+gbp(L.booked)+'</td><td class="r">'+gbp(L.total)+'</td></tr></tfoot></table></div>':'<div class="empty" style="margin-top:16px">Nothing booked or done in '+esc(mName)+' yet.</div>';
   const rows=activeClients().map(c=>{const cv=clientValue(c.id,from,to);if(who!=='all'){cv.hours=cv.byPerson[who]||0;cv.rate=cv.hours?cv.fees/cv.hours:0}return {c,...cv}}).filter(r=>r.hours>0||r.fees>0);
   const totFees=rows.reduce((s,r)=>s+r.fees,0);const totH=rows.reduce((s,r)=>s+r.hours,0);
   const ranked=rows.slice().sort((a,b)=>(b.rate||0)-(a.rate||0));
@@ -1085,10 +1144,10 @@ function vInsights(){
   const tbl=ranked.length?'<div class="tbl"><table><thead><tr><th>Client</th><th class="r">Fees</th><th class="r">Hours</th><th class="r">£/hr</th><th class="r">Share of time</th><th class="r">Share of fees</th></tr></thead><tbody>'+ranked.map(r=>{const st=totH?r.hours/totH*100:0,sf=totFees?r.fees/totFees*100:0;const under=st-sf>10;
     return '<tr><td><button class="chip link" style="text-decoration:none;color:var(--fg)" data-act="openclient" data-v="'+r.c.id+'"><span class="dot" style="background:'+r.c.colour+'"></span>'+esc(r.c.name)+'</button></td><td class="r">'+gbp(r.fees)+'</td><td class="r">'+hrs(r.hours)+'</td><td class="r" style="font-weight:400">'+(r.hours&&r.fees?gbp(r.rate):'—')+'</td><td class="r">'+Math.round(st)+'%</td><td class="r"'+(under?' style="color:var(--warn)"':'')+'>'+Math.round(sf)+'%'+(under?' ↓':'')+'</td></tr>'}).join('')+'</tbody><tfoot><tr><td>All clients</td><td class="r">'+gbp(totFees)+'</td><td class="r">'+hrs(totH)+'</td><td class="r">'+(totH&&totFees?gbp(totFees/totH):'—')+'</td><td class="r">100%</td><td class="r">100%</td></tr></tfoot></table></div>':'<div class="empty">Book work with fees and log time against it, and this table shows what each client is worth per hour.</div>';
   return '<div class="panel-head"><h1>Insights</h1><div class="row" style="flex:0 1 auto;align-items:center"><div class="seg">'+[['all','Both']].concat(PEOPLE.map(p=>[p.id,name(p.id)])).map(([k,l])=>'<button data-act="inswho" data-v="'+k+'" aria-pressed="'+(who===k)+'">'+esc(l)+'</button>').join('')+'</div><div class="seg">'+[['week','This week'],['month','This month'],['year','This year']].map(([k,l])=>'<button data-act="period" data-v="'+k+'" aria-pressed="'+(per===k)+'">'+l+'</button>').join('')+'</div></div></div>'+
-  '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>'+new Date().toLocaleDateString('en-GB',{month:'long'})+' revenue</h3>'+(goal?'<span class="eyebrow num">Goal '+gbp(goal)+'</span>':'<button class="link" data-act="nav" data-v="settings">Set a monthly goal</button>')+'</div>'+
-  '<div class="grid g3"><div class="stat"><span class="eyebrow">Invoiced</span><span class="v">'+gbp(invM)+'</span></div><div class="stat"><span class="eyebrow">Done, not yet invoiced</span><span class="v">'+gbp(unb)+'</span>'+(retM?'<span class="s">includes '+gbp(retM)+' retainers</span>':'')+'</div><div class="stat"><span class="eyebrow">Booked for rest of month</span><span class="v">'+gbp(bookedM)+'</span>'+(pencilM?'<span class="s">'+gbp(pencilM)+' of it still pencilled</span>':'')+'</div></div>'+
-  '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Gross this month</span><span class="v">'+gbp(grossM)+'</span></div><div class="stat"><span class="eyebrow">Crew to pay</span><span class="v">'+gbp(crewM)+'</span></div><div class="stat"><span class="eyebrow">Net to Quiet Media</span><span class="v" style="font-weight:400">'+gbp(grossM-crewM)+'</span><span class="s">Before expenses, which go on the invoice</span></div></div>'+
-  (goal?'<div class="goal" aria-label="Progress to goal"><u style="width:'+Math.min(100,(invM+unb+bookedM)/goal*100)+'%"></u><i style="width:'+Math.min(100,invM/goal*100)+'%"></i></div><p class="note" style="margin-top:8px">'+Math.round(invM/goal*100)+'% invoiced. With work done and booked, '+Math.round((invM+unb+bookedM)/goal*100)+'% of the goal.</p>':'')+'</section>'+
+  '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><div class="row" style="flex:0 1 auto;align-items:center;gap:6px;flex-wrap:nowrap"><button class="btn ghost small" data-act="insmonth" data-v="'+addMonths(m0,-1)+'" aria-label="Previous month">‹</button><h3 style="white-space:nowrap">'+esc(mName)+'</h3><button class="btn ghost small" data-act="insmonth" data-v="'+addMonths(m0,1)+'" aria-label="Next month">›</button>'+(isNow?'':'<button class="link" data-act="insmonth" data-v="'+startOfMonth(now)+'">This month</button>')+'</div>'+(goal?'<span class="eyebrow num">Goal '+gbp(goal)+'</span>':'<button class="link" data-act="nav" data-v="settings">Set a monthly goal</button>')+'</div>'+
+  '<div class="grid g3"><div class="stat"><span class="eyebrow">Work done</span><span class="v">'+gbp(L.done)+'</span><span class="s">'+(isNow?'So far this month':m0<now?'All of it':'Nothing yet')+'</span></div><div class="stat"><span class="eyebrow">Booked in, still to do</span><span class="v">'+gbp(L.booked)+'</span>'+(L.pencil?'<span class="s">plus '+gbp(L.pencil)+' pencilled, not counted</span>':'<span class="s">Confirmed work only</span>')+'</div><div class="stat"><span class="eyebrow">Total for the month</span><span class="v" style="font-weight:400">'+gbp(L.total)+'</span><span class="s">Done and booked</span></div></div>'+
+  '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Crew to pay</span><span class="v">'+gbp(L.crew)+'</span></div><div class="stat"><span class="eyebrow">Net to Quiet Media</span><span class="v" style="font-weight:400">'+gbp(L.total-L.crew)+'</span><span class="s">Before expenses</span></div><div class="stat"><span class="eyebrow">Invoiced in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'short'}))+'</span><span class="v">'+gbp(invM)+'</span><span class="s">'+gbp(unb)+' done and waiting to be invoiced, all months</span></div></div>'+
+  (goal?'<div class="goal" aria-label="Progress to goal"><u style="width:'+Math.min(100,L.total/goal*100)+'%"></u><i style="width:'+Math.min(100,L.done/goal*100)+'%"></i></div><p class="note" style="margin-top:8px">'+Math.round(L.done/goal*100)+'% of the goal done. With booked work, '+Math.round(L.total/goal*100)+'%.</p>':'')+bTable+'<p class="note" style="margin-top:10px">Retainer instalments count evenly through their month. Fixed-fee projects are spread across their booked days; planned days not yet booked count on the deadline.</p></section>'+
   yearTable()+
   '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Client value</h3><span class="note">Fees for bookings in the period against hours logged in it. A client taking a much bigger share of your time than of your fees is marked.</span></div>'+tbl+'</section>'+
   '<div class="grid g3" style="margin-bottom:16px"><div class="panel stat"><span class="eyebrow">Hours logged</span><span class="v">'+hrs(tot)+'</span>'+(wk&&per==='week'?'<span class="s">Target '+wk+' hrs each</span>':'')+'</div><div class="panel stat"><span class="eyebrow">On client work</span><span class="v">'+(tot?Math.round(bill/tot*100):0)+'%</span><span class="s">'+hrs(tot-bill)+' on admin, meetings and travel</span></div>'+
@@ -1127,6 +1186,7 @@ function vSettings(){
   '<p class="note">'+(S.avail==='ok'?'Last published '+fmtTime(S.availAt)+'.':S.avail==='noaccess'?'Not published: the GitHub token also needs Contents read and write on quietmedia-hours.':S.avail==='error'?'Not published yet; will retry after the next change.':'Publishes a few seconds after any booking changes.')+' <button class="link" data-act="pubavail">Publish now</button></p></section>'+
   '<section class="panel grid"><h3>Sending to clients and crew</h3><div class="row"><label class="f">Sign messages as<input type="text" id="s-sn" data-set="senderName" value="'+esc(s.senderName||'')+'"></label><label class="f">Reply email<input type="email" id="s-re" data-set="replyEmail" value="'+esc(s.replyEmail||'')+'"></label><label class="f">Reply mobile<input type="tel" id="s-rp" data-set="replyPhone" value="'+esc(s.replyPhone||'')+'"></label>'+PEOPLE.map(p=>'<label class="f">'+esc(name(p.id))+' mobile (for call sheets)<input type="tel" id="s-ph-'+p.id+'" data-set="phones.'+p.id+'" value="'+esc((s.phones||{})[p.id]||'')+'"></label>').join('')+'<label class="f">Chase a pencil after (days)<input type="number" id="s-pd" min="1" data-set="pencilDays" value="'+(s.pencilDays||7)+'"></label></div>'+
   '<label class="f">Booking terms shown to clients<textarea id="s-terms" rows="7" data-set="bookingTerms">'+esc(s.bookingTerms||'')+'</textarea></label><p class="note">Shown on every client booking page. Pencil holds the dates; a confirmed booking is subject to these terms.</p></section>'+
+  '<section class="panel"><h3 style="margin-bottom:12px">Crew bookings</h3><div class="row"><label class="f">Company name on crew forms<input type="text" data-set="companyName" value="'+esc(s.companyName||'Quiet Media Limited')+'"></label><label class="f">Pay crew within (days)<input type="number" min="0" data-set="crewPayDays" value="'+(s.crewPayDays||30)+'"></label></div><label class="f">Terms crew sign on the booking form<textarea rows="9" data-set="crewTerms">'+esc(s.crewTerms||DEFAULT_CREW_TERMS)+'</textarea></label><p class="note">Shown on every crew booking form and signed with the fee and dates. A starting point, not legal advice: check it says what you want.</p></section>'+
   '<section class="panel grid"><h3>Goals</h3><div class="row"><label class="f">Monthly revenue goal, ex VAT (£)<input type="number" id="s-goal" min="0" step="50" data-set="monthlyGoal" value="'+(s.monthlyGoal||'')+'"></label><label class="f">Weekly hours target each<input type="number" id="s-wk" min="0" data-set="weeklyHoursTarget" value="'+(s.weeklyHoursTarget||'')+'"></label></div></section>'+
   '<section class="panel grid"><h3>Invoicing</h3><div class="row"><label class="f">Number prefix<input type="text" id="s-prefix" data-set="prefix" value="'+esc(s.prefix)+'"></label><label class="f">Next number<input type="number" id="s-next" data-set="nextInvoice" value="'+s.nextInvoice+'"></label></div>'+
   '<div class="row"><label class="f">VAT rate (%)<input type="number" id="s-vat" data-set="vatRate" value="'+s.vatRate+'"></label><label class="f">Payment terms (days)<input type="number" id="s-terms" data-set="terms" value="'+s.terms+'"></label><label class="f">Xero sales account<input type="text" id="s-acct" data-set="accountCode" value="'+esc(s.accountCode)+'"></label></div>'+
@@ -1155,7 +1215,7 @@ function openClientModal(cid){
     (c.billing==='hourly'?'<label class="f">Hourly rate (£)<input type="number" id="m-hourly" value="'+c.hourlyRate+'"></label>':'')+
     (c.billing==='retainer'?'<div class="row"><label class="f">Billed every<select id="m-rper"><option value="month" '+((c.retainerPeriod||'month')==='month'?'selected':'')+'>Month</option><option value="quarter" '+(c.retainerPeriod==='quarter'?'selected':'')+'>Quarter</option><option value="term" '+(c.retainerPeriod==='term'?'selected':'')+'>School term</option><option value="year" '+(c.retainerPeriod==='year'?'selected':'')+'>Year</option></select></label><label class="f">Fee per period (£)<input type="number" id="m-fee" value="'+c.monthlyFee+'"></label></div><div class="row"><label class="f">Filming days per period<input type="number" id="m-rps" min="0" step="0.5" value="'+(rateCard(c).retainerPlan.Shoot||'')+'"></label><label class="f">Edit days per period<input type="number" id="m-rpe" min="0" step="0.5" value="'+(rateCard(c).retainerPlan.Edit||'')+'"></label><label class="f">Hours in a day<input type="number" id="m-rhours" min="1" value="'+(c.retainerDayHours||8)+'"></label></div>'+
     '<label class="f">What the fee buys<select id="m-rbasis"><option value="time" '+((c.retainerBasis||'time')==='time'?'selected':'')+'>Time: a set number of days each period, however long they take</option><option value="scope" '+(c.retainerBasis==='scope'?'selected':'')+'>Work: an agreed set of jobs, so fewer hours means more profit</option></select></label>'+
-    '<label class="f">Retainer started (month)<input type="month" id="m-rstart" value="'+esc(c.retainerStart||'')+'"></label><p class="note">Terms run Sep–Dec, Jan–Apr, May–Aug. The fee becomes an invoice line automatically at the start of each period. Every clock-in for this client counts towards the period, with or without a project, and clocking out asks whether the day was a half or a full day. Bookings carry no fee unless you type one.</p>':'')+
+    ''+(()=>{const rc=rateCard(c);const per=c.retainerPeriod||'month';if(per==='month')return '';const pm={quarter:3,term:4,year:12}[per]||3;return '<div class="row"><label class="f">Invoiced in<select id="m-rsplit">'+[1,2,3,4,6,12].filter(n=>n<=12).map(n=>'<option value="'+n+'" '+(rc.retainerSplit===n?'selected':'')+'>'+(n===1?'One invoice':n+' monthly instalments')+'</option>').join('')+'</select></label><label class="f">First invoice<select id="m-rfrom">'+Array.from({length:pm},(_,i)=>'<option value="'+i+'" '+(rc.retainerSplitFrom===i?'selected':'')+'>'+(i===0?'First month of the '+per:'Month '+(i+1)+' of the '+per)+'</option>').join('')+'</select></label></div>'})()+'<label class="f">Retainer started (month)<input type="month" id="m-rstart" value="'+esc(c.retainerStart||'')+'"></label><p class="note">Terms run Sep–Dec, Jan–Apr, May–Aug. The fee (or each instalment) becomes an invoice line automatically at the start of its month, and counts towards that month in Insights. Every clock-in for this client counts towards the period, with or without a project, and clocking out asks whether the day was a half or a full day. Bookings carry no fee unless you type one.</p>':'')+
     '<div class="row"><label class="f">Accounts email<input type="email" id="m-email" value="'+esc(c.email||'')+'"></label><label class="f">Charge VAT<select id="m-vat"><option value="1" '+(c.vat!==false?'selected':'')+'>Yes</option><option value="0" '+(c.vat===false?'selected':'')+'>No</option></select></label></div>'+
     '<label class="f">Notes<textarea id="m-notes" rows="2">'+esc(c.notes||'')+'</textarea></label>'+
     '<div class="acts">'+(cid?'<button class="btn ghost small" data-act="archive" data-v="'+cid+'">'+(c.archived?'Restore':'Archive')+'</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveclient" data-v="'+(cid||'')+'">Save client</button></div>'}};
@@ -1165,7 +1225,7 @@ function readClientForm(){const c=S.modal.c;const v=id=>{const el=document.getEl
   c.name=v('m-name')??c.name;c.billing=v('m-billing')??c.billing;
   [['m-short','shortRate'],['m-half','halfDay'],['m-full','fullDay'],['m-edit','editDay'],['m-edith','editHours'],['m-hourly','hourlyRate'],['m-fee','monthlyFee']].forEach(([i,k])=>{const x=v(i);if(x!==undefined)c[k]=+x||0});
   c.email=v('m-email')??c.email;c.notes=v('m-notes')??c.notes;const vt=v('m-vat');if(vt!==undefined)c.vat=vt==='1';
-  [['m-rhours','retainerDayHours']].forEach(([i,k])=>{const x=v(i);if(x!==undefined)c[k]=+x||0});if(v('m-rps')!==undefined){c.retainerPlan={Shoot:+v('m-rps')||0,Edit:+v('m-rpe')||0};c.retainerDays=c.retainerPlan.Shoot+c.retainerPlan.Edit}if(v('m-rbasis')!==undefined)c.retainerBasis=v('m-rbasis');const rs=v('m-rstart');if(rs!==undefined)c.retainerStart=rs;const rp=v('m-rper');if(rp!==undefined)c.retainerPeriod=rp;
+  [['m-rhours','retainerDayHours']].forEach(([i,k])=>{const x=v(i);if(x!==undefined)c[k]=+x||0});if(v('m-rps')!==undefined){c.retainerPlan={Shoot:+v('m-rps')||0,Edit:+v('m-rpe')||0};c.retainerDays=c.retainerPlan.Shoot+c.retainerPlan.Edit}if(v('m-rbasis')!==undefined)c.retainerBasis=v('m-rbasis');if(v('m-rsplit')!==undefined){c.retainerSplit=+v('m-rsplit')||1;c.retainerSplitFrom=+v('m-rfrom')||0}const rs=v('m-rstart');if(rs!==undefined)c.retainerStart=rs;const rp=v('m-rper');if(rp!==undefined)c.retainerPeriod=rp;
 }
 
 function openEntryModal(eid,presetClient){
@@ -1193,7 +1253,18 @@ const portion=ev=>ev.portion===0.5?0.5:1;
 /* Clocked time → worked days: per person per calendar day, 5h or more is a full day, anything less is a half day. */
 function clockDays(entries){const by={};entries.forEach(e=>{const k=e.person+'|'+dayKey(e.start);by[k]=(by[k]||0)+entryH(e)});return Object.values(by).reduce((s,h)=>s+(h>=5?1:h>0?0.5:0),0)}
 const fmtDays=n=>(Math.round(n*2)/2).toString().replace('.5','½').replace(/^0½$/,'½');
-function crewCost(ev){return (ev.crew||[]).filter(x=>x.status!=='declined').reduce((s,x)=>s+(+x.rate||0),0)}
+function crewCost(ev){return (ev.crew||[]).filter(x=>x.status!=='declined'&&x.status!=='released').reduce((s,x)=>s+(+x.rate||0),0)}
+const CREW_ST={pencil:'Pencil',confirmed:'Booked',declined:'Declined',released:'Released'};
+const crewStOpts=x=>Object.entries(CREW_ST).map(([k,l])=>'<option value="'+k+'" '+((x.status||'pencil')===k?'selected':'')+'>'+l+'</option>').join('');
+/* one line about where a crew member is: pencil asked / holding / booked and signed / released */
+function crewState(x){const f=x.forms||{};const d=t=>fmtDate(t,{day:'numeric',month:'short'});
+  if(x.status==='released')return 'Released'+(f.pencil&&f.pencil.releasedAt?' '+d(f.pencil.releasedAt):'');
+  if(x.status==='confirmed')return f.book&&f.book.signed?'Booked · signed by '+esc(f.book.signed.name)+', '+d(f.book.signed.at):f.book&&f.book.sid?'Booked by you · form sent '+d(f.book.at)+', not signed yet':'Booked by you, no form';
+  if(x.status==='declined')return 'Declined'+(f.book&&f.book.declined?' the booking'+(f.book.declined.note?': “'+esc(f.book.declined.note)+'”':''):f.pencil&&f.pencil.reply&&!f.pencil.reply.hold?' the pencil'+(f.pencil.reply.note?': “'+esc(f.pencil.reply.note)+'”':''):'');
+  if(f.book&&f.book.sid&&!f.book.signed)return 'Booking form sent '+d(f.book.at)+', waiting for signature';
+  if(f.pencil&&f.pencil.reply&&f.pencil.reply.hold)return 'Holding the dates since '+d(f.pencil.reply.at)+(f.pencil.reply.note?' · “'+esc(f.pencil.reply.note)+'”':'');
+  if(f.pencil&&f.pencil.sid)return 'Pencil sent '+d(f.pencil.at)+', no reply yet';
+  return 'Pencilled, nothing sent';}
 function eventNet(ev){return eventValue(ev)-crewCost(ev)}
 function contrast(hex){const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex||'');if(!m)return '#fff';const [r,g,b]=[1,2,3].map(i=>parseInt(m[i],16));return (r*299+g*587+b*114)/1000>150?'#0A0A0A':'#FFFFFF'}
 function evInitials(ev){const ppl=(ev.people||[]).map(p=>'<i title="'+esc(name(p))+'">'+esc(name(p).slice(0,1))+'</i>');const cr=(ev.crew||[]).filter(x=>x.status!=='declined').map(x=>'<i class="cr" title="'+esc(crewName(x.id))+'">'+esc(crewName(x.id).slice(0,1))+'</i>');return '<span class="ini">'+ppl.concat(cr).join('')+'</span>'}
@@ -1207,8 +1278,8 @@ function evLine(ev,all){
   const v=eventValue(ev);const cost=crewCost(ev);const cl=clashes(ev,all);const inv=ev.invoiceId&&S.invoices[ev.invoiceId];const st=evStatus(ev);
   const money=v?'<b style="font-weight:500">'+gbp(v)+'</b>'+(cost?' · crew '+gbp(cost)+' · <b style="font-weight:500">'+gbp(v-cost)+' net</b>':''):(cost?'crew '+gbp(cost):'');
   const pj=ev.projectId&&S.projects[ev.projectId];const crew=(pj?'<div class="meta note">Project: '+esc(pj.title)+' · '+projectPriceLabel(pj)+(planRemaining(pj).some(x=>x.remaining)?' · '+planRemaining(pj).filter(x=>x.remaining).map(x=>fmtDays(x.remaining)+' '+x.type.toLowerCase()).join(', ')+' still to allocate':'')+'</div>':'')+((ev.crew||[]).length?'<div class="meta note">Crew: '+(ev.crew||[]).map(x=>esc(crewName(x.id))+(x.status==='confirmed'?' ✓':x.status==='declined'?' ✗':' (pencil)')).join(', ')+(ev.callTime?' · call '+esc(ev.callTime):'')+'</div>':'');
-  return '<div class="ev'+(evVisible(ev)?'':' dim')+'"><span style="background:'+colour(ev.clientId)+'"></span><div class="main"><div>'+esc(ev.title)+(cl?' <span class="pill" style="color:var(--warn);border-color:var(--warn)">Clash</span>':'')+'</div><div class="meta note">'+fmtTime(ev.start)+'–'+fmtTime(ev.end)+' · '+esc(cname(ev.clientId))+' · '+esc((ev.people||[]).map(name).join(' & ')||'Unassigned')+(money?' · '+money:'')+(ev.location?' · '+esc(ev.location):'')+'</div>'+crew+
-  '<div class="row" style="gap:14px;margin-top:6px"><button class="link" data-act="sendsheet" data-v="'+ev.id+'">Send</button><button class="link" data-act="ical" data-v="'+ev.id+'">Apple Calendar</button><a class="link" href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Google</a><button class="link" data-act="logevent" data-v="'+ev.id+'">Log as time</button><button class="link" data-act="editevent" data-v="'+ev.id+'">Edit</button></div></div><span style="display:grid;gap:4px;justify-items:end"><span class="pill">'+esc(ev.type)+(portion(ev)===0.5?' · ½':'')+'</span><span class="pill st-'+st+'">'+STATUS_LABEL[st]+'</span>'+(inv?'<span class="pill paid">'+esc(inv.number)+'</span>':'')+'</span></div>';
+  return '<div class="ev'+(evVisible(ev)?'':' dim')+'"><span style="background:'+colour(ev.clientId)+'"></span><div class="main"><div>'+esc(ev.title)+(cl?' <span class="pill" style="color:var(--warn);border-color:var(--warn)">Clash</span>':'')+'</div><div class="meta note">'+fmtTime(ev.start)+'–'+fmtTime(ev.end)+' · '+esc(cname(ev.clientId))+' · '+esc((ev.people||[]).map(name).join(' & ')||'Unassigned')+(money?' · '+money:'')+(ev.location?' · '+esc(ev.location):'')+(ev.start<=Date.now()&&ev.clientId&&(ev.people||[]).length&&bookingEntries(ev).length?' · worked '+hrs(bookingEntries(ev).reduce((t,x)=>t+entryH(x),0)):'')+'</div>'+crew+
+  '<div class="row" style="gap:14px;margin-top:6px"><button class="link" data-act="sendsheet" data-v="'+ev.id+'">Send</button><button class="link" data-act="ical" data-v="'+ev.id+'">Apple Calendar</button><a class="link" href="'+gcalLink(ev)+'" target="_blank" rel="noopener">Google</a><button class="link" data-act="hours" data-v="'+ev.id+'">Hours</button><button class="link" data-act="editevent" data-v="'+ev.id+'">Edit</button></div></div><span style="display:grid;gap:4px;justify-items:end"><span class="pill">'+esc(ev.type)+(portion(ev)===0.5?' · ½':'')+'</span><span class="pill st-'+st+'">'+STATUS_LABEL[st]+'</span>'+(inv?'<span class="pill paid">'+esc(inv.number)+'</span>':'')+'</span></div>';
 }
 
 /* ===== schedule ===== */
@@ -1216,15 +1287,12 @@ function monthStats(m0){
   const m1=addMonths(m0,1);const now=Date.now();
   const evs=Object.values(S.events).filter(e=>e.status!=='cancelled'&&e.start>=m0&&e.start<m1&&evVisible(e));
   const days=t=>evs.filter(e=>e.type===t).reduce((a,e)=>a+portion(e),0);
-  let fees=evs.reduce((s,e)=>s+eventValue(e),0);const crew=evs.reduce((s,e)=>s+crewCost(e),0);
-  const pencil=evs.filter(e=>evStatus(e)==='pencil').reduce((s,e)=>s+eventValue(e),0);
-  let projects=0,retainers=0;
-  Object.values(S.projects).forEach(p=>{if(pstatus(p)==='cancelled')return;const a=projectAnchor(p);if(a>=m0&&a<m1){projects+=projectValue(p)}});
-  activeClients().forEach(c=>{const r=rateCard(c);if(r.billing!=='retainer')return;retainerPeriods(c,m1-1).forEach(pr=>{if(pr.start>=m0&&pr.start<m1)retainers+=r.monthlyFee})});
+  const L=ledger(m0,m1);const crew=L.crew,pencil=L.pencil;const sumK=k=>L.rows.filter(r=>r.kind===k).reduce((t,r)=>t+r.done+r.booked,0);
+  const fees=sumK('booking'),projects=sumK('project'),retainers=sumK('retainer');
   const hours=Object.values(S.entries).filter(e=>e.start>=m0&&e.start<m1&&(S.cal.who&&S.cal.who!=='all'?e.person===S.cal.who:true)).reduce((s,e)=>s+entryH(e),0);
   const invoiced=Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<m1).reduce((s,i)=>s+i.subtotal,0);
-  const gross=fees+projects+retainers;
-  return {m0,m1,evs,bookings:evs.length,shoot:days('Shoot'),edit:days('Edit'),off:days('Unavailable'),fees,projects,retainers,gross,crew,net:gross-crew,pencil,hours,invoiced,past:m1<=now};
+  const gross=L.total;
+  return {m0,m1,evs,L,done:L.done,booked:L.booked,bookings:evs.length,shoot:days('Shoot'),edit:days('Edit'),off:days('Unavailable'),fees,projects,retainers,gross,crew,net:gross-crew,pencil,hours,invoiced,past:m1<=now};
 }
 /* ===== calendar: one calendar that zooms Year → Month → Week → Day. Type is the shape, client is the hue. ===== */
 const CAL_LEVELS=['year','month','week','day'];
@@ -1316,13 +1384,13 @@ function openEventSheet(id){S.modal={type:'evsheet',cls:'sheet',html:()=>{const 
   const v=eventValue(ev),cost=crewCost(ev);
   const when=grp.length>1?fmtDate(grp[0].start,{day:'numeric',month:'short'})+' – '+fmtDate(grp[grp.length-1].start,{day:'numeric',month:'short',year:'numeric'})+' · '+grp.length+' days':fmtDate(ev.start,{weekday:'long',day:'numeric',month:'long'});
   const kv=[['When',when+(ev.type!=='Deadline'?', '+fmtTime(ev.start)+'–'+fmtTime(ev.end):'')+(portion(ev)===0.5?' · half day':'')],ev.callTime?['Call time',ev.callTime]:null,ev.location?['Where',esc(ev.location)]:null,['Who',(ev.people||[]).map(name).join(' & ')||'Unassigned'],
-    (ev.crew||[]).length?['Crew',(ev.crew||[]).map(x=>esc(crewName(x.id))+(x.status==='confirmed'?' ✓':x.status==='declined'?' ✗':' · pencil')).join('<br>')]:null,
-    pj?['Project',esc(pj.title)+' · '+projectPriceLabel(pj)]:null,r&&r.billing==='retainer'?['Billing','Within '+(c.retainerPeriod||'monthly')+' retainer']:null,inv?['Invoice',esc(inv.number)]:null,ev.notes?['Notes',esc(ev.notes)]:null].filter(Boolean);
+    (ev.crew||[]).length?['Crew',(ev.crew||[]).map(x=>esc(crewName(x.id))+' <span class="muted">· '+crewState(x)+'</span>').join('<br>')+'<div><button class="link" data-act="sendsheet" data-v="'+ev.id+'">Pencil, book or release crew</button></div>']:null,
+    pj?['Project',esc(pj.title)+' · '+projectPriceLabel(pj)]:null,r&&r.billing==='retainer'?['Billing','Within '+(c.retainerPeriod||'monthly')+' retainer']:null,inv?['Invoice',esc(inv.number)]:null,ev.notes?['Notes',esc(ev.notes)]:null,(BUSY_TYPES[ev.type]||ev.type==='Meeting')&&ev.type!=='Unavailable'&&ev.start<=Date.now()&&(ev.people||[]).length?['Hours',hoursLine(ev)]:null].filter(Boolean);
   const cs=ev.type==='Shoot'?'<button class="btn'+(st==='confirmed'?'':' ghost')+'" data-act="callsheet" data-v="'+ev.id+'">Call sheet'+(sheetAnchor(ev).sheet&&sheetAnchor(ev).sheet.publishedAt?' v'+sheetAnchor(ev).sheet.version:'')+'</button>':'';
   const stBtns=st==='pencil'?'<button class="btn" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Confirm booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'">Client page</button>'+cs:st==='cancelled'?'<button class="btn ghost" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Reinstate</button>':cs+(ev.clientId?'<button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'">Client page</button>':'');
   return '<div class="sh-top '+evKind(ev)+'" style="--c:'+colour(ev.clientId)+'"><span class="bd">'+evLetter(ev)+'</span><div style="min-width:0"><h2>'+esc(ev.title||evTypeName(ev))+'</h2><p>'+evTypeName(ev)+(st!=='confirmed'?' · '+STATUS_LABEL[st].toLowerCase():'')+(ev.clientId?' · '+esc(cname(ev.clientId)):'')+'</p></div></div>'+
   '<dl class="kv l">'+kv.map(([k,val])=>'<dt>'+k+'</dt><dd>'+val+'</dd>').join('')+'</dl>'+
-  '<div class="sh-act">'+stBtns+'<button class="btn ghost" data-act="editevent" data-v="'+ev.id+'">Edit</button><button class="btn ghost" data-act="ical" data-v="'+ev.id+'">iPhone calendar</button><button class="btn ghost" data-act="logevent" data-v="'+ev.id+'">Log as time</button>'+(st!=='cancelled'?'<button class="btn ghost" style="color:var(--danger)" data-act="evstatus" data-e="'+ev.id+'" data-v="cancelled">Cancel booking</button>':'')+'</div>'+
+  '<div class="sh-act">'+stBtns+'<button class="btn ghost" data-act="editevent" data-v="'+ev.id+'">Edit</button><button class="btn ghost" data-act="ical" data-v="'+ev.id+'">iPhone calendar</button><button class="btn ghost" data-act="hours" data-v="'+ev.id+'">Hours worked</button>'+(st!=='cancelled'?'<button class="btn ghost" style="color:var(--danger)" data-act="evstatus" data-e="'+ev.id+'" data-v="cancelled">Cancel booking</button>':'')+'</div>'+
   ((v||cost)?'<div class="sh-q">'+(v?'Fee <b>'+gbp(v)+'</b>':'')+(cost?' · crew <b>'+gbp(cost)+'</b> · net <b>'+gbp(v-cost)+'</b>':'')+(ev.type==='Shoot'&&!v&&r&&r.billing!=='retainer'?'No fee set':'')+'. Full figures live in Insights.</div>':'')}};renderModal()}
 /* gestures: pinch (touch), trackpad pinch (ctrl+wheel), sideways swipe or scroll, keyboard */
 (()=>{const pts=new Map();let p0=0,sw=null,live=1,dragx=0,zacc=0,ztimer=null,xacc=0,cool=0;
@@ -1483,7 +1551,7 @@ function crewSection(){
     const hint=pr?'Paid before: '+gbp(pr.min)+(pr.max!==pr.min?'–'+gbp(pr.max):'')+' over '+pr.n+' job'+(pr.n===1?'':'s')+' · last '+gbp(pr.last.rate)+' ('+esc(pr.last.client)+')':(rates.length?'Not booked before. Rate card: '+rates.map(r=>gbp(r.amount)+' '+esc(r.label).toLowerCase()).join(', '):'Not booked before, no rates set.');
     return '<div class="crewrow"><label class="chip"><input type="checkbox" data-crew="'+c.id+'" '+(x?'checked':'')+'> '+esc(c.name)+'<span class="muted"> '+esc(c.role||'')+'</span></label>'+
     '<input type="number" class="rate" data-crewrate="'+c.id+'" list="rates-'+c.id+'" value="'+(x?x.rate:(rates[0]?rates[0].amount:''))+'" placeholder="£" aria-label="Agreed fee for '+esc(c.name)+'"'+(x?'':' disabled')+'><datalist id="rates-'+c.id+'">'+rates.map(r=>'<option value="'+r.amount+'">'+esc(r.label)+'</option>').join('')+'</datalist>'+
-    (x?'<select data-crewst="'+c.id+'"><option value="pencil" '+(x.status==='pencil'||!x.status?'selected':'')+'>Pencil</option><option value="confirmed" '+(x.status==='confirmed'?'selected':'')+'>Confirmed</option><option value="declined" '+(x.status==='declined'?'selected':'')+'>Declined</option></select>':'<span></span>')+
+    (x?'<select data-crewst="'+c.id+'">'+crewStOpts(x)+'</select>':'<span></span>')+
     '<div class="crewhint">'+(rates.length?rates.map(r=>'<button type="button" class="ratepick" data-act="ratepick" data-c="'+c.id+'" data-v="'+r.amount+'">'+gbp(r.amount)+' <span>'+esc(r.label)+'</span></button>').join(''):'')+'<span class="note">'+hint+'</span></div></div>'}).join('')+'</div></div>';
 }
 function readCrewForm(){const sel={};document.querySelectorAll('[data-crew]').forEach(cb=>{if(cb.checked){const id=cb.dataset.crew;const rate=document.querySelector('[data-crewrate="'+id+'"]');const st=document.querySelector('[data-crewst="'+id+'"]');sel[id]={id,rate:+(rate&&rate.value)||0,status:st?st.value:((S.modal.crewSel[id]||{}).status||'pencil')}}});S.modal.crewSel=sel}
@@ -1546,6 +1614,48 @@ async function publishSheet(ev,kind,payload){
   await patch('events',ev.id,kind==='crew'?{sheetAt:Date.now()}:{pencilSent:ev.pencilSent||Date.now(),clientPageAt:Date.now()});
   return url;
 }
+/* ===== crew forms: a pencil hold and a signed booking, each a page on sheets.quietmedia.co.uk/crew/ ===== */
+const crewFormUrl=f=>SHEETS_HOST+'/crew/#'+f.sid+'.'+f.key;
+function waLink(phone,text){let d=(phone||'').replace(/[^0-9+]/g,'');if(d.startsWith('+'))d=d.slice(1);else if(d.startsWith('0'))d='44'+d.slice(1);return 'https://wa.me/'+d+'?text='+encodeURIComponent(text)}
+function crewDays(ev,cid){return groupOf(ev).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(y=>y.id===cid)).sort((a,b)=>a.start-b.start)}
+async function setCrew(ev,cid,fn){for(const e of groupOf(ev)){if(!(e.crew||[]).some(y=>y.id===cid))continue;await patch('events',e.id,{crew:(e.crew||[]).map(y=>y.id===cid?fn({...y}):y)})}}
+function crewFormPayload(ev,cid,kind,extra){const cr=S.crew[cid]||{};const s=S.settings;const c=client(ev.clientId)||{};const days=crewDays(ev,cid).map(e=>({date:e.start,start:fmtTime(e.start),end:fmtTime(e.end),call:e.callTime||'',location:e.location||'',type:e.type,title:e.title,rate:+((e.crew||[]).find(y=>y.id===cid)||{}).rate||0}));
+  return {kind,v:1,title:ev.title,client:c.name||'',name:cr.name||'',role:cr.role||'',days,total:days.reduce((t,d)=>t+d.rate,0),from:s.senderName||'Quiet Media',company:s.companyName||'Quiet Media Limited',replyPhone:s.replyPhone||'',replyEmail:s.replyEmail||s.availEmail||'',terms:kind==='crewbook'?(s.crewTerms||DEFAULT_CREW_TERMS):'',payDays:+s.crewPayDays||30,ref:(ev.groupId||ev.id).toUpperCase().slice(-8),released:false,sent:Date.now(),...(extra||{})}}
+async function publishCrewForm(ev,cid,kind,extra){const x=(ev.crew||[]).find(y=>y.id===cid);const slot=kind==='crewbook'?'book':'pencil';const f=((x&&x.forms)||{})[slot]||{};
+  const sid=f.sid||('cr'+(ev.groupId||ev.id)+cid+(slot==='book'?'b':'p')).replace(/[^A-Za-z0-9_-]/g,'');const key=f.key||b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const body=crewFormPayload(ev,cid,kind,extra);
+  const {error}=await sb.from('sheets').upsert({id:sid,org_id:ORG,kind,token:key,payload:body,version:(f.version||0)+1,published_at:new Date().toISOString(),revoked:false});
+  if(error)throw new Error(error.message);
+  const nf={...f,sid,key,at:f.at||Date.now(),version:(f.version||0)+1,lastSent:Date.now()};
+  await setCrew(ev,cid,y=>({...y,forms:{...(y.forms||{}),[slot]:nf}}));return nf}
+function crewMsg(ev,cid,kind,url){const cr=S.crew[cid]||{};const first=(cr.name||'').split(' ')[0]||'there';const ds=crewDays(ev,cid);const dates=ds.map(e=>fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})).join(', ');const rate=+((ds[0]&&(ds[0].crew||[]).find(y=>y.id===cid))||{}).rate||0;const tot=ds.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===cid)||{}).rate||0),0);const me=S.settings.senderName||'Samuel';
+  if(kind==='crewpencil')return 'Hi '+first+', could I pencil you for '+ev.title+' on '+dates+'? '+gbp(rate)+' a day. Nothing is confirmed yet. Let me know if you can hold the dates here: '+url+' – '+me;
+  if(kind==='crewbook')return 'Hi '+first+', booking you for '+ev.title+' on '+dates+', '+gbp(tot)+' in total. Please read and sign the booking form to confirm: '+url+' – '+me;
+  return 'Hi '+first+', releasing you from the pencil on '+dates+' for '+ev.title+'. Thanks for holding. – '+me}
+function openCrewShare(evid,cid,kind,url){const ev=S.events[evid];const cr=S.crew[cid]||{};const msg=crewMsg(ev,cid,kind,url);const t={crewpencil:'Ask '+esc((cr.name||'').split(' ')[0])+' to pencil',crewbook:'Send the booking form',release:'Release '+esc((cr.name||'').split(' ')[0])}[kind];
+  S.modal={type:'crewshare',evid,cls:'sheet',html:()=>'<h2>'+t+'</h2><p class="note" style="margin:-4px 0 12px">'+esc(cr.name||'')+(cr.phone?' · '+esc(cr.phone):'')+(cr.email?' · '+esc(cr.email):'')+'</p><textarea id="cs-msg" rows="5" style="width:100%">'+esc(msg)+'</textarea>'+
+    '<div class="row" style="gap:8px;margin-top:12px">'+(cr.phone?'<a class="btn" data-act="crewsend" data-k="wa" href="'+waLink(cr.phone,msg)+'" target="_blank" rel="noopener">WhatsApp</a><a class="btn ghost" data-act="crewsend" data-k="sms" href="'+smsLink(cr.phone,msg)+'">Text</a>':'')+(cr.email?'<a class="btn'+(cr.phone?' ghost':'')+'" data-act="crewsend" data-k="mail" href="'+mailLink(cr.email,{crewpencil:'Pencil: ',crewbook:'Booking: ',release:'Released: '}[kind]+ev.title,msg)+'">Email</a>':'')+(url?'<button class="btn ghost" data-act="crewcopy" data-v="'+esc(url)+'">Copy link</button><a class="btn ghost" href="'+esc(url)+'" target="_blank" rel="noopener">Preview</a>':'')+'</div>'+
+    (!cr.phone&&!cr.email?'<p class="note" style="color:var(--warn)">No phone or email for '+esc(cr.name||'them')+'. Copy the link, or add their details under Crew.</p>':'')+
+    '<div class="acts"><button class="btn ghost" data-act="sendsheet" data-v="'+evid+'">Back</button><button class="btn" data-act="closemodal">Done</button></div>'};renderModal()}
+async function crewFormAction(evid,cid,slot){const ev=S.events[evid];if(!ev)return;const kind=slot==='book'?'crewbook':'crewpencil';
+  if(!sb||!ORG){toast('Not connected. Try again when online.');return}
+  try{if(slot==='pencil'){const x=(ev.crew||[]).find(y=>y.id===cid);if(x&&(x.status==='released'||x.status==='declined')){await setCrew(ev,cid,y=>({...y,status:'pencil',forms:{...(y.forms||{}),pencil:{...((y.forms||{}).pencil||{}),reply:null,releasedAt:null}}}))}}
+    const f=await publishCrewForm(S.events[evid],cid,kind);openCrewShare(evid,cid,kind,crewFormUrl(f))}
+  catch(e){toast('Could not create the form: '+(e.message||'try again'))}}
+async function crewRelease(evid,cid){const ev=S.events[evid];const x=(ev.crew||[]).find(y=>y.id===cid);if(!x)return;let url='';
+  await setCrew(ev,cid,y=>({...y,status:'released',forms:{...(y.forms||{}),pencil:{...((y.forms||{}).pencil||{}),releasedAt:Date.now()}}}));
+  const f=(x.forms||{}).pencil;if(f&&f.sid&&sb&&ORG){try{const nf=await publishCrewForm(S.events[evid],cid,'crewpencil',{released:true});url=crewFormUrl(nf)}catch(e){}}
+  openCrewShare(evid,cid,'release',url)}
+/* replies from crew land in sheet_responses; apply the newest to the booking */
+async function pullCrewResponses(){if(!sb||!ORG)return;const want={};Object.values(S.events).forEach(e=>(e.crew||[]).forEach(x=>{const f=x.forms||{};if(f.pencil&&f.pencil.sid)want[f.pencil.sid]=1;if(f.book&&f.book.sid)want[f.book.sid]=1}));const ids=Object.keys(want);if(!ids.length)return;
+  const {data,error}=await sb.from('sheet_responses').select('id,sheet_id,kind,data,created_at').in('sheet_id',ids).order('id',{ascending:true});if(error){if(!S.respWarned){S.respWarned=1;console.warn('crew replies:',error.message)}return}
+  for(const r of (data||[]))await applyCrewResponse(r)}
+async function applyCrewResponse(r){const slot=r.kind==='crewbook'?'book':'pencil';const d=r.data||{};const at=Date.parse(r.created_at)||Date.now();
+  const ev=Object.values(S.events).find(e=>(e.crew||[]).some(x=>((x.forms||{})[slot]||{}).sid===r.sheet_id));if(!ev)return;const x=ev.crew.find(y=>((y.forms||{})[slot]||{}).sid===r.sheet_id);const f=(x.forms||{})[slot]||{};
+  if((f.rid||0)>=r.id)return;const who=crewName(x.id);
+  if(slot==='pencil'){const hold=!!d.hold;await setCrew(ev,x.id,y=>({...y,status:(y.status==='pencil'||!y.status||y.status==='declined')&&!(f.releasedAt)?(hold?'pencil':'declined'):y.status,forms:{...(y.forms||{}),pencil:{...f,rid:r.id,reply:{hold,note:String(d.note||'').slice(0,500),at}}}}));toast(who+(hold?' is holding ':' can’t do ')+ev.title)}
+  else{if(d.accept){await setCrew(ev,x.id,y=>({...y,status:'confirmed',forms:{...(y.forms||{}),book:{...f,rid:r.id,signed:{name:String(d.name||who).slice(0,120),at},declined:null}}}));toast(who+' signed the booking for '+ev.title)}
+    else{await setCrew(ev,x.id,y=>({...y,status:'declined',forms:{...(y.forms||{}),book:{...f,rid:r.id,declined:{note:String(d.note||'').slice(0,500),at}}}}));toast(who+' turned down '+ev.title)}}}
 function smsLink(phone,body){return 'sms:'+(phone||'').replace(/\s+/g,'')+(/(iPhone|iPad|Mac)/.test(navigator.userAgent)?'&':'?')+'body='+encodeURIComponent(body)}
 function mailLink(to,subject,body){return 'mailto:'+encodeURIComponent(to||'')+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body)}
 function openSendModal(evid){
@@ -1557,7 +1667,11 @@ function openSendModal(evid){
     const clientBody=(reminder)=>(reminder?'Hi, a quick nudge on the dates we are holding for you: ':'Hi, we have pencilled the following dates for you: ')+dates+'. '+(ev.type==='Shoot'?'Filming':ev.type)+(ev.location?' at '+ev.location:'')+'. Everything is on your booking page, including how to confirm: '+(clientUrl||'[publish first]')+'\n\nBest,\n'+(s.senderName||'Samuel')+'\nQuiet Media';
     return '<h2>Send</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+
     (ev.type==='Shoot'||(ev.crew||[]).length?'<section class="panel" style="padding:16px"><div class="panel-head"><h3 class="small">Crew</h3><button class="btn ghost small" data-act="callsheet" data-v="'+evid+'">Call sheet</button></div>'+
-    ((ev.crew||[]).length?'<div class="list">'+(ev.crew||[]).map(x=>{const cr=S.crew[x.id]||{};return '<div class="item"><span class="sw" style="background:var(--line-strong)"></span><div class="main"><div class="t">'+esc(cr.name||'Crew')+' <span class="muted">· '+gbp(x.rate)+'</span></div></div><div class="end"><select data-act="crewstatus" data-e="'+evid+'" data-c="'+x.id+'"><option value="pencil" '+(x.status==='pencil'||!x.status?'selected':'')+'>Pencil</option><option value="confirmed" '+(x.status==='confirmed'?'selected':'')+'>Confirmed</option><option value="declined" '+(x.status==='declined'?'selected':'')+'>Declined</option></select></div></div>'}).join('')+'</div>':'<p class="note">No crew on this booking.</p>')+'<p class="note" style="margin-top:8px">Only confirmed crew go on the call sheet. Build, preview and send it from the call sheet button.</p></section>':'')+
+    ((ev.crew||[]).length?'<div class="list">'+(ev.crew||[]).map(x=>{const cr=S.crew[x.id]||{};const st=x.status||'pencil';const f=x.forms||{};const days=groupOf(ev).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(y=>y.id===x.id));const tot=days.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===x.id)||{}).rate||0),0);
+      const btn=(k,l,g)=>'<button class="btn small'+(g?' ghost':'')+'" data-act="'+k+'" data-e="'+evid+'" data-c="'+x.id+'">'+l+'</button>';
+      const acts=st==='released'||st==='declined'?btn('crewform','Pencil again',1).replace('data-act="crewform"','data-act="crewform" data-v="pencil"'):st==='confirmed'?(f.book&&f.book.signed?'<a class="btn small ghost" target="_blank" rel="noopener" href="'+crewFormUrl(f.book)+'">View signed form</a>':btn('crewform',f.book&&f.book.sid?'Resend booking form':'Send booking form',1).replace('data-act="crewform"','data-act="crewform" data-v="book"')):
+        btn('crewform',f.pencil&&f.pencil.sid?'Resend pencil':'Ask to pencil',1).replace('data-act="crewform"','data-act="crewform" data-v="pencil"')+btn('crewform',f.book&&f.book.sid?'Resend booking form':'Book · send form',0).replace('data-act="crewform"','data-act="crewform" data-v="book"')+(f.pencil&&f.pencil.sid||st==='pencil'?btn('crewrelease','Release',1):'');
+      return '<div class="item" style="align-items:flex-start;flex-wrap:wrap"><span class="sw" style="background:'+(st==='confirmed'?'var(--ok,var(--fg))':st==='pencil'?'var(--warn)':'var(--line-strong)')+'"></span><div class="main" style="min-width:min(100%,220px)"><div class="t">'+esc(cr.name||'Crew')+' <span class="muted">· '+esc(cr.role||'')+(cr.role?' · ':'')+gbp(x.rate)+(days.length>1?'/day, '+gbp(tot)+' total':'')+'</span></div><div class="meta">'+crewState(x)+'</div><div class="row" style="gap:8px;margin-top:8px">'+acts+'</div></div><div class="end"><select data-act="crewstatus" data-e="'+evid+'" data-c="'+x.id+'" aria-label="Status for '+esc(cr.name||'crew')+'">'+crewStOpts(x)+'</select></div></div>'}).join('')+'</div>':'<p class="note">No crew on this booking. Add them in Edit booking.</p>')+'<p class="note" style="margin-top:8px">Ask to pencil holds dates that might happen; they reply holding or not. Book sends the booking form with the fee, dates and your terms to sign, which books them. If you have already agreed it, just set them to Booked. Only booked crew go on the call sheet.</p></section>':'')+
     (c?'<section class="panel" style="padding:16px"><div class="panel-head"><h3 class="small">Client booking page</h3><button class="btn ghost small" data-act="pubsheet" data-v="'+evid+'" data-k="client">'+(clientUrl?'Update page':'Publish page')+'</button></div>'+
     (clientUrl?'<div class="linkbox"><span>'+esc(clientUrl)+'</span><button class="link" data-act="copy" data-v="'+esc(clientUrl)+'">Copy</button></div>':'<p class="note">The client sees the dates, fee, your terms, and Confirm / Ask to change buttons.</p>')+
     '<div class="row" style="margin-top:10px;align-items:center"><a class="btn small'+(clientUrl?'':' ghost')+'" href="'+mailLink(c.email||'',(st==='pencil'?'Pencilled: ':'Booking confirmed: ')+ev.title+' · '+dates,clientBody(false))+'">Email '+(st==='pencil'?'pencil':'confirmation')+'</a>'+(st==='pencil'&&pencilAge!=null?'<a class="btn ghost small" href="'+mailLink(c.email||'','Reminder: dates held for you · '+dates,clientBody(true))+'">Send reminder</a><span class="note">Pencilled '+pencilAge+' day'+(pencilAge===1?'':'s')+' ago'+(pencilAge>=(+s.pencilDays||7)?', <b style="color:var(--warn)">waiting too long</b>':'')+'</span>':'')+'</div>'+
@@ -1691,7 +1805,8 @@ document.addEventListener('click',async ev=>{
     case 'archive':{readClientForm();const c=S.modal.c;closeModal();await patch('clients',v,{archived:!c.archived});break}
     case 'saveentry':{const g=id=>document.getElementById(id).value;const date=g('e-date');let s=parseLocal(date,g('e-start')),e=parseLocal(date,g('e-end'));if(e<=s)e+=864e5;const cat=g('e-cat');const bl=g('e-bill');
       const job=jobOf(g('e-job'),!!v);if(!job){toast('Pick a project for this time.');document.getElementById('e-job').focus();return}
-      const data={person:g('e-person'),clientId:job.clientId,projectId:job.projectId,category:cat,task:g('e-task').trim(),start:s,end:e,billable:bl==='auto'?BILLABLE_DEFAULT[cat]!==false:bl==='1'};
+      const bk=bookingFor(g('e-person'),job.clientId,job.projectId,s);
+      const data={person:g('e-person'),clientId:job.clientId,projectId:job.projectId,eventId:bk?bk.id:'',category:cat,task:g('e-task').trim(),start:s,end:e,billable:bl==='auto'?BILLABLE_DEFAULT[cat]!==false:bl==='1'};
       if(v){await patch('entries',v,data);closeModal()}else{const id=await put('entries',null,{...data,created:Date.now()});closeModal();dayPrompt(S.entries[id])}toast('Time saved');break}
     case 'askdelentry':confirmBox('e-confirm','Remove this time entry? It will no longer count towards invoices or totals.','delentry',v);break;
     case 'delentry':closeModal();await remove('entries',v);toast('Time entry removed');break;
@@ -1761,6 +1876,17 @@ document.addEventListener('click',async ev=>{
     case 'selday':{const x=Number(v);if(S.cal.sel===x&&startOfDay(S.cal.cursor)===x){S.cal.mode='day';S.calAnim='zi';try{localStorage.setItem('qm-calmode','day')}catch(e){}}S.cal.cursor=x;S.cal.sel=x;render();break}
     case 'quick':{S.draft.job=b.dataset.j;S.draft.category=b.dataset.k;startTimer();break}
     case 'dayset':daySet(+v);break;
+    case 'crewform':await crewFormAction(b.dataset.e,b.dataset.c,v==='book'?'book':'pencil');break;
+    case 'crewrelease':await crewRelease(b.dataset.e,b.dataset.c);break;
+    case 'crewcopy':try{await navigator.clipboard.writeText(v);toast('Link copied')}catch(e){toast('Copy failed')}break;
+    case 'crewsend':setTimeout(()=>{if(S.modal&&S.modal.type==='crewshare')toast('Sent? Close this when done.')},800);break;
+    case 'daykeep':dayKeep();break;
+    case 'hours':closeModal();openHoursModal(v);break;
+    case 'hrsadd':case 'hrsasbooked':{readHoursRows();const ev2=S.events[S.modal.evid];S.modal.rows.push({id:null,person:v,start:a==='hrsasbooked'?fmtTime(ev2.start):'',end:a==='hrsasbooked'?fmtTime(ev2.end):'',del:false});renderModal();break}
+    case 'hrsdel':readHoursRows();{const r=S.modal.rows[+v];if(r.id)r.del=!r.del;else S.modal.rows.splice(+v,1)}renderModal();break;
+    case 'hrssave':await saveHours();break;
+    case 'startfix':openStartFix(v);break;
+    case 'startfixsave':{const e2=S.entries[v];const t=(document.getElementById('sf-t')||{}).value;if(e2&&t){let st=parseLocal(dayKey(e2.start),t);if(st>Date.now())st-=DAYMS;closeModal();await patch('entries',v,{start:st});toast('Start time changed to '+fmtTime(st))}break}
     case 'sortwork':openSortModal();break;
     case 'sortsave':await sortSave();break;
     case 'invoice':await createInvoice(v);break;
@@ -1773,6 +1899,7 @@ document.addEventListener('click',async ev=>{
     case 'xero':{const invs=Object.values(S.invoices).filter(i=>i.clientId===v&&i.status==='draft');if(!invs.length){toast('No draft invoices for this client.');break}download('xero-'+(cname(v).replace(/[^a-z0-9]+/gi,'-'))+'.csv',xeroCSV(invs));break}
     case 'xeroall':{const invs=Object.values(S.invoices).filter(i=>i.status==='draft');download('xero-drafts-'+dayKey(Date.now())+'.csv',xeroCSV(invs));break}
     case 'period':S.period=v;render();break;
+    case 'insmonth':S.insMonth=Number(v);render();break;
     case 'inswho':S.insWho=v;render();break;
     case 'backup':download('quiet-studio-'+dayKey(Date.now())+'.json',JSON.stringify({exported:new Date().toISOString(),settings:S.settings,clients:S.clients,crew:S.crew,projects:S.projects,entries:S.entries,events:S.events,invoices:S.invoices},null,1));break;
   }
@@ -1803,7 +1930,9 @@ document.addEventListener('submit',async ev=>{if(ev.target.id!=='lockForm')retur
 document.addEventListener('change',ev=>{if(ev.target.id==='importFile'&&ev.target.files[0])importBackup(ev.target.files[0])});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.id==='d-task'){ev.preventDefault();startTimer()}});
 document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='callsheet'&&ev.target.closest('#csb-form')){readSheetForm();csPreview()}});
-document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}if(S.modal&&S.modal.type==='event'){feeNote();availNote()}});
+document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}if(S.modal&&S.modal.type==='event'){feeNote();availNote()}
+  if(t.id==='cs-msg'){const msg=t.value;document.querySelectorAll('[data-act="crewsend"]').forEach(a=>{const h=a.getAttribute('href');if(a.dataset.k==='wa')a.href=h.replace(/text=.*$/,'text='+encodeURIComponent(msg));else a.href=h.replace(/body=.*$/,'body='+encodeURIComponent(msg))})}
+  if(S.modal&&S.modal.type==='dayprompt'&&(t.id==='dp-s'||t.id==='dp-e')){const c=S.modal.ctx;const a=document.getElementById('dp-s').value,b=document.getElementById('dp-e').value;if(a&&b){let st=parseLocal(dayKey(c.day),a),en=parseLocal(dayKey(c.day),b);if(en<=st)en+=DAYMS;const el=document.getElementById('dp-h');if(el)el.textContent=hrs(c.other+(en-st)/3.6e6)}}});
 document.addEventListener('change',async ev=>{const t=ev.target;
   if(t.dataset&&t.dataset.crew!==undefined){const r=document.querySelector('[data-crewrate="'+t.dataset.crew+'"]');if(r)r.disabled=!t.checked;readCrewForm();return}
   if(t.dataset&&t.dataset.act==='crewstatus'){const ev2=S.events[t.dataset.e];const crew=(ev2.crew||[]).map(x=>x.id===t.dataset.c?{...x,status:t.value}:x);for(const e of groupOf(ev2)){await patch('events',e.id,{crew:(e.crew||[]).map(x=>x.id===t.dataset.c?{...x,status:t.value}:x)})}return}
