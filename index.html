@@ -439,6 +439,19 @@ tfoot td{border-bottom:0;font-weight:400}
 @keyframes up{from{transform:translateY(40px);opacity:0}}
 .scrim.sheet .modal::before{content:'';width:38px;height:4px;border-radius:2px;background:var(--line-strong);margin:0 auto 4px}
 @media (min-width:820px){.scrim.sheet{place-items:stretch end}.scrim.sheet .modal{width:400px;height:100%;max-height:none;border-radius:0;padding:28px 24px;animation:sr .3s var(--ease);align-content:start}.scrim.sheet .modal::before{display:none}}
+/* closing: the panel slides away and the backdrop fades, instead of vanishing */
+.scrim.leaving{animation:scOut .3s var(--ease) forwards;pointer-events:none}
+.scrim.leaving .modal{animation:zOut .24s var(--ease) forwards}
+.scrim.sheet.leaving .modal{animation:sheetOut .3s cubic-bezier(.32,.72,0,1) forwards}
+@media (min-width:820px){.scrim.sheet.leaving .modal{animation-name:panelOut}}
+.scrim.wide.leaving .modal{animation:sheetOut .3s cubic-bezier(.32,.72,0,1) forwards}
+@keyframes scOut{to{opacity:0}}@keyframes zOut{to{transform:scale(.96);opacity:0}}@keyframes sheetOut{to{transform:translateY(105%)}}@keyframes panelOut{to{transform:translateX(105%)}}
+/* dragging a sheet down */
+.scrim.sheet .modal.dragging{animation:none;transition:none;user-select:none}
+.scrim.sheet .modal.snap{transition:transform .32s cubic-bezier(.32,.72,0,1)}
+.scrim.sheet.dragscrim{animation:none}
+@media (max-width:819px){.scrim.sheet .modal::before{width:42px;height:5px;margin:2px auto 8px;flex:none}.scrim.sheet .modal{touch-action:pan-y}}
+@media (prefers-reduced-motion:reduce){.scrim.leaving,.scrim.leaving .modal{animation-duration:.01s!important}}
 .sh-top{display:flex;align-items:center;gap:12px}
 .sh-top .bd{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:17px;font-weight:500;background:var(--c);color:var(--ink);flex:none}
 .sh-top.e .bd{background:transparent;box-shadow:inset 0 0 0 2px var(--c);color:var(--fg)}
@@ -587,7 +600,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=39;
+const APP_VERSION=40;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1370,7 +1383,11 @@ function searchGo(i){const x=(S.qres||[])[i];if(!x)return;closeModal();
   else if(x.act==='qteam'){S.view='team';S.teamOpen=x.v;render();setTimeout(()=>{const el=document.getElementById('tm-'+x.v);if(el)el.scrollIntoView({block:'start',behavior:'smooth'})},80)}
   else if(x.act==='openinvoice')openInvoiceModal(x.v);
   else if(x.act==='newevent')openEventModal(null,dayKey(Date.now()));else if(x.act==='newproject')openProjectModal(null,'');else if(x.act==='newclient')openClientModal();else if(x.act==='newcrew')openCrewModal();else if(x.act==='manual')openEntryModal(null)}
-function closeModal(){S.modal=null;renderModal();if(S.updateReady)setTimeout(()=>{if(!S.modal)location.reload()},400)}
+/* move the open panel out of the way and let it animate off, while the app state closes straight away */
+function animateOut(){const root=$('#modalRoot');const sc=root&&root.firstElementChild;if(!sc||sc.classList.contains('leaving'))return;
+  sc.classList.add('leaving');sc.removeAttribute('data-act');sc.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));sc.querySelectorAll('[data-act]').forEach(el=>el.removeAttribute('data-act'));
+  sc.style.zIndex='199';document.body.appendChild(sc);const done=()=>{if(sc.parentNode)sc.remove()};sc.addEventListener('animationend',e=>{if(e.target===sc)done()});setTimeout(done,450)}
+function closeModal(){animateOut();S.modal=null;renderModal();if(S.updateReady)setTimeout(()=>{if(!S.modal)location.reload()},400)}
 
 function openClientModal(cid){
   const c=cid?{...client(cid)}:{name:'',colour:COLOURS[Object.keys(S.clients).length%COLOURS.length],billing:'card',shortRate:300,halfDay:475,fullDay:750,editDay:350,editHours:8,hourlyRate:150,monthlyFee:0,vat:true,email:'',notes:''};
@@ -2250,6 +2267,26 @@ document.addEventListener('submit',async ev=>{if(ev.target.id!=='lockForm')retur
 });
 document.addEventListener('change',ev=>{if(ev.target.id==='importFile'&&ev.target.files[0])importBackup(ev.target.files[0])});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.id==='d-task'){ev.preventDefault();startTimer()}});
+/* pull a bottom sheet down to close it: from the handle, or from anywhere once it is scrolled to the top */
+(()=>{let d=null;const phone=()=>matchMedia('(max-width:819px)').matches;
+  const start=(x,y,target)=>{if(!phone()||!S.modal)return;const m=target.closest&&target.closest('.scrim.sheet:not(.leaving) .modal');if(!m)return;
+    if(target.closest('input,select,textarea,[contenteditable],.mc,.tbl,.ladder'))return;const top=m.getBoundingClientRect().top;
+    d={m,sc:m.parentElement,x0:x,y0:y,top,grab:y-top<44,dy:0,on:false,pts:[[y,performance.now()]],h:m.offsetHeight}};
+  const move=(x,y,e)=>{if(!d)return;const dy=y-d.y0,dx=x-d.x0;
+    if(!d.on){if(Math.abs(dy)<6&&Math.abs(dx)<6)return;if(dy<=0||Math.abs(dx)>Math.abs(dy)||(!d.grab&&d.m.scrollTop>0)){d=null;return}d.on=true;d.m.classList.add('dragging');d.sc.classList.add('dragscrim')}
+    if(e&&e.cancelable)e.preventDefault();d.dy=Math.max(0,dy);d.m.style.transform='translateY('+d.dy+'px)';d.sc.style.backgroundColor='rgba(0,0,0,'+(0.5*Math.max(0,1-d.dy/d.h))+')';
+    d.pts.push([y,performance.now()]);if(d.pts.length>5)d.pts.shift()};
+  const end=()=>{if(!d)return;const g=d;d=null;if(!g.on)return;const a=g.pts[0],b=g.pts[g.pts.length-1];const v=(b[0]-a[0])/Math.max(1,b[1]-a[1]);
+    g.m.classList.remove('dragging');
+    if(g.dy>g.h*0.25||v>0.55){if(typeof haptic==='function')haptic('light');closeModal()}
+    else{g.m.classList.add('snap');g.m.style.transform='';g.sc.style.backgroundColor='';setTimeout(()=>{g.m.classList.remove('snap');g.sc.classList.remove('dragscrim')},340)}};
+  document.addEventListener('touchstart',e=>{if(e.touches.length===1)start(e.touches[0].clientX,e.touches[0].clientY,e.target)},{passive:true});
+  document.addEventListener('touchmove',e=>{if(d&&e.touches.length===1)move(e.touches[0].clientX,e.touches[0].clientY,e)},{passive:false});
+  document.addEventListener('touchend',end,{passive:true});document.addEventListener('touchcancel',end,{passive:true});
+  document.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===0)start(e.clientX,e.clientY,e.target)});
+  document.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'&&d)move(e.clientX,e.clientY,null)});
+  document.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'){const was=d&&d.on;end();if(was){const stop=ev=>{ev.stopPropagation();ev.preventDefault()};document.addEventListener('click',stop,{capture:true,once:true});setTimeout(()=>document.removeEventListener('click',stop,{capture:true}),50)}}});
+})();
 document.addEventListener('keydown',ev=>{if(S.locked)return;const typing=ev.target.matches&&ev.target.matches('input,select,textarea');
   if((ev.metaKey||ev.ctrlKey)&&ev.key.toLowerCase()==='k'){ev.preventDefault();if(S.modal&&S.modal.type==='search')closeModal();else openSearch();return}
   if(ev.key==='/'&&!typing&&!S.modal){ev.preventDefault();openSearch();return}
