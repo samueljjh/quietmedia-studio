@@ -587,7 +587,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=38;
+const APP_VERSION=39;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1016,13 +1016,45 @@ function openHoursModal(evid){const ev=S.events[evid];if(!ev)return;const ppl=(e
       return '<div style="margin-bottom:16px"><div class="eyebrow" style="margin-bottom:8px;display:flex;justify-content:space-between"><span>'+esc(name(p))+'</span><span class="num">'+hrs(tot)+' of '+hrs(b)+'</span></div><div class="grid" style="gap:8px">'+
       (mine.length?mine.map(([r,i])=>'<div class="row" style="flex-wrap:nowrap;align-items:center'+(r.del?';opacity:.4':'')+'"><input type="time" data-hs="'+i+'" value="'+r.start+'" aria-label="Start" style="flex:1;min-width:0"'+(r.del?' disabled':'')+'><span class="muted">to</span><input type="time" data-he="'+i+'" value="'+r.end+'" aria-label="End" style="flex:1;min-width:0"'+(r.del||r.running?' disabled':'')+'>'+(r.running?'<span class="note" style="flex:none">running</span>':'<button type="button" class="link" data-act="hrsdel" data-v="'+i+'" style="flex:none">'+(r.del?'Undo':'Remove')+'</button>')+'</div>').join(''):'<p class="note" style="margin:0">No time logged.</p>')+
       '</div><div class="row" style="gap:14px;margin-top:8px"><button type="button" class="link" data-act="hrsadd" data-v="'+p+'">Add time</button>'+(mine.length?'':'<button type="button" class="link" data-act="hrsasbooked" data-v="'+p+'">Worked as booked</button>')+'</div></div>'}).join('')+
-    '<p class="note">Times on '+fmtDate(ev.start,{day:'numeric',month:'short'})+'. These hours stay internal; the fee does not change.</p><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="hrssave">Save hours</button></div>'}};renderModal()}
+    '<p class="note">Times on '+fmtDate(ev.start,{day:'numeric',month:'short'})+'. After saving you can choose whether the booking and its fee should follow the hours you actually worked.</p><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button>'+(bookingEntries(ev).some(x=>x.end)?'<button class="btn ghost" data-act="badjust" data-v="'+ev.id+'">Update booking & fee</button>':'')+'<button class="btn" data-act="hrssave">Save hours</button></div>'}};renderModal()}
 function readHoursRows(){const m=S.modal;if(!m||m.type!=='hours')return;m.rows.forEach((r,i)=>{const a=document.querySelector('[data-hs="'+i+'"]'),b=document.querySelector('[data-he="'+i+'"]');if(a)r.start=a.value;if(b)r.end=b.value})}
 async function saveHours(){readHoursRows();const m=S.modal;const ev=S.events[m.evid];if(!ev){closeModal();return}const d=dayKey(ev.start);const rows=m.rows.slice();closeModal();let n=0;
   for(const r of rows){if(r.id&&r.del){await remove('entries',r.id);n++;continue}if(r.del||!r.start||(!r.end&&!r.running))continue;let a=parseLocal(d,r.start),z=r.running?null:parseLocal(d,r.end);if(z!=null&&z<=a)z+=DAYMS;
     if(r.id){const x=S.entries[r.id];if(!x)continue;const ch={eventId:ev.id};if(x.start!==a)ch.start=a;if(z!=null&&x.end!==z)ch.end=z;await patch('entries',r.id,ch);n++}
     else{await put('entries',null,{person:r.person,clientId:ev.clientId,projectId:ev.projectId||'',eventId:ev.id,category:evCat(ev),task:'',start:a,end:z,billable:BILLABLE_DEFAULT[evCat(ev)]!==false,created:Date.now()});n++}}
-  toast(n?'Hours saved':'Nothing changed')}
+  toast(n?'Hours saved':'Nothing changed');const ev2=S.events[ev.id];if(ev2){const w=workedOn(ev2);if(w&&(Math.abs(w.start-ev2.start)>=15*6e4||Math.abs(w.end-ev2.end)>=15*6e4))openBookingAdjust(ev2.id)}}
+/* what was actually worked on a booking: earliest start, latest finish, and the longest day anyone did */
+function workedOn(ev){const es=bookingEntries(ev).filter(x=>x.end);if(!es.length)return null;const by={};es.forEach(x=>by[x.person]=(by[x.person]||0)+entryH(x));return {start:Math.min(...es.map(x=>x.start)),end:Math.max(...es.map(x=>x.end)),hours:Math.max(...Object.values(by)),by}}
+/* the fee the hours would give, and why */
+function feeForHours(ev,start,end,hours){const p=ev.projectId&&S.projects[ev.projectId];const c=client(ev.clientId);const r=c?rateCard(c):null;const port=hours>=5?1:0.5;
+  if(p){const pr=pricingOf(p);if(pr==='days'){const rt=projectRates(p)[planType(ev.type)]||0;return {fee:Math.round(port*rt),portion:port,why:(port===1?'Full day':'Half day')+' at the project’s '+gbp(rt)+' '+(ev.type==='Shoot'?'filming':DESIGN_TYPES[ev.type]?'design':'edit')+' rate',days:true}}return {fee:null,portion:port,why:pr==='fee'?'Part of the '+gbp(+p.fee||0)+' quote, so the hours do not change the price. Add an extra below if you are charging more.':'Inside the retainer, so no fee.'}}
+  if(!r||r.billing==='retainer')return {fee:null,portion:port,why:'Covered by the retainer, so no fee.'};
+  const f=suggestFee({...ev,start,end:Math.max(end,start+hours*3.6e6)});const why=r.billing==='hourly'?hrs(hours)+' at '+gbp(r.hourlyRate)+' an hour':ev.type==='Shoot'?((filmBand(hours,r)||['',0])[0]?'Filming '+filmBand(hours,r)[0]+' rate ('+hrs(hours)+')':'Filming'):isEditLike(ev.type)?Math.max(1,Math.ceil(hours/r.editHours-1e-9))+' edit day'+(Math.ceil(hours/r.editHours-1e-9)>1?'s':'')+' at '+gbp(r.editDay)+' ('+r.editHours+'h a day)':'';
+  return {fee:f,portion:port,why}}
+function openBookingAdjust(evid){const ev=S.events[evid];if(!ev)return;const w=workedOn(ev);if(!w){toast('No hours logged on this booking yet.');openHoursModal(evid);return}
+  const p=ev.projectId&&S.projects[ev.projectId];const cur=p&&pricingOf(p)==='days'?dayValue(p,ev):p?(+ev.fee||0):eventValue(ev);const adj=feeForHours(ev,w.start,w.end,w.hours);const bh=bookedH(ev);
+  S.modal={type:'badjust',evid,cls:'sheet',w,adj,cur,html:()=>{const m=S.modal;const ch=m.choice||'keep';
+    return '<h2>Update the booking?</h2><p class="note" style="margin:-4px 0 14px">'+esc(ev.title)+' · '+fmtDate(ev.start,{weekday:'long',day:'numeric',month:'long'})+'</p>'+
+    '<div class="tbl"><table class="ledg"><tbody><tr><td>Booked</td><td class="r">'+fmtTime(ev.start)+'–'+fmtTime(ev.end)+'</td><td class="r">'+hrs(bh)+'</td><td class="r">'+(portion(ev)===0.5?'half day':'full day')+'</td></tr><tr><td><b style="font-weight:500">Worked</b></td><td class="r"><b style="font-weight:500">'+fmtTime(w.start)+'–'+fmtTime(w.end)+'</b></td><td class="r"><b style="font-weight:500">'+hrs(w.hours)+'</b></td><td class="r">'+(adj.portion===0.5?'half day':'full day')+'</td></tr></tbody></table></div>'+
+    (Object.keys(w.by).length>1?'<p class="note">'+Object.entries(w.by).map(([pp,h])=>esc(name(pp))+' '+hrs(h)).join(' · ')+'</p>':'')+
+    '<label class="chip" style="margin:14px 0 4px;align-self:flex-start"><input type="checkbox" id="ba-times" '+(m.times!==false?'checked':'')+'> Change the booking to '+fmtTime(w.start)+'–'+fmtTime(w.end)+(adj.portion!==portion(ev)?', '+(adj.portion===0.5?'half':'full')+' day':'')+'</label>'+
+    '<div class="eyebrow" style="margin:16px 0 8px">Fee</div><div class="dayopts">'+
+      '<button class="btn'+(ch==='keep'?'':' ghost')+'" data-act="bachoice" data-v="keep">Keep the agreed fee<small>'+(p&&pricingOf(p)!=='days'?(pricingOf(p)==='fee'?'covered by the quote':'inside the retainer'):gbp(cur))+'</small></button>'+
+      (adj.fee!=null&&Math.round(adj.fee)!==Math.round(cur)?'<button class="btn'+(ch==='hours'?'':' ghost')+'" data-act="bachoice" data-v="hours">Match the hours worked<small>'+gbp(adj.fee)+' · '+esc(adj.why)+'</small></button>':'<p class="note" style="margin:2px 4px">'+esc(adj.fee!=null?'The hours worked give the same fee ('+gbp(adj.fee)+').':adj.why)+'</p>')+
+      '<button class="btn'+(ch==='custom'?'':' ghost')+'" data-act="bachoice" data-v="custom">'+(p&&pricingOf(p)!=='days'?'Add an extra fee':'Set a different fee')+'<small>type it below</small></button>'+
+      (ch==='custom'?'<label class="f"><span>'+(p&&pricingOf(p)!=='days'?'Extra on top, ex VAT (£)':'Fee for this day, ex VAT (£)')+'</span><input type="number" min="0" id="ba-fee" value="'+(m.custom!=null?m.custom:'')+'" placeholder="'+Math.round(adj.fee!=null?adj.fee:cur)+'"></label>':'')+'</div>'+
+    (ev.invoiceId?'<p class="note" style="color:var(--warn)">This booking is already on invoice '+esc((S.invoices[ev.invoiceId]||{}).number||'')+'. Changing the fee here does not change that invoice.</p>':'')+
+    '<div class="acts"><button class="btn ghost" data-act="closemodal">Leave the booking as it is</button><button class="btn" data-act="basave">Update booking</button></div>'}};renderModal()}
+async function bookingAdjustSave(){const m=S.modal;const ev=S.events[m.evid];if(!ev){closeModal();return}const p=ev.projectId&&S.projects[ev.projectId];const days=p&&pricingOf(p)==='days';
+  const times=(document.getElementById('ba-times')||{}).checked;const ch=m.choice||'keep';const cf=(document.getElementById('ba-fee')||{}).value;
+  if(ch==='custom'&&(cf===''||isNaN(+cf))){toast('Type the fee, or pick another option.');return}
+  const d={worked:{start:m.w.start,end:m.w.end,hours:Math.round(m.w.hours*100)/100,at:Date.now()}};
+  if(times){d.start=m.w.start;d.end=m.w.end;d.portion=m.adj.portion}
+  if(ch==='keep'){if(days&&times&&m.adj.portion!==portion(ev)&&!(+ev.fee>0))d.fee=Math.round(m.cur);if(!p&&times&&(ev.fee==null||ev.fee===''))d.fee=Math.round(m.cur)}
+  else if(ch==='hours'){d.portion=m.adj.portion;d.fee=days?0:Math.round(m.adj.fee)}
+  else d.fee=Math.max(0,+cf||0);
+  closeModal();await patch('events',ev.id,d);const nv=S.events[ev.id];const after=p&&pricingOf(p)==='days'?dayValue(p,nv):p?(+nv.fee||0):eventValue(nv);
+  toast('Booking updated'+(times?' to '+fmtTime(m.w.start)+'–'+fmtTime(m.w.end):'')+(Math.round(after)!==Math.round(m.cur)||ch!=='keep'?' · fee '+gbp(after):' · fee kept at '+gbp(after)))}
 
 async function createInvoice(cid){
   const c=client(cid);const u=unbilled(cid);
@@ -1538,12 +1570,12 @@ function openEventSheet(id){S.modal={type:'evsheet',cls:'sheet',html:()=>{const 
   const when=grp.length>1?fmtDate(grp[0].start,{day:'numeric',month:'short'})+' – '+fmtDate(grp[grp.length-1].start,{day:'numeric',month:'short',year:'numeric'})+' · '+grp.length+' days':fmtDate(ev.start,{weekday:'long',day:'numeric',month:'long'});
   const kv=[['When',when+(ev.type!=='Deadline'?', '+fmtTime(ev.start)+'–'+fmtTime(ev.end):'')+(portion(ev)===0.5?' · half day':'')],ev.callTime?['Call time',ev.callTime]:null,ev.location?['Where',esc(ev.location)]:null,['Who',(ev.people||[]).map(name).join(' & ')||'Unassigned'],
     (ev.crew||[]).length?['Crew',(ev.crew||[]).map(x=>esc(crewName(x.id))+' <span class="muted">· '+crewState(x)+'</span>').join('<br>')+'<div><button class="link" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team booking</button></div>']:null,
-    pj?['Project',esc(pj.title)+' · '+projectPriceLabel(pj)]:null,r&&r.billing==='retainer'?['Billing','Within '+(c.retainerPeriod||'monthly')+' retainer']:null,inv?['Invoice',esc(inv.number)]:null,ev.notes?['Notes',esc(ev.notes)]:null,(BUSY_TYPES[ev.type]||ev.type==='Meeting')&&ev.type!=='Unavailable'&&ev.start<=Date.now()&&(ev.people||[]).length?['Hours',hoursLine(ev)]:null].filter(Boolean);
+    pj?['Project',esc(pj.title)+' · '+projectPriceLabel(pj)]:null,r&&r.billing==='retainer'?['Billing','Within '+(c.retainerPeriod||'monthly')+' retainer']:null,inv?['Invoice',esc(inv.number)]:null,ev.notes?['Notes',esc(ev.notes)]:null,(BUSY_TYPES[ev.type]||ev.type==='Meeting')&&ev.type!=='Unavailable'&&ev.start<=Date.now()&&(ev.people||[]).length?['Hours',hoursLine(ev)+(ev.worked?'<div class="note">Booking updated to hours worked on '+fmtDate(ev.worked.at,{day:'numeric',month:'short'})+'</div>':'')]:null].filter(Boolean);
   const cs=ev.type==='Shoot'?'<button class="btn'+(st==='confirmed'?'':' ghost')+'" data-act="callsheet" data-v="'+ev.id+'">Call sheet'+(sheetAnchor(ev).sheet&&sheetAnchor(ev).sheet.publishedAt?' v'+sheetAnchor(ev).sheet.version:'')+'</button>':'';
   const stBtns=st==='pencil'?'<button class="btn" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Confirm booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="client">Client booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team booking</button>'+cs:st==='cancelled'?'<button class="btn ghost" data-act="evstatus" data-e="'+ev.id+'" data-v="confirmed">Reinstate</button>':cs+(ev.clientId?'<button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="client">Client booking</button><button class="btn ghost" data-act="sendsheet" data-v="'+ev.id+'" data-k="team">Team booking</button>':'');
   return '<div class="sh-top '+evKind(ev)+'" style="--c:'+colour(ev.clientId)+'"><span class="bd">'+evLetter(ev)+'</span><div style="min-width:0"><h2>'+esc(ev.title||evTypeName(ev))+'</h2><p>'+evTypeName(ev)+(st!=='confirmed'?' · '+STATUS_LABEL[st].toLowerCase():'')+(ev.clientId?' · '+esc(cname(ev.clientId)):'')+'</p></div></div>'+
   '<dl class="kv l">'+kv.map(([k,val])=>'<dt>'+k+'</dt><dd>'+val+'</dd>').join('')+'</dl>'+
-  '<div class="sh-act">'+stBtns+'<button class="btn ghost" data-act="editevent" data-v="'+ev.id+'">Edit</button><button class="btn ghost" data-act="ical" data-v="'+ev.id+'">iPhone calendar</button><button class="btn ghost" data-act="hours" data-v="'+ev.id+'">Hours worked</button>'+(st!=='cancelled'?'<button class="btn ghost" style="color:var(--danger)" data-act="evstatus" data-e="'+ev.id+'" data-v="cancelled">Cancel booking</button>':'')+'</div>'+
+  '<div class="sh-act">'+stBtns+'<button class="btn ghost" data-act="editevent" data-v="'+ev.id+'">Edit</button><button class="btn ghost" data-act="ical" data-v="'+ev.id+'">iPhone calendar</button><button class="btn ghost" data-act="hours" data-v="'+ev.id+'">Hours worked</button>'+(ev.start<=Date.now()&&bookingEntries(ev).some(x=>x.end)?'<button class="btn ghost" data-act="badjust" data-v="'+ev.id+'">Update to hours worked</button>':'')+''+(st!=='cancelled'?'<button class="btn ghost" style="color:var(--danger)" data-act="evstatus" data-e="'+ev.id+'" data-v="cancelled">Cancel booking</button>':'')+'</div>'+
   ((v||cost)?'<div class="sh-q">'+(v?'Fee <b>'+gbp(v)+'</b>':'')+(cost?' · crew <b>'+gbp(cost)+'</b> · net <b>'+gbp(v-cost)+'</b>':'')+(ev.type==='Shoot'&&!v&&r&&r.billing!=='retainer'?'No fee set':'')+'. Full figures live in Insights.</div>':'')}};renderModal()}
 /* gestures: pinch (touch), trackpad pinch (ctrl+wheel), sideways swipe or scroll, keyboard */
 (()=>{const pts=new Map();let p0=0,sw=null,live=1,dragx=0,zacc=0,ztimer=null,xacc=0,cool=0;
@@ -2153,6 +2185,9 @@ document.addEventListener('click',async ev=>{
     case 'hrsadd':case 'hrsasbooked':{readHoursRows();const ev2=S.events[S.modal.evid];S.modal.rows.push({id:null,person:v,start:a==='hrsasbooked'?fmtTime(ev2.start):'',end:a==='hrsasbooked'?fmtTime(ev2.end):'',del:false});renderModal();break}
     case 'hrsdel':readHoursRows();{const r=S.modal.rows[+v];if(r.id)r.del=!r.del;else S.modal.rows.splice(+v,1)}renderModal();break;
     case 'hrssave':await saveHours();break;
+    case 'badjust':closeModal();openBookingAdjust(v);break;
+    case 'bachoice':{const m=S.modal;m.times=(document.getElementById('ba-times')||{}).checked;const f=document.getElementById('ba-fee');if(f)m.custom=f.value;m.choice=v;renderModal();if(v==='custom')setTimeout(()=>{const i=document.getElementById('ba-fee');if(i)i.focus()},30);break}
+    case 'basave':await bookingAdjustSave();break;
     case 'startfix':openStartFix(v);break;
     case 'startfixsave':{const e2=S.entries[v];const t=(document.getElementById('sf-t')||{}).value;if(e2&&t){let st=parseLocal(dayKey(e2.start),t);if(st>Date.now())st-=DAYMS;closeModal();await patch('entries',v,{start:st});toast('Start time changed to '+fmtTime(st))}break}
     case 'sortwork':openSortModal();break;
