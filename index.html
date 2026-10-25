@@ -513,6 +513,8 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 .ladder.long{flex-wrap:wrap;row-gap:12px}.ladder.long .lstep{flex:1 1 calc(33.33% - 2px)}.ladder.long .lstep:nth-of-type(3)::after{display:none}@media (min-width:700px){.ladder.long .lstep{flex:1}.ladder.long .lstep:nth-of-type(3)::after{display:block}}
 .ledg tr.wk{cursor:pointer}.ledg tr.wk:hover td{background:var(--raise)}.ledg tr.wk td:last-child::after{content:'›';margin-left:8px;color:var(--muted)}
 .wkin{width:88px;text-align:right;padding:8px 10px!important;font-size:14px!important}
+.topfade{position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top,0px) + 22px);z-index:90;pointer-events:none;background:linear-gradient(to bottom,var(--bg) 0,var(--bg) calc(env(safe-area-inset-top,0px) - 4px),color-mix(in srgb,var(--bg) 70%,transparent) calc(env(safe-area-inset-top,0px) + 6px),transparent 100%);opacity:0;transition:opacity .25s}
+body.scrolled .topfade{opacity:1}@media (min-width:820px){.topfade{display:none}}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
@@ -523,7 +525,8 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 </head>
 <body>
 <div class="wrap">
-  <header class="top">
+  <div class="topfade" aria-hidden="true"></div>
+<header class="top">
     <div class="brand">
       <svg viewBox="0 0 400 400" aria-hidden="true"><path d="M 296.555 343.549 A 173 173 0 1 1 343.549 296.555 L 302.822 255.828 A 117 117 0 1 0 255.828 302.822 L 296.555 343.549 Z" fill="currentColor"/></svg>
       <b>quiet media</b><span>Studio</span>
@@ -600,7 +603,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=40;
+const APP_VERSION=41;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -732,7 +735,7 @@ async function invite(email){const {error}=await sb.from('invites').upsert({emai
 async function checkVersion(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=+(await r.json()).v||0;if(v<=APP_VERSION)return;
   try{const reg=await navigator.serviceWorker.getRegistration();if(reg)await reg.update()}catch(e){}
   if(!S.modal){location.reload();return}S.updateReady=v;renderSyncDot();toast('Update '+v+' ready. It installs when you close this.')}catch(e){}}
-async function boot(){
+async function boot(){if(S.view==='schedule')S.cal.toToday=true;
   S.locked=true;render();
   if(!window.supabase){banner('Could not load the database library. Check the connection and reload.','warn');return}
   sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
@@ -861,9 +864,9 @@ async function mergeProjects(keep,drop){const K=S.projects[keep],D=S.projects[dr
   for(const e of Object.values(S.entries))if(e.projectId===drop){await patch('entries',e.id,{projectId:keep});n++}
   await patch('projects',drop,{status:'cancelled',mergedInto:keep,notes:((D.notes||'')+'\nMerged into '+K.title+' on '+fmtDate(Date.now(),{day:'numeric',month:'short',year:'numeric'})).trim()});
   toast('Merged into '+K.title+' · '+n+' item'+(n===1?'':'s')+' moved')}
-function openWorking(cid,key,m0){S.modal={type:'working',cid,key,m0,cls:'sheet',ov:{},html:()=>workingHtml()};renderModal()}
-function workingHtml(){const m=S.modal;const m1=addMonths(m.m0,1);const items=valueItems(m.m0,m1).filter(x=>x.cid===m.cid&&x.key===m.key).sort((a,b)=>(S.events[a.eid]||{start:a.at||a.month||0}).start-(S.events[b.eid]||{start:b.at||b.month||0}).start);
-  const tot=items.reduce((t,x)=>t+x.done+x.booked,0),pen=items.reduce((t,x)=>t+x.pencil,0);const mName=new Date(m.m0).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+function openWorking(cid,key,m0,m1){S.modal={type:'working',cid,key,m0,m1:m1||addMonths(m0,1),who:S.insWho||'all',per:S.period||'month',cls:'sheet',ov:{},html:()=>workingHtml()};renderModal()}
+function workingHtml(){const m=S.modal;const m1=m.m1||addMonths(m.m0,1);const items=valueItems(m.m0,m1).filter(x=>x.cid===m.cid&&x.key===m.key).map(x=>{const w=shareFor(x,m.who,m.m0,m1);return w===1?x:{...x,done:x.done*w,booked:x.booked*w,pencil:x.pencil*w,how:(x.how||'')+' · '+Math.round(w*100)+'% share'}}).filter(x=>x.done+x.booked+x.pencil>0.004).sort((a,b)=>(S.events[a.eid]||{start:a.at||a.month||0}).start-(S.events[b.eid]||{start:b.at||b.month||0}).start);
+  const tot=items.reduce((t,x)=>t+x.done+x.booked,0),pen=items.reduce((t,x)=>t+x.pencil,0);const mName=insLabel(m.per||'month',m.m0,m1)+(m.who&&m.who!=='all'?' · '+name(m.who)+'’s share':'');
   const p=m.key.startsWith('p:')?S.projects[m.key.slice(2)]:null;const c=client(m.cid);const pr=p?pricingOf(p):null;
   let head='',adj='';
   if(p&&pr==='days'){const r=projectRates(p);head=esc(p.title)+' · priced per day';adj='<div class="eyebrow" style="margin:6px 0 8px">Project day rates</div><div class="row"><label class="f">Filming (£)<input type="number" min="0" id="wk-rs" value="'+(r.Shoot||'')+'"></label><label class="f">Edit (£)<input type="number" min="0" id="wk-re" value="'+(r.Edit||'')+'"></label><label class="f">Design (£)<input type="number" min="0" id="wk-rd" value="'+(+(p.rates||{}).Design||'')+'" placeholder="as edit"></label></div>'}
@@ -875,7 +878,7 @@ function workingHtml(){const m=S.modal;const m1=addMonths(m.m0,1);const items=va
   const rows=items.map(x=>{const e=x.eid&&S.events[x.eid];const val=x.done+x.booked+x.pencil;return '<tr><td>'+(e?fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'}):x.month?fmtDate(x.month,{month:'long'}):x.at?fmtDate(x.at,{day:'numeric',month:'short'}):'')+'<div class="note">'+(e?esc(e.title||'')+' · '+esc(evTypeName(e))+(portion(e)===0.5?' · half day':'')+(evStatus(e)==='pencil'?' · pencil, not counted':''):esc(x.label))+'</div><div class="note">'+esc(x.how||'')+'</div></td>'+
     '<td class="r">'+(canEdit(x)?'<input class="wkin" type="number" min="0" step="1" data-wfee="'+x.eid+'" value="'+(e.fee!=null&&e.fee!==''&&+e.fee>0?+e.fee:'')+'" placeholder="'+(p&&pr==='days'?Math.round(portion(e)*(projectRates(p)[planType(e.type)]||0)):p?'extra':Math.round(suggestFee(e)))+'" aria-label="'+(p&&pr==='days'?'Price for this day':p?'Extra fee':'Fee')+'">':'')+'</td><td class="r num"'+(x.pencil?' style="color:var(--muted)"':'')+'>'+gbp2(val)+'</td></tr>'}).join('');
   return '<h2>How '+gbp(tot)+' was worked out</h2><p class="note" style="margin:-4px 0 14px">'+head+' · '+esc(mName)+'</p>'+adj+
-    (items.length?'<div class="tbl"><table class="ledg"><thead><tr><th>Day</th><th class="r">'+(p&&pr==='days'?'Day price':p?'Extra':'Fee')+'</th><th class="r">Counts</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td>Total for '+esc(new Date(m.m0).toLocaleDateString('en-GB',{month:'long'}))+'</td><td></td><td class="r">'+gbp2(tot)+'</td></tr>'+(pen?'<tr><td class="note">Pencilled, not counted</td><td></td><td class="r note">'+gbp2(pen)+'</td></tr>':'')+'</tfoot></table></div>':'<p class="note">Nothing in this month.</p>')+
+    (items.length?'<div class="tbl"><table class="ledg"><thead><tr><th>Day</th><th class="r">'+(p&&pr==='days'?'Day price':p?'Extra':'Fee')+'</th><th class="r">Counts</th></tr></thead><tbody>'+rows+'</tbody><tfoot><tr><td>Total</td><td></td><td class="r">'+gbp2(tot)+'</td></tr>'+(pen?'<tr><td class="note">Pencilled, not counted</td><td></td><td class="r note">'+gbp2(pen)+'</td></tr>':'')+'</tfoot></table></div>':'<p class="note">Nothing in this month.</p>')+
     '<p class="note" style="margin-top:10px">'+(p&&pr==='days'?'Leave a day blank to use the project rate, or type a price for that day. ':p&&pr==='fee'?'A figure typed on a day is an extra on top of the quote. ':!p?'Each booking’s own fee; blank uses the client’s rates. ':'')+'Changes here update the bookings and the project.</p>'+
     '<div class="acts"><button class="btn ghost" data-act="closemodal">Close</button>'+(adj.includes('wk-rs')||rows.includes('data-wfee')?'<button class="btn" data-act="worksave">Save changes</button>':'')+'</div>'}
 async function workingSave(){const m=S.modal;const p=m.key.startsWith('p:')?S.projects[m.key.slice(2)]:null;let n=0;
@@ -883,7 +886,14 @@ async function workingSave(){const m=S.modal;const p=m.key.startsWith('p:')?S.pr
   if(p&&g('wk-rs')!==undefined){const nr={...(p.rates||{}),Shoot:+g('wk-rs')||0,Edit:+g('wk-re')||0,Design:+g('wk-rd')||0};if(JSON.stringify(nr)!==JSON.stringify(p.rates||{})){await patch('projects',p.id,{rates:nr});n++}}
   for(const el of document.querySelectorAll('[data-wfee]')){const e=S.events[el.dataset.wfee];if(!e)continue;const v=el.value===''?(p?0:null):Math.max(0,+el.value||0);const cur=e.fee==null||e.fee===''?null:+e.fee;if((p?(+cur||0):cur)!==v){if(p||e.invoiceId==null){await patch('events',e.id,{fee:v===null?null:v});n++}}}
   toast(n?'Updated. The numbers have been recalculated.':'Nothing changed');renderModal();render()}
-function ledger(from,to){const items=valueItems(from,to);const by={};items.forEach(x=>{const k=x.cid+'|'+x.key;const g=by[k]=by[k]||{cid:x.cid,kind:x.kind,key:x.key,label:x.label,done:0,booked:0,pencil:0,crew:0,days:0,n:0,unbooked:0};g.done+=x.done;g.booked+=x.booked;g.pencil+=x.pencil;g.crew+=x.crew;g.days+=x.days||0;g.unbooked+=x.unbooked||0;if(x.kind!=='retainer'&&!x.unbooked)g.n++;if(x.kind==='retainer')g.label=x.label});
+/* whose share: bookings split between the people on them; retainers by who did the hours; unbooked quote days by who is on the project */
+function shareFor(x,who,from,to){if(!who||who==='all')return 1;const even=1/PEOPLE.length;
+  if(x.eid){const pp=(S.events[x.eid]||{}).people||[];return pp.length?(pp.includes(who)?1/pp.length:0):even}
+  if(x.kind==='retainer'){const a=Math.max(x.month||from,from),b=Math.min(x.month?addMonths(x.month,1):to,to);const es=Object.values(S.entries).filter(e=>e.clientId===x.cid&&e.start>=a&&e.start<b);const t=es.reduce((s,e)=>s+entryH(e),0);return t?es.filter(e=>e.person===who).reduce((s,e)=>s+entryH(e),0)/t:even}
+  if(x.key&&x.key.startsWith('p:')){const c={};let n=0;projectBookings(x.key.slice(2)).forEach(e=>(e.people||[]).forEach(p=>{c[p]=(c[p]||0)+1;n++}));return n?(c[who]||0)/n:even}return even}
+function insRange(per,at){const a=at||Date.now();if(per==='week'){const w=startOfWeek(a);return [w,addDays(w,7)]}if(per==='year'){const y=new Date(a).getFullYear();return [new Date(y,0,1).getTime(),new Date(y+1,0,1).getTime()]}const m=startOfMonth(a);return [m,addMonths(m,1)]}
+function insLabel(per,a,b){if(per==='week'){const e=addDays(b,-1);return fmtDate(a,{day:'numeric',month:new Date(a).getMonth()===new Date(e).getMonth()?undefined:'short'})+'–'+fmtDate(e,{day:'numeric',month:'short',year:'numeric'})}if(per==='year')return String(new Date(a).getFullYear());return new Date(a).toLocaleDateString('en-GB',{month:'long',year:'numeric'})}
+function ledger(from,to,who){const items=valueItems(from,to).map(x=>{const w=shareFor(x,who,from,to);return w===1?x:{...x,done:x.done*w,booked:x.booked*w,pencil:x.pencil*w,crew:x.crew*w,days:w>0?x.days:0,unbooked:(x.unbooked||0)*w}}).filter(x=>x.done+x.booked+x.pencil+x.crew>0.004||x.days);const by={};items.forEach(x=>{const k=x.cid+'|'+x.key;const g=by[k]=by[k]||{cid:x.cid,kind:x.kind,key:x.key,label:x.label,done:0,booked:0,pencil:0,crew:0,days:0,n:0,unbooked:0};g.done+=x.done;g.booked+=x.booked;g.pencil+=x.pencil;g.crew+=x.crew;g.days+=x.days||0;g.unbooked+=x.unbooked||0;if(x.kind!=='retainer'&&!x.unbooked)g.n++;if(x.kind==='retainer')g.label=x.label});
   const rows=Object.values(by).filter(g=>g.done+g.booked+g.pencil+g.crew>0.004);const sum=k=>rows.reduce((t,g)=>t+g[k],0);
   const dayT=t=>items.filter(x=>x.type===t&&!x.pencil).reduce((a,x)=>a+(x.days||0),0);
   return {rows,done:sum('done'),booked:sum('booked'),total:sum('done')+sum('booked'),pencil:sum('pencil'),crew:sum('crew'),shoot:dayT('Shoot'),edit:dayT('Edit')}}
@@ -1137,6 +1147,7 @@ function doRender(){
   const view=$('#view');const key=v+'|'+(S.client||'')+'|'+(v==='clients'?S.sub||'':'');
   view.innerHTML=h; if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
   renderLive();
+  if(S.cal.toToday){S.cal.toToday=false;requestAnimationFrame(()=>requestAnimationFrame(scrollWeekToToday))}
 }
 function renderLive(){
   let bar=$('#livebar');if(!bar){bar=document.createElement('div');bar.id='livebar';bar.className='livebar';document.body.appendChild(bar)}
@@ -1267,8 +1278,8 @@ function vInvoicing(){
 }
 
 function yearTable(){
-  const y=new Date().getFullYear();const t0=startOfMonth(Date.now());const ms=[];for(let m=0;m<12;m++)ms.push(monthStats(new Date(y,m,1).getTime()));
-  const tot=ms.reduce((a,m)=>({shoot:a.shoot+m.shoot,edit:a.edit+m.edit,done:a.done+m.done,booked:a.booked+m.booked,gross:a.gross+m.gross,crew:a.crew+m.crew,net:a.net+m.net,invoiced:a.invoiced+m.invoiced}),{shoot:0,edit:0,done:0,booked:0,gross:0,crew:0,net:0,invoiced:0});const sel=S.insMonth||t0;
+  const y=new Date(S.insAt||Date.now()).getFullYear();const t0=startOfMonth(Date.now());const ms=[];for(let m=0;m<12;m++)ms.push(monthStats(new Date(y,m,1).getTime()));
+  const tot=ms.reduce((a,m)=>({shoot:a.shoot+m.shoot,edit:a.edit+m.edit,done:a.done+m.done,booked:a.booked+m.booked,gross:a.gross+m.gross,crew:a.crew+m.crew,net:a.net+m.net,invoiced:a.invoiced+m.invoiced}),{shoot:0,edit:0,done:0,booked:0,gross:0,crew:0,net:0,invoiced:0});const sel=S.period==='month'?startOfMonth(S.insAt||Date.now()):-1;
   const goal=+S.settings.monthlyGoal||0;
   return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>'+y+' by month</h3><span class="note">Retainer instalments, project fees spread over their days and day bookings, by the month the work falls in. Tap a month for its breakdown.'+(goal?' Goal '+gbp(goal)+' a month.':'')+'</span></div><div class="tbl"><table><thead><tr><th>Month</th><th class="r">Filming</th><th class="r">Edit</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th><th class="r">Crew</th><th class="r">Net</th><th class="r">Invoiced</th></tr></thead><tbody>'+
   ms.map(m=>'<tr'+(m.m0===sel?' style="font-weight:400;background:var(--raise)"':m.m0===t0?' style="font-weight:400"':m.past?'':' style="color:var(--muted)"')+'><td><button class="link" style="color:inherit;text-decoration:none" data-act="insmonth" data-v="'+m.m0+'">'+new Date(m.m0).toLocaleDateString('en-GB',{month:'long'})+'</button></td><td class="r">'+(m.shoot?fmtDays(m.shoot):'—')+'</td><td class="r">'+(m.edit?fmtDays(m.edit):'—')+'</td><td class="r">'+(m.done?gbp(m.done):'—')+'</td><td class="r">'+(m.booked?gbp(m.booked):'—')+'</td><td class="r">'+(m.gross?gbp(m.gross):'—')+'</td><td class="r">'+(m.crew?gbp(m.crew):'—')+'</td><td class="r"'+(goal&&m.gross&&m.gross<goal?' style="color:var(--warn)"':'')+'>'+(m.gross?gbp(m.net):'—')+'</td><td class="r">'+(m.invoiced?gbp(m.invoiced):'—')+'</td></tr>').join('')+
@@ -1276,21 +1287,20 @@ function yearTable(){
 }
 function vInsights(){
   const now=Date.now();const per=S.period;const who=S.insWho||'all';
-  const from=per==='week'?startOfWeek(now):per==='month'?startOfMonth(now):new Date(new Date().getFullYear(),0,1).getTime();
-  const to=now+1;
-  const es=Object.values(S.entries).filter(e=>e.start>=from&&(who==='all'||e.person===who));
+  const [from,to]=insRange(per,S.insAt);
+  const es=Object.values(S.entries).filter(e=>e.start>=from&&e.start<to&&(who==='all'||e.person===who));
   const tot=es.reduce((s,e)=>s+entryH(e),0);const bill=es.filter(e=>e.billable!==false).reduce((s,e)=>s+entryH(e),0);
   const byP={};es.forEach(e=>{byP[e.person]=(byP[e.person]||0)+entryH(e)});
   const maxP=Math.max(1,...Object.values(byP));
-  const m0=S.insMonth||startOfMonth(now);const monthEnd=addMonths(m0,1);const isNow=m0===startOfMonth(now);const mName=new Date(m0).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
-  const L=ledger(m0,monthEnd);
-  const invM=Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<monthEnd).reduce((s,i)=>s+i.subtotal,0);
+  const m0=from,monthEnd=to;const isNow=now>=m0&&now<monthEnd;const mName=insLabel(per,m0,monthEnd);const whoName=who==='all'?'':name(who);
+  const L=ledger(m0,monthEnd,who);
+  const invM=who!=='all'?0:Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<monthEnd).reduce((s,i)=>s+i.subtotal,0);
   const unb=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);
-  const goal=+S.settings.monthlyGoal||0;
+  const goal=who!=='all'?0:(+S.settings.monthlyGoal||0)*(per==='year'?12:per==='week'?12/52:1);
   const kindName={retainer:'Retainer',project:'Project',booking:'Bookings'};
   const brows=L.rows.slice().sort((a,b)=>cname(a.cid).localeCompare(cname(b.cid))||(a.kind>b.kind?1:-1));
-  const bTable=brows.length?'<div class="tbl" style="margin-top:16px"><table class="ledg"><thead><tr><th>Work in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'long'}))+'</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th></tr></thead><tbody>'+brows.map(g=>'<tr class="wk" data-act="working" data-c="'+g.cid+'" data-k="'+g.key+'" data-m="'+m0+'"><td><span class="chip" style="background:none;padding:0"><span class="dot" style="background:'+colour(g.cid)+'"></span>'+esc(cname(g.cid))+'</span><div class="note">'+kindName[g.kind]+' · '+esc(g.kind==='booking'?g.n+' day'+(g.n===1?'':'s'):g.label.replace(/^Retainer · /,''))+(g.kind==='project'&&g.n?' · '+fmtDays(g.days)+' day'+(g.days===1?'':'s')+' this month':'')+(g.unbooked?' · '+gbp(g.unbooked)+' not on days yet':'')+(g.pencil?' · '+gbp(g.pencil)+' pencilled':'')+'</div></td><td class="r">'+(g.done?gbp(g.done):'—')+'</td><td class="r">'+(g.booked?gbp(g.booked):'—')+'</td><td class="r" style="font-weight:400">'+gbp(g.done+g.booked)+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Total</td><td class="r">'+gbp(L.done)+'</td><td class="r">'+gbp(L.booked)+'</td><td class="r">'+gbp(L.total)+'</td></tr></tfoot></table></div>':'<div class="empty" style="margin-top:16px">Nothing booked or done in '+esc(mName)+' yet.</div>';
-  const rows=activeClients().map(c=>{const cv=clientValue(c.id,from,to);if(who!=='all'){cv.hours=cv.byPerson[who]||0;cv.rate=cv.hours?cv.fees/cv.hours:0}return {c,...cv}}).filter(r=>r.hours>0||r.fees>0);
+  const bTable=brows.length?'<div class="tbl" style="margin-top:16px"><table class="ledg"><thead><tr><th>'+(whoName?esc(whoName)+'’s work':'Work')+' · '+esc(mName)+'</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th></tr></thead><tbody>'+brows.map(g=>'<tr class="wk" data-act="working" data-c="'+g.cid+'" data-k="'+g.key+'" data-m="'+m0+'" data-t="'+monthEnd+'"><td><span class="chip" style="background:none;padding:0"><span class="dot" style="background:'+colour(g.cid)+'"></span>'+esc(cname(g.cid))+'</span><div class="note">'+kindName[g.kind]+' · '+esc(g.kind==='booking'?g.n+' day'+(g.n===1?'':'s'):g.label.replace(/^Retainer · /,''))+(g.kind==='project'&&g.n?' · '+fmtDays(g.days)+' day'+(g.days===1?'':'s')+' this month':'')+(g.unbooked?' · '+gbp(g.unbooked)+' not on days yet':'')+(g.pencil?' · '+gbp(g.pencil)+' pencilled':'')+'</div></td><td class="r">'+(g.done?gbp(g.done):'—')+'</td><td class="r">'+(g.booked?gbp(g.booked):'—')+'</td><td class="r" style="font-weight:400">'+gbp(g.done+g.booked)+'</td></tr>').join('')+'</tbody><tfoot><tr><td>Total</td><td class="r">'+gbp(L.done)+'</td><td class="r">'+gbp(L.booked)+'</td><td class="r">'+gbp(L.total)+'</td></tr></tfoot></table></div>':'<div class="empty" style="margin-top:16px">Nothing booked or done in '+esc(mName)+' yet.</div>';
+  const rows=activeClients().map(c=>{const cv=clientValue(c.id,from,to);if(who!=='all'){cv.fees=L.rows.filter(r=>r.cid===c.id).reduce((t,r)=>t+r.done+r.booked,0);cv.hours=cv.byPerson[who]||0;cv.rate=cv.hours?cv.fees/cv.hours:0}return {c,...cv}}).filter(r=>r.hours>0||r.fees>0);
   const totFees=rows.reduce((s,r)=>s+r.fees,0);const totH=rows.reduce((s,r)=>s+r.hours,0);
   const ranked=rows.slice().sort((a,b)=>(b.rate||0)-(a.rate||0));
   const maxH=Math.max(1,...rows.map(r=>r.hours));
@@ -1298,11 +1308,11 @@ function vInsights(){
   const wk=+S.settings.weeklyHoursTarget||0;
   const tbl=ranked.length?'<div class="tbl"><table><thead><tr><th>Client</th><th class="r">Fees</th><th class="r">Hours</th><th class="r">£/hr</th><th class="r">Share of time</th><th class="r">Share of fees</th></tr></thead><tbody>'+ranked.map(r=>{const st=totH?r.hours/totH*100:0,sf=totFees?r.fees/totFees*100:0;const under=st-sf>10;
     return '<tr><td><button class="chip link" style="text-decoration:none;color:var(--fg)" data-act="openclient" data-v="'+r.c.id+'"><span class="dot" style="background:'+r.c.colour+'"></span>'+esc(r.c.name)+'</button></td><td class="r">'+gbp(r.fees)+'</td><td class="r">'+hrs(r.hours)+'</td><td class="r" style="font-weight:400">'+(r.hours&&r.fees?gbp(r.rate):'—')+'</td><td class="r">'+Math.round(st)+'%</td><td class="r"'+(under?' style="color:var(--warn)"':'')+'>'+Math.round(sf)+'%'+(under?' ↓':'')+'</td></tr>'}).join('')+'</tbody><tfoot><tr><td>All clients</td><td class="r">'+gbp(totFees)+'</td><td class="r">'+hrs(totH)+'</td><td class="r">'+(totH&&totFees?gbp(totFees/totH):'—')+'</td><td class="r">100%</td><td class="r">100%</td></tr></tfoot></table></div>':'<div class="empty">Book work with fees and log time against it, and this table shows what each client is worth per hour.</div>';
-  return '<div class="panel-head"><h1>Insights</h1><div class="row" style="flex:0 1 auto;align-items:center"><div class="seg">'+[['all','Both']].concat(PEOPLE.map(p=>[p.id,name(p.id)])).map(([k,l])=>'<button data-act="inswho" data-v="'+k+'" aria-pressed="'+(who===k)+'">'+esc(l)+'</button>').join('')+'</div><div class="seg">'+[['week','This week'],['month','This month'],['year','This year']].map(([k,l])=>'<button data-act="period" data-v="'+k+'" aria-pressed="'+(per===k)+'">'+l+'</button>').join('')+'</div></div></div>'+
-  '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><div class="row" style="flex:0 1 auto;align-items:center;gap:6px;flex-wrap:nowrap"><button class="btn ghost small" data-act="insmonth" data-v="'+addMonths(m0,-1)+'" aria-label="Previous month">‹</button><h3 style="white-space:nowrap">'+esc(mName)+'</h3><button class="btn ghost small" data-act="insmonth" data-v="'+addMonths(m0,1)+'" aria-label="Next month">›</button>'+(isNow?'':'<button class="link" data-act="insmonth" data-v="'+startOfMonth(now)+'">This month</button>')+'</div>'+(goal?'<span class="eyebrow num">Goal '+gbp(goal)+'</span>':'<button class="link" data-act="nav" data-v="settings">Set a monthly goal</button>')+'</div>'+
-  '<div class="grid g3"><div class="stat"><span class="eyebrow">Work done</span><span class="v">'+gbp(L.done)+'</span><span class="s">'+(isNow?'So far this month':m0<now?'All of it':'Nothing yet')+'</span></div><div class="stat"><span class="eyebrow">Booked in, still to do</span><span class="v">'+gbp(L.booked)+'</span>'+(L.pencil?'<span class="s">plus '+gbp(L.pencil)+' pencilled, not counted</span>':'<span class="s">Confirmed work only</span>')+'</div><div class="stat"><span class="eyebrow">Total for the month</span><span class="v" style="font-weight:400">'+gbp(L.total)+'</span><span class="s">Done and booked</span></div></div>'+
-  '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Crew to pay</span><span class="v">'+gbp(L.crew)+'</span></div><div class="stat"><span class="eyebrow">Net to Quiet Media</span><span class="v" style="font-weight:400">'+gbp(L.total-L.crew)+'</span><span class="s">Before expenses</span></div><div class="stat"><span class="eyebrow">Invoiced in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'short'}))+'</span><span class="v">'+gbp(invM)+'</span><span class="s">'+gbp(unb)+' done and waiting to be invoiced, all months</span></div></div>'+
-  (goal?'<div class="goal" aria-label="Progress to goal"><u style="width:'+Math.min(100,L.total/goal*100)+'%"></u><i style="width:'+Math.min(100,L.done/goal*100)+'%"></i></div><p class="note" style="margin-top:8px">'+Math.round(L.done/goal*100)+'% of the goal done. With booked work, '+Math.round(L.total/goal*100)+'%.</p>':'')+bTable+(()=>{const u=undatedProjects();const d=likelyDuplicates();return (d.length?'<div class="banner warn" style="margin:14px 0 0">'+d.map(([a,b])=>'Possible duplicate for '+esc(cname(a.clientId))+': <b>'+esc(a.title)+'</b> ('+projectPriceLabel(a)+', '+projectBookings(a.id).length+' booking'+(projectBookings(a.id).length===1?'':'s')+') and <b>'+esc(b.title)+'</b> ('+projectPriceLabel(b)+', '+projectBookings(b.id).length+' booking'+(projectBookings(b.id).length===1?'':'s')+'). <button class="link" data-act="merge" data-a="'+a.id+'" data-b="'+b.id+'">Merge</button>').join('<br>')+'</div>':'')+(u.length?'<p class="note" style="margin-top:12px">Not in any month yet, because nothing is booked and there is no deadline: '+u.map(p=>'<button class="link" data-act="editproject" data-v="'+p.id+'">'+esc(p.title)+'</button> '+gbp(p.fee)).join(', ')+'.</p>':'')})()+'<p class="note" style="margin-top:10px">Tap a row to see how it was worked out and change it. Retainer instalments count evenly through their month. Fixed-fee projects are spread across their booked days; planned days not yet booked count on the deadline.</p></section>'+
+  return '<div class="panel-head"><h1>Insights</h1><div class="row" style="flex:0 1 auto;align-items:center"><div class="seg">'+[['all','Both']].concat(PEOPLE.map(p=>[p.id,name(p.id)])).map(([k,l])=>'<button data-act="inswho" data-v="'+k+'" aria-pressed="'+(who===k)+'">'+esc(l)+'</button>').join('')+'</div><div class="seg">'+[['week','Week'],['month','Month'],['year','Year']].map(([k,l])=>'<button data-act="period" data-v="'+k+'" aria-pressed="'+(per===k)+'">'+l+'</button>').join('')+'</div></div></div>'+
+  '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><div class="row" style="flex:0 1 auto;align-items:center;gap:6px;flex-wrap:nowrap"><button class="btn ghost small" data-act="insstep" data-v="-1" aria-label="Previous '+per+'">‹</button><h3 style="white-space:nowrap">'+esc(mName)+'</h3><button class="btn ghost small" data-act="insstep" data-v="1" aria-label="Next '+per+'">›</button>'+(isNow?'':'<button class="link" data-act="insstep" data-v="0">This '+per+'</button>')+'</div>'+(goal?'<span class="eyebrow num">Goal '+gbp(goal)+'</span>':'<button class="link" data-act="nav" data-v="settings">Set a monthly goal</button>')+'</div>'+
+  '<div class="grid g3"><div class="stat"><span class="eyebrow">Work done</span><span class="v">'+gbp(L.done)+'</span><span class="s">'+(isNow?'So far this '+per:m0<now?'All of it':'Nothing yet')+'</span></div><div class="stat"><span class="eyebrow">Booked in, still to do</span><span class="v">'+gbp(L.booked)+'</span>'+(L.pencil?'<span class="s">plus '+gbp(L.pencil)+' pencilled, not counted</span>':'<span class="s">Confirmed work only</span>')+'</div><div class="stat"><span class="eyebrow">Total for the '+per+'</span><span class="v" style="font-weight:400">'+gbp(L.total)+'</span><span class="s">Done and booked</span></div></div>'+
+  '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Crew to pay</span><span class="v">'+gbp(L.crew)+'</span></div><div class="stat"><span class="eyebrow">Net to Quiet Media</span><span class="v" style="font-weight:400">'+gbp(L.total-L.crew)+'</span><span class="s">Before expenses</span></div><div class="stat"><span class="eyebrow">Invoiced '+(per==='week'?'this week':per==='year'?'in '+new Date(m0).getFullYear():'in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'short'})))+'</span><span class="v">'+gbp(invM)+'</span><span class="s">'+gbp(unb)+' done and waiting to be invoiced, all months</span></div></div>'+
+  (goal?'<div class="goal" aria-label="Progress to goal"><u style="width:'+Math.min(100,L.total/goal*100)+'%"></u><i style="width:'+Math.min(100,L.done/goal*100)+'%"></i></div><p class="note" style="margin-top:8px">'+Math.round(L.done/goal*100)+'% of the goal done. With booked work, '+Math.round(L.total/goal*100)+'%.</p>':'')+bTable+(whoName?'<p class="note" style="margin-top:10px">'+esc(whoName)+'’s share: bookings '+esc(whoName)+' is on (split when you are both on one), retainers by who did the hours, plus crew on those jobs. Invoices are not split.</p>':'')+(()=>{const u=undatedProjects();const d=likelyDuplicates();return (d.length?'<div class="banner warn" style="margin:14px 0 0">'+d.map(([a,b])=>'Possible duplicate for '+esc(cname(a.clientId))+': <b>'+esc(a.title)+'</b> ('+projectPriceLabel(a)+', '+projectBookings(a.id).length+' booking'+(projectBookings(a.id).length===1?'':'s')+') and <b>'+esc(b.title)+'</b> ('+projectPriceLabel(b)+', '+projectBookings(b.id).length+' booking'+(projectBookings(b.id).length===1?'':'s')+'). <button class="link" data-act="merge" data-a="'+a.id+'" data-b="'+b.id+'">Merge</button>').join('<br>')+'</div>':'')+(u.length?'<p class="note" style="margin-top:12px">Not in any month yet, because nothing is booked and there is no deadline: '+u.map(p=>'<button class="link" data-act="editproject" data-v="'+p.id+'">'+esc(p.title)+'</button> '+gbp(p.fee)).join(', ')+'.</p>':'')})()+'<p class="note" style="margin-top:10px">Tap a row to see how it was worked out and change it. Retainer instalments count evenly through their month. Fixed-fee projects are spread across their booked days; planned days not yet booked count on the deadline.</p></section>'+
   yearTable()+
   '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Client value</h3><span class="note">Fees for bookings in the period against hours logged in it. A client taking a much bigger share of your time than of your fees is marked.</span></div>'+tbl+'</section>'+
   '<div class="grid g3" style="margin-bottom:16px"><div class="panel stat"><span class="eyebrow">Hours logged</span><span class="v">'+hrs(tot)+'</span>'+(wk&&per==='week'?'<span class="s">Target '+wk+' hrs each</span>':'')+'</div><div class="panel stat"><span class="eyebrow">On client work</span><span class="v">'+(tot?Math.round(bill/tot*100):0)+'%</span><span class="s">'+hrs(tot-bill)+' on admin, meetings and travel</span></div>'+
@@ -1471,7 +1481,7 @@ function monthStats(m0){
   const m1=addMonths(m0,1);const now=Date.now();
   const evs=Object.values(S.events).filter(e=>e.status!=='cancelled'&&e.start>=m0&&e.start<m1&&evVisible(e));
   const days=t=>evs.filter(e=>e.type===t).reduce((a,e)=>a+portion(e),0);
-  const L=ledger(m0,m1);const crew=L.crew,pencil=L.pencil;const sumK=k=>L.rows.filter(r=>r.kind===k).reduce((t,r)=>t+r.done+r.booked,0);
+  const L=ledger(m0,m1,S.insWho||'all');const crew=L.crew,pencil=L.pencil;const sumK=k=>L.rows.filter(r=>r.kind===k).reduce((t,r)=>t+r.done+r.booked,0);
   const fees=sumK('booking'),projects=sumK('project'),retainers=sumK('retainer');
   const hours=Object.values(S.entries).filter(e=>e.start>=m0&&e.start<m1&&(S.cal.who&&S.cal.who!=='all'?e.person===S.cal.who:true)).reduce((s,e)=>s+entryH(e),0);
   const invoiced=Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<m1).reduce((s,i)=>s+i.subtotal,0);
@@ -1543,6 +1553,11 @@ function vWeekCal(){
     h+='<div class="wd'+(x===t0?' today':'')+(dd.getDay()%6?'':' wk')+'"><button class="dl" data-act="goday" data-v="'+x+'"><small>'+dd.toLocaleDateString('en-GB',{weekday:'short'})+'</small><b>'+dd.getDate()+'</b></button><div class="st">'+(evs.length?evs.map(evCard).join(''):'<button class="free" data-act="newevent" data-v="'+dayKey(x)+'">Free</button>')+'</div></div>'}
   return h+'</div>'+calSum(all,'this week');
 }
+/* week view: put today at the top; earlier days sit above (scroll up), the rest below */
+function scrollWeekToToday(){if(calMode()!=='week'||S.cal.list||S.view!=='schedule')return;const el=document.querySelector('.week .wd.today');if(!el)return;const wk=el.closest('.week');
+  const stacked=el.getBoundingClientRect().left-wk.getBoundingClientRect().left<8;if(!stacked)return;
+  const top=el.getBoundingClientRect().top+scrollY-(parseFloat(getComputedStyle(document.body).paddingTop)||0)-12;
+  const need=top-(document.documentElement.scrollHeight-innerHeight);if(need>0)wk.style.paddingBottom=Math.ceil(need)+'px';window.scrollTo({top,behavior:S.cal.smooth?'smooth':'auto'});S.cal.smooth=false}
 function vDayCal(){return '<div style="max-width:640px">'+dayAgenda(startOfDay(S.cal.cursor))+'</div>'}
 function vYearCal(){
   const y=new Date(S.cal.cursor).getFullYear();const t0=startOfDay(Date.now());const curM=new Date(S.cal.cursor).getMonth();
@@ -2093,7 +2108,7 @@ document.addEventListener('click',async ev=>{
   if(a!=='closemodal'||b.tagName==='BUTTON')haptic(a==='start'||a==='stop'||a==='saveevent'||a==='cspublish'?'heavy':'light');
   if(a==='closemodal'){if(ev.target===b||b.tagName==='BUTTON')closeModal();return}
   switch(a){
-    case 'nav':S.view=v;S.client=null;S.sub=null;try{localStorage.setItem('qm-view',v)}catch(e){}render();window.scrollTo(0,0);break;
+    case 'nav':S.view=v;S.client=null;S.sub=null;try{localStorage.setItem('qm-view',v)}catch(e){}if(v==='schedule'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.cal.toToday=true}render();window.scrollTo(0,0);break;
     case 'person':S.person=v;try{localStorage.setItem('qm-person',v)}catch(e){}render();break;
     case 'start':startTimer();break;
     case 'stop':stopTimer(v);break;
@@ -2177,14 +2192,14 @@ document.addEventListener('click',async ev=>{
     case 'invite':{const el=document.getElementById('s-invite');const em=(el.value||'').trim();if(!/@/.test(em)){toast('Enter an email address');break}try{await invite(em);el.value='';toast('Invited '+em+'. They can now create an account.')}catch(e){toast(e.message)}break}
     case 'changepass':{const em=S.user&&S.user.email;if(!em)break;try{await resetPassword(em);toast('Reset link sent to '+em)}catch(e){toast(e.message)}break}
     case 'importpick':document.getElementById('importFile').click();break;
-    case 'calnav':{if(v==='0'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.calAnim='zo';render()}else calMove(Number(v));break}
+    case 'calnav':{if(v==='0'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.calAnim='zo';S.cal.toToday=true;S.cal.smooth=true;render()}else calMove(Number(v));break}
     case 'calzoom':calZoom(Number(v));break;
     case 'evsheet':openEventSheet(v);break;
     case 'goday':S.cal.mode='day';S.cal.cursor=Number(v);S.cal.sel=Number(v);S.calAnim='zi';try{localStorage.setItem('qm-calmode','day')}catch(e){}render();break;
     case 'portion':{document.getElementById('v-portion').value=v;document.querySelectorAll('#v-portionseg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.v===v));if(v==='0.5'){const st=document.getElementById('v-start'),en=document.getElementById('v-end');if(st&&en&&st.value&&en.value){const a=parseLocal('2000-01-01',st.value),bb=parseLocal('2000-01-01',en.value);if(bb-a>5*3.6e6)en.value=fmtTime(a+4*3.6e6)}}feeNote();break}
     case 'calspan':S.cal.span=Number(v);render();break;
     case 'gomonth':S.view='schedule';S.cal.mode='month';S.cal.cursor=Number(v);S.cal.sel=Number(v);S.calAnim='zi';try{localStorage.setItem('qm-calmode','month')}catch(e){}render();window.scrollTo(0,0);break;
-    case 'calmode':{if(S.cal.list){S.cal.list=false;S.cal.mode=v;render();break}const i=CAL_LEVELS.indexOf(v),j=CAL_LEVELS.indexOf(calMode());if(i===j)break;S.cal.mode=v;S.calAnim=i>j?'zi':'zo';try{localStorage.setItem('qm-calmode',v)}catch(e){}render();break}
+    case 'calmode':{if(v==='week'&&startOfWeek(S.cal.cursor)===startOfWeek(Date.now()))S.cal.toToday=true;if(S.cal.list){S.cal.list=false;S.cal.mode=v;render();break}const i=CAL_LEVELS.indexOf(v),j=CAL_LEVELS.indexOf(calMode());if(i===j)break;S.cal.mode=v;S.calAnim=i>j?'zi':'zo';try{localStorage.setItem('qm-calmode',v)}catch(e){}render();break}
     case 'gotoday':{S.view='schedule';S.cal.cursor=Number(v);S.cal.sel=Number(v);if(calMode()==='year'){S.cal.mode='month'}closeModal();render();window.scrollTo(0,0);break}
     case 'selday':{const x=Number(v);if(S.cal.sel===x&&startOfDay(S.cal.cursor)===x){S.cal.mode='day';S.calAnim='zi';try{localStorage.setItem('qm-calmode','day')}catch(e){}}S.cal.cursor=x;S.cal.sel=x;render();break}
     case 'quick':{S.draft.job=b.dataset.j;S.draft.category=b.dataset.k;startTimer();break}
@@ -2218,7 +2233,8 @@ document.addEventListener('click',async ev=>{
     case 'xeroone':{const i=S.invoices[v];download('xero-'+i.number+'.csv',xeroCSV([i]));break}
     case 'xero':{const invs=Object.values(S.invoices).filter(i=>i.clientId===v&&i.status==='draft');if(!invs.length){toast('No draft invoices for this client.');break}download('xero-'+(cname(v).replace(/[^a-z0-9]+/gi,'-'))+'.csv',xeroCSV(invs));break}
     case 'xeroall':{const invs=Object.values(S.invoices).filter(i=>i.status==='draft');download('xero-drafts-'+dayKey(Date.now())+'.csv',xeroCSV(invs));break}
-    case 'period':S.period=v;render();break;
+    case 'period':S.period=v;S.insAt=null;render();break;
+    case 'insstep':{const n=+v;if(!n){S.insAt=null}else{const b=S.insAt||Date.now();const per=S.period||'month';S.insAt=per==='week'?addDays(startOfWeek(b),7*n):per==='year'?new Date(new Date(b).getFullYear()+n,0,1).getTime():addMonths(startOfMonth(b),n)}render();break}
     case 'cltog':S.clShut={...(S.clShut||{}),[v]:!(S.clShut||{})[v]};render();break;
     case 'clall':{const any=Object.values(S.clShut||{}).some(Boolean);S.clShut={};if(!any)activeClients().forEach(c=>S.clShut[c.id]=true);render();break}
     case 'pview':S.pview=v;render();break;
@@ -2230,8 +2246,8 @@ document.addEventListener('click',async ev=>{
     case 'qgo':searchGo(+v);break;
     case 'resyncall':{toast('Re-downloading everything…');try{const r=await reconcile(true);await syncAll();toast('Done. '+(r?r.total+' records checked'+(r.fetched?', '+r.fetched+' updated':''):''));}catch(e){toast('Could not re-download: '+(e.message||'try again'))}render();break}
     case 'appreload':try{const r=await navigator.serviceWorker.getRegistration();if(r)await r.update()}catch(e){}location.reload();break;
-    case 'insmonth':S.insMonth=Number(v);render();break;
-    case 'working':openWorking(b.dataset.c,b.dataset.k,Number(b.dataset.m));break;
+    case 'insmonth':S.period='month';S.insAt=Number(v);render();window.scrollTo({top:0,behavior:'smooth'});break;
+    case 'working':openWorking(b.dataset.c,b.dataset.k,Number(b.dataset.m),Number(b.dataset.t)||0);break;
     case 'worksave':await workingSave();break;
     case 'merge':openMerge(b.dataset.a,b.dataset.b);break;
     case 'mergedo':await mergeProjects(b.dataset.a,b.dataset.b);break;
@@ -2267,6 +2283,7 @@ document.addEventListener('submit',async ev=>{if(ev.target.id!=='lockForm')retur
 });
 document.addEventListener('change',ev=>{if(ev.target.id==='importFile'&&ev.target.files[0])importBackup(ev.target.files[0])});
 document.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&ev.target.id==='d-task'){ev.preventDefault();startTimer()}});
+addEventListener('scroll',()=>{document.body.classList.toggle('scrolled',scrollY>4)},{passive:true});
 /* pull a bottom sheet down to close it: from the handle, or from anywhere once it is scrolled to the top */
 (()=>{let d=null;const phone=()=>matchMedia('(max-width:819px)').matches;
   const start=(x,y,target)=>{if(!phone()||!S.modal)return;const m=target.closest&&target.closest('.scrim.sheet:not(.leaving) .modal');if(!m)return;
