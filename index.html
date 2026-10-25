@@ -1365,7 +1365,7 @@ function renderModal(){
   const m=S.modal;const root=$('#modalRoot');
   if(!m){root.innerHTML='';return}
   root.innerHTML='<div class="scrim'+(m.cls?' '+m.cls:'')+'" data-act="closemodal"><div class="modal" role="dialog" aria-modal="true">'+(m.cls?'':'<button class="modal-x" data-act="closemodal" aria-label="Close"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>')+m.html()+'</div></div>';
-  const f=m.cls?null:root.querySelector('input,select');if(f)f.focus();
+  const f=m.cls?null:root.querySelector('input,select');if(f&&f.tagName==='INPUT')f.focus();
   if(m.type==='event'){feeNote();availNote()}
 }
 /* ===== global search: ⌘K / Ctrl+K, / or the search button. Type anything, jump straight to it. ===== */
