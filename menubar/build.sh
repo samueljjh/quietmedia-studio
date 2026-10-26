@@ -6,7 +6,7 @@ APP="Quiet Studio.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 echo "Compiling…"
-swiftc -O -framework Cocoa -framework WebKit main.swift -o "$APP/Contents/MacOS/Quiet Studio"
+swiftc -O -framework Cocoa -framework WebKit -framework UserNotifications main.swift -o "$APP/Contents/MacOS/Quiet Studio"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -14,8 +14,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleName</key><string>Quiet Studio</string>
 <key>CFBundleDisplayName</key><string>Quiet Studio</string>
 <key>CFBundleIdentifier</key><string>co.uk.quietmedia.studio.menubar</string>
-<key>CFBundleVersion</key><string>5</string>
-<key>CFBundleShortVersionString</key><string>5.0</string>
+<key>CFBundleVersion</key><string>6</string>
+<key>CFBundleShortVersionString</key><string>6.0</string>
 <key>CFBundleExecutable</key><string>Quiet Studio</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>

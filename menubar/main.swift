@@ -1,10 +1,12 @@
-// Quiet Studio — Mac menu bar companion, v5
+// Quiet Studio — Mac menu bar companion, v6
 // Shows the live timer from studio.quietmedia.co.uk in the menu bar, with clock in / pause / resume / clock out.
 // v5: project-aware (jobs), "booked today" nudge, QM.start(). Polls window.QM.live() every 5 s in a hidden WKWebView.
+// v6: drives. Reads each T7 when it is plugged in (free space, main folders, then folder sizes in the background) and hands it to QM.drive*.
 // Build: ./build.sh   (needs Xcode Command Line Tools)
 
 import Cocoa
 import WebKit
+import UserNotifications
 
 let APP_URL = URL(string: "https://studio.quietmedia.co.uk/")!
 let POLL: TimeInterval = 5
@@ -57,13 +59,175 @@ func hm(_ h: Double) -> String { let m = Int((h * 60).rounded()); return "\(m / 
 func clock(_ s: TimeInterval) -> String { let t = max(0, Int(s)); return String(format: "%d:%02d:%02d", t / 3600, (t / 60) % 60, t % 60) }
 func time(_ t: TimeInterval) -> String { let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: Date(timeIntervalSince1970: t)) }
 
+// MARK: - drives
+let DRIVE_RECHECK: TimeInterval = 180            // free space + folder list while a drive stays plugged in
+let DRIVE_REMEASURE: TimeInterval = 2 * 3600     // every folder size again, while plugged in
+let SKIP_FOLDERS: Set<String> = ["$RECYCLE.BIN", "System Volume Information"]
+
+struct Vol { let url: URL; let uuid: String; let name: String; let total: Int64; let free: Int64 }
+
+// an external drive the size of a T7 (2 or 4 TB); skips the Mac's own disk, disk images, SD cards and sticks
+func readVolume(_ url: URL) -> Vol? {
+    let keys: Set<URLResourceKey> = [.volumeUUIDStringKey, .volumeNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityKey,
+                                     .volumeIsInternalKey, .volumeIsRootFileSystemKey, .volumeIsLocalKey]
+    guard let v = try? url.resourceValues(forKeys: keys) else { return nil }
+    if v.volumeIsRootFileSystem == true || v.volumeIsInternal == true || v.volumeIsLocal == false { return nil }
+    guard let uuid = v.volumeUUIDString, let total = v.volumeTotalCapacity else { return nil }
+    if total < 1_500_000_000_000 || total > 4_500_000_000_000 { return nil }
+    return Vol(url: url, uuid: uuid, name: v.volumeName ?? url.lastPathComponent, total: Int64(total), free: Int64(v.volumeAvailableCapacity ?? 0))
+}
+// the main folders only: one directory listing, so it is quick
+func topFolders(_ url: URL) -> [[String: Any]] {
+    let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
+    guard let items = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return [] }
+    return items.compactMap { u in
+        guard let r = try? u.resourceValues(forKeys: Set(keys)), r.isDirectory == true, !SKIP_FOLDERS.contains(u.lastPathComponent) else { return nil }
+        return ["name": u.lastPathComponent, "mtime": (r.contentModificationDate?.timeIntervalSince1970 ?? 0) * 1000]
+    }
+}
+// space a folder takes on disk; nil if the drive went away part way
+func folderSize(_ url: URL, cancelled: () -> Bool) -> Int64? {
+    let keys: [URLResourceKey] = [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isRegularFileKey]
+    guard let en = FileManager.default.enumerator(at: url, includingPropertiesForKeys: keys, options: [], errorHandler: { _, _ in true }) else { return nil }
+    var total: Int64 = 0, n = 0
+    for case let f as URL in en {
+        n += 1
+        if n % 500 == 0 && cancelled() { return nil }
+        guard let r = try? f.resourceValues(forKeys: Set(keys)), r.isRegularFile == true else { continue }
+        total += Int64(r.totalFileAllocatedSize ?? r.fileAllocatedSize ?? 0)
+    }
+    return cancelled() ? nil : total
+}
+func bytes(_ b: Int64) -> String { b >= 1_000_000_000_000 ? String(format: "%.2f TB", Double(b) / 1e12) : "\(b / 1_000_000_000) GB" }
+
+final class DriveWatcher {
+    weak var app: App?
+    var mounted: [String: Vol] = [:]                 // by volume ID; main thread only
+    var status: [String: [String: Any]] = [:]        // last answer from QM.driveSeen
+    var lastFull: [String: Date] = [:], asked = Set<String>(), warned = Set<String>(), queued = Set<String>()
+    private var live: [String: URL] = [:]; private let lock = NSLock()   // read by the sizing thread
+    let sizer = OperationQueue()
+    var timer: Timer?
+    var ignored: Set<String> {
+        get { Set(UserDefaults.standard.stringArray(forKey: "ignoredDrives") ?? []) }
+        set { UserDefaults.standard.set(Array(newValue), forKey: "ignoredDrives") }
+    }
+
+    init() {
+        sizer.maxConcurrentOperationCount = 1; sizer.qualityOfService = .background
+        let nc = NSWorkspace.shared.notificationCenter
+        nc.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: .main) { [weak self] _ in self?.scan() }
+        nc.addObserver(forName: NSWorkspace.didUnmountNotification, object: nil, queue: .main) { [weak self] _ in self?.scan() }
+        timer = Timer.scheduledTimer(withTimeInterval: DRIVE_RECHECK, repeats: true) { [weak self] _ in self?.scan() }
+        RunLoop.main.add(timer!, forMode: .common)
+    }
+    var lowName: String? {
+        let low = mounted.values.compactMap({ status[$0.uuid] }).first(where: { $0["low"] as? Bool == true })
+        return low?["name"] as? String
+    }
+
+    // full: measure every folder again, not just new or changed ones
+    func scan(full: Bool = false) {
+        let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: nil, options: [.skipHiddenVolumes]) ?? []
+        var now: [String: Vol] = [:]
+        for u in urls { if let v = readVolume(u) { now[v.uuid] = v } }
+        for gone in Set(mounted.keys).subtracting(now.keys) { lastFull[gone] = nil; status[gone] = nil; asked.remove(gone); warned.remove(gone) }
+        mounted = now
+        lock.lock(); live = now.mapValues { $0.url }; lock.unlock()
+        guard let app = app, app.signedIn else { app?.paint(); return }   // picked up once signed in
+        for v in now.values {
+            let due = full || lastFull[v.uuid].map { Date().timeIntervalSince($0) > DRIVE_REMEASURE } ?? true
+            read(v, full: due)
+        }
+        app.paint()
+    }
+    func read(_ v: Vol, full: Bool) {
+        app?.call("QM.driveFor", [v.uuid]) { [weak self] r in
+            guard let self = self, let id = r as? String else { return }
+            if id == "?" { DispatchQueue.main.asyncAfter(deadline: .now() + 15) { self.scan() } }   // not synced yet
+            else if id.isEmpty { self.ask(v) }
+            else { self.snapshot(v, full: full) }
+        }
+    }
+    // first time a drive is seen: which T7 is it? Remembered in Studio by the volume's ID, for both Macs.
+    func ask(_ v: Vol) {
+        guard !asked.contains(v.uuid), !ignored.contains(v.uuid) else { return }
+        asked.insert(v.uuid)
+        app?.call("QM.driveSlots", []) { [weak self] r in
+            guard let self = self, let s = r as? String,
+                  let slots = (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [[String: Any]] else { return }
+            let a = NSAlert()
+            a.messageText = "Which drive is this?"
+            a.informativeText = "“\(v.name)” (\(bytes(v.total))) was just plugged in. Pick it once and Quiet Studio recognises it from now on, on both Macs."
+            let pop = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 280, height: 26), pullsDown: false)
+            for slot in slots {
+                pop.addItem(withTitle: (slot["label"] as? String ?? "") + ((slot["taken"] as? Bool ?? false) ? "  (already set up)" : ""))
+                pop.lastItem?.representedObject = slot["id"]
+            }
+            if let i = slots.firstIndex(where: { !($0["taken"] as? Bool ?? false) }) { pop.selectItem(at: i) }
+            a.accessoryView = pop
+            a.addButton(withTitle: "This is it"); a.addButton(withTitle: "Ask later"); a.addButton(withTitle: "Not one of ours")
+            NSApp.activate(ignoringOtherApps: true)
+            let res = a.runModal()
+            if res == .alertFirstButtonReturn, let id = pop.selectedItem?.representedObject as? String {
+                self.app?.call("QM.assignDrive", [v.uuid, id]) { _ in self.snapshot(v, full: true) }
+            } else if res == .alertThirdButtonReturn { self.ignored.insert(v.uuid) }
+        }
+    }
+    func snapshot(_ v: Vol, full: Bool) {
+        let s: [String: Any] = ["uuid": v.uuid, "volName": v.name, "total": v.total, "free": v.free, "folders": topFolders(v.url)]
+        app?.call("QM.driveSeen", [s]) { [weak self] r in
+            guard let self = self, let str = r as? String,
+                  let d = (try? JSONSerialization.jsonObject(with: Data(str.utf8))) as? [String: Any] else { return }
+            self.status[v.uuid] = d
+            if d["low"] as? Bool == true && !self.warned.contains(v.uuid) { self.warned.insert(v.uuid); self.warnLow(d) }
+            if full { self.lastFull[v.uuid] = Date() }
+            for n in (full ? d["all"] : d["stale"]) as? [String] ?? [] { self.measure(v, n) }
+            self.app?.paint()
+        }
+    }
+    // folder sizes, one at a time at background priority so editing and copying are not slowed
+    func measure(_ v: Vol, _ name: String) {
+        let key = v.uuid + "/" + name
+        guard !queued.contains(key) else { return }
+        queued.insert(key)
+        let url = v.url.appendingPathComponent(name, isDirectory: true)
+        sizer.addOperation { [weak self] in
+            guard let self = self else { return }
+            let size = folderSize(url) { !self.stillMounted(v) }
+            DispatchQueue.main.async {
+                self.queued.remove(key)
+                if let size = size { self.app?.call("QM.driveSize", [["uuid": v.uuid, "name": name, "size": size]]) }
+                self.app?.paint()
+            }
+        }
+    }
+    func stillMounted(_ v: Vol) -> Bool { lock.lock(); defer { lock.unlock() }; return live[v.uuid] == v.url }
+    func warnLow(_ d: [String: Any]) {
+        let name = d["name"] as? String ?? "A drive"
+        let c = UNMutableNotificationContent()
+        c.title = "\(name) is low on space"
+        c.body = "\(bytes(Int64(d["free"] as? Double ?? 0))) free. Keep \(Int(d["minGB"] as? Double ?? 0)) GB free to work. Open Quiet Studio, Drives, to see what to clear."
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "drive-low-" + name, content: c, trigger: nil))
+    }
+    func summary() -> String {
+        if mounted.isEmpty { return "No T7 plugged in." }
+        let lines = mounted.values.map { v -> String in
+            guard let d = status[v.uuid] else { return "\(v.name): waiting to be set up" }
+            return "\(d["name"] as? String ?? v.name): \(bytes(v.free)) free" + (d["low"] as? Bool == true ? ", low on space" : "")
+        }.sorted()
+        return lines.joined(separator: "\n") + (queued.isEmpty ? "" : "\nMeasuring folder sizes, \(queued.count) to go")
+    }
+}
+
 // MARK: - the panel under the status item
 final class Panel: NSView {
     let title = NSTextField(labelWithString: ""), sub = NSTextField(labelWithString: ""), big = NSTextField(labelWithString: "")
-    let note = NSTextField(wrappingLabelWithString: ""), today = NSTextField(labelWithString: "")
+    let note = NSTextField(wrappingLabelWithString: ""), today = NSTextField(labelWithString: ""), drives = NSTextField(wrappingLabelWithString: "")
     let primary = NSButton(title: "", target: nil, action: nil), secondary = NSButton(title: "", target: nil, action: nil)
     let tertiary = NSButton(title: "", target: nil, action: nil)
     let open = NSButton(title: "Open Quiet Studio", target: nil, action: nil), quit = NSButton(title: "Quit", target: nil, action: nil)
+    let syncDrives = NSButton(title: "Sync drives", target: nil, action: nil)
     var onPrimary: (() -> Void)?, onSecondary: (() -> Void)?, onTertiary: (() -> Void)?
 
     override init(frame: NSRect) {
@@ -75,18 +239,19 @@ final class Panel: NSView {
         note.font = NSFont.systemFont(ofSize: 12); note.textColor = .secondaryLabelColor
         note.preferredMaxLayoutWidth = 268
         today.font = NSFont.systemFont(ofSize: 11); today.textColor = .tertiaryLabelColor
+        drives.font = NSFont.systemFont(ofSize: 11); drives.textColor = .secondaryLabelColor; drives.preferredMaxLayoutWidth = 268
         for b in [primary, secondary, tertiary] { b.bezelStyle = .rounded; b.controlSize = .large; b.font = NSFont.systemFont(ofSize: 13) }
         primary.keyEquivalent = "\r"
-        for b in [open, quit] { b.isBordered = false; b.font = NSFont.systemFont(ofSize: 12); b.contentTintColor = .secondaryLabelColor }
+        for b in [open, syncDrives, quit] { b.isBordered = false; b.font = NSFont.systemFont(ofSize: 12); b.contentTintColor = .secondaryLabelColor }
         primary.target = self; primary.action = #selector(p1)
         secondary.target = self; secondary.action = #selector(p2)
         tertiary.target = self; tertiary.action = #selector(p3)
 
         let buttons = NSStackView(views: [primary, secondary, tertiary]); buttons.orientation = .horizontal; buttons.spacing = 8
-        let foot = NSStackView(views: [open, NSView(), quit]); foot.orientation = .horizontal; foot.distribution = .equalSpacing
-        let stack = NSStackView(views: [title, sub, big, note, buttons, today, foot])
+        let foot = NSStackView(views: [open, syncDrives, quit]); foot.orientation = .horizontal; foot.distribution = .equalSpacing
+        let stack = NSStackView(views: [title, sub, big, note, buttons, today, drives, foot])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
-        stack.setCustomSpacing(10, after: sub); stack.setCustomSpacing(10, after: note); stack.setCustomSpacing(14, after: today)
+        stack.setCustomSpacing(10, after: sub); stack.setCustomSpacing(10, after: note); stack.setCustomSpacing(10, after: today); stack.setCustomSpacing(14, after: drives)
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 12, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -141,13 +306,14 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
     var live: Live? = nil
     var signedIn = false
     var tick: Timer?, poll: Timer?
+    let driveWatcher = DriveWatcher()
 
     func applicationDidFinishLaunching(_ n: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let cfg = WKWebViewConfiguration(); cfg.websiteDataStore = .default()
         web = WKWebView(frame: NSRect(x: 0, y: 0, width: 420, height: 820), configuration: cfg)
         web.navigationDelegate = self
-        web.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 QuietStudioMenuBar/5"
+        web.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 QuietStudioMenuBar/6"
         webWindow = NSWindow(contentRect: web.frame, styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         webWindow.title = "Quiet Studio"; webWindow.contentView = web; webWindow.isReleasedWhenClosed = false; webWindow.center()
         web.load(URLRequest(url: APP_URL))
@@ -163,6 +329,9 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         panel.onSecondary = { [weak self] in self?.secondary() }
         panel.open.target = self; panel.open.action = #selector(openApp)
         panel.quit.target = NSApp; panel.quit.action = #selector(NSApplication.terminate(_:))
+        panel.syncDrives.target = self; panel.syncDrives.action = #selector(syncDrives)
+        driveWatcher.app = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         poll = Timer.scheduledTimer(withTimeInterval: POLL, repeats: true) { [weak self] _ in self?.refresh() }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.paint() }
@@ -174,9 +343,16 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
     func js(_ code: String, _ done: ((Any?) -> Void)? = nil) {
         web.evaluateJavaScript(code) { r, _ in done?(r) }
     }
+    // QM.<fn>(...args) with JSON in and out: objects come back as a JSON string
+    func call(_ fn: String, _ args: [Any], _ done: ((Any?) -> Void)? = nil) {
+        guard let d = try? JSONSerialization.data(withJSONObject: args), let a = String(data: d, encoding: .utf8) else { return }
+        js("(function(){try{var r=\(fn).apply(window.QM,\(a));return r!==null&&typeof r==='object'?JSON.stringify(r):r}catch(e){return null}})()", done)
+    }
     func refresh() {
         js("(function(){try{return window.QM?JSON.stringify(window.QM.live()):'nope'}catch(e){return 'nope'}})()") { [weak self] r in
             guard let self = self else { return }
+            let was = self.signedIn
+            defer { if self.signedIn && !was { self.driveWatcher.scan() } }   // drives plugged in before sign-in or app load
             if let s = r as? String, s != "nope", let d = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] {
                 self.live = Live(d); self.signedIn = true
             } else { self.live = nil; self.signedIn = false }
@@ -190,17 +366,19 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         else if let l = live, let r = l.running { b.title = " \(clock(Date().timeIntervalSince1970 - l.since)) · \(short(r.title))"; b.toolTip = r.subtitle }
         else if let l = live, l.paused != nil { b.title = " On hold"; b.toolTip = l.paused!.title }
         else if let l = live, l.nudge { b.title = " Booked · clock in"; b.toolTip = l.bookedTitle }
+        else if let low = driveWatcher.lowName { b.title = " \(low) low on space"; b.toolTip = "Open Quiet Studio, Drives, to see what to clear" }
         else { b.title = ""; b.toolTip = "Quiet Studio" }
-        if popover.isShown { panel.show(live, signedIn: signedIn) }
+        if popover.isShown { panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher.summary() }
     }
     func short(_ s: String) -> String { s.count > 22 ? String(s.prefix(21)) + "…" : s }
 
     @objc func toggle() {
         if popover.isShown { popover.performClose(nil); return }
-        panel.show(live, signedIn: signedIn)
+        panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher.summary()
         popover.show(relativeTo: status.button!.bounds, of: status.button!, preferredEdge: .minY)
         refresh()
     }
+    @objc func syncDrives() { driveWatcher.scan(full: true); paint() }
     @objc func openApp() { popover.performClose(nil); NSApp.activate(ignoringOtherApps: true); webWindow.makeKeyAndOrderFront(nil) }
 
     func primary() {
