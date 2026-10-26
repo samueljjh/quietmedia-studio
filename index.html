@@ -515,6 +515,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 .wkin{width:88px;text-align:right;padding:8px 10px!important;font-size:14px!important}
 .topfade{position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top,0px) + 22px);z-index:90;pointer-events:none;background:linear-gradient(to bottom,var(--bg) 0,var(--bg) calc(env(safe-area-inset-top,0px) - 4px),color-mix(in srgb,var(--bg) 70%,transparent) calc(env(safe-area-inset-top,0px) + 6px),transparent 100%);opacity:0;transition:opacity .25s}
 body.scrolled .topfade{opacity:1}@media (min-width:820px){.topfade{display:none}}
+.filming .nudge{margin:0 0 16px;box-shadow:inset 0 0 0 1.5px var(--fg)}.filming a.btn{text-decoration:none}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
@@ -603,7 +604,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=41;
+const APP_VERSION=42;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1203,10 +1204,22 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
+  filmingToday(d0)+
   '<div class="grid g2">'+cards+'</div>'+
   (()=>{const ex=[unassignedPanel(),allocatePanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
   '<section class="panel"><div class="panel-head"><h3>Coming up</h3><button class="link" data-act="nav" data-v="schedule">Schedule</button></div>'+upl+'</section></div>';
+}
+/* on a filming day, the call sheet is the document that matters: put it one tap away at the top of Today */
+function filmingToday(d0){
+  const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&startOfDay(e.start)===d0).sort((a,b)=>a.start-b.start);
+  if(!shoots.length)return '';
+  return '<div class="filming">'+shoots.map(e=>{const a=sheetAnchor(e);const sh=a.sheet||{};const url=sh.publishedAt?sheetUrlFor(e,sh):'';
+    const d=(sh.days||[]).find(x=>x.id===e.id)||{};const loc=d.location&&(d.location.name||d.location.address)||e.location||'';
+    const g=groupOf(e).filter(x=>x.status!=='cancelled');const n=g.length>1?' · day '+(g.findIndex(x=>x.id===e.id)+1)+' of '+g.length:'';
+    return '<div class="nudge"><span class="dot" style="background:'+colour(e.clientId)+'"></span><div><b>Filming today: '+esc(e.title)+'</b><div class="note">Call '+esc(d.call||e.callTime||fmtTime(e.start))+(e.clientId?' · '+esc(cname(e.clientId)):'')+(loc?' · '+esc(loc):'')+n+'</div></div>'+
+    (url?'<a class="btn small" href="'+esc(url)+'" target="_blank" rel="noopener">Open call sheet</a><button class="link" data-act="callsheet" data-v="'+a.id+'">edit</button>'
+    :'<button class="btn small ghost" data-act="callsheet" data-v="'+a.id+'">'+(sh.days?'Finish call sheet':'Build call sheet')+'</button>')+'</div>'}).join('')+'</div>';
 }
 function entryRow(e){
   const inv=e.invoiceId&&S.invoices[e.invoiceId];
