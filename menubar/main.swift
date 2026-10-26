@@ -1,4 +1,4 @@
-// Quiet Studio — Mac menu bar companion, v6
+// Studio Menu Bar — the Quiet Studio Mac menu bar companion, v7 (built as "Studio Menu Bar.app")
 // Shows the live timer from studio.quietmedia.co.uk in the menu bar, with clock in / pause / resume / clock out.
 // v5: project-aware (jobs), "booked today" nudge, QM.start(). Polls window.QM.live() every 5 s in a hidden WKWebView.
 // v6: drives. Reads each T7 when it is plugged in (free space, main folders, then folder sizes in the background) and hands it to QM.drive*.
@@ -313,7 +313,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         let cfg = WKWebViewConfiguration(); cfg.websiteDataStore = .default()
         web = WKWebView(frame: NSRect(x: 0, y: 0, width: 420, height: 820), configuration: cfg)
         web.navigationDelegate = self
-        web.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 QuietStudioMenuBar/6"
+        web.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 QuietStudioMenuBar/7"
         webWindow = NSWindow(contentRect: web.frame, styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         webWindow.title = "Quiet Studio"; webWindow.contentView = web; webWindow.isReleasedWhenClosed = false; webWindow.center()
         web.load(URLRequest(url: APP_URL))
