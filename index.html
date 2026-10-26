@@ -527,6 +527,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 body.scrolled .topfade{opacity:1}@media (min-width:820px){.topfade{display:none}}
 .filming .nudge{margin:0 0 16px;box-shadow:inset 0 0 0 1.5px var(--fg)}.filming a.btn{text-decoration:none}.travel{margin-top:6px;font-size:14px}.travel a{color:inherit}.csb-travel{max-width:720px;margin:-8px auto 24px;padding:14px 16px;border-radius:var(--r);background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong);display:grid;gap:6px}.csb-travel:not(:has(.travel)){display:none}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
+.nudge-x{width:36px;height:36px;margin:-4px -6px -4px 0;border-radius:50%;background:transparent;border:0;color:var(--muted);display:grid;place-items:center;flex:none;opacity:.6}.nudge-x:hover{opacity:1;background:var(--line)}.nudge-x svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
 <style>[hidden]{display:none!important}html,body{height:100%}body{padding-top:env(safe-area-inset-top,0px)}</style>
@@ -614,7 +615,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=50;
+const APP_VERSION=51;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1227,15 +1228,19 @@ function vToday(){
    The day before, the same card shows tomorrow's shoot so you know when to leave. */
 function filmingToday(d0){
   const d1=startOfDay(d0+36*3.6e6);
-  const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&(startOfDay(e.start)===d0||startOfDay(e.start)===d1)).sort((a,b)=>a.start-b.start);
+  const hid=filmHidden();const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&!hid[e.id]&&(startOfDay(e.start)===d0||startOfDay(e.start)===d1)).sort((a,b)=>a.start-b.start);
   if(!shoots.length)return '';
   return '<div class="filming">'+shoots.map(e=>{const a=sheetAnchor(e);const sh=a.sheet||{};const url=sh.publishedAt?sheetUrlFor(e,sh):'';
     const d=shootDay(e);const loc=d.location&&(d.location.name||d.location.address)||e.location||'';
     const g=groupOf(e).filter(x=>x.status!=='cancelled');const n=g.length>1?' · day '+(g.findIndex(x=>x.id===e.id)+1)+' of '+g.length:'';
     return '<div class="nudge"><span class="dot" style="background:'+colour(e.clientId)+'"></span><div><b>Filming '+(startOfDay(e.start)===d0?'today':'tomorrow')+': '+esc(e.title)+'</b><div class="note">Call '+esc(d.call||e.callTime||fmtTime(e.start))+(e.clientId?' · '+esc(cname(e.clientId)):'')+(loc?' · '+esc(loc):'')+n+'</div>'+travelLine(e)+'</div>'+
     (url?'<a class="btn small" href="'+esc(url)+'" target="_blank" rel="noopener">Open call sheet</a><button class="link" data-act="callsheet" data-v="'+a.id+'">edit</button>'
-    :'<button class="btn small ghost" data-act="callsheet" data-v="'+a.id+'">'+(sh.days?'Finish call sheet':'Build call sheet')+'</button>')+'</div>'}).join('')+'</div>';
+    :'<button class="btn small ghost" data-act="callsheet" data-v="'+a.id+'">'+(sh.days?'Finish call sheet':'Build call sheet')+'</button>')+
+    '<button class="nudge-x" data-act="filmhide" data-v="'+e.id+'" aria-label="Remove from Today" title="Remove from Today"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>'}).join('')+'</div>';
 }
+/* The X on a filming card hides that shoot from Today on this device. Old entries clear themselves after a month. */
+function filmHidden(){try{return JSON.parse(localStorage.getItem('qm-filmhide')||'{}')}catch(e){return {}}}
+function filmHide(id){try{const z=filmHidden();Object.keys(z).forEach(k=>{if(Date.now()-z[k]>30*864e5)delete z[k]});z[id]=Date.now();localStorage.setItem('qm-filmhide',JSON.stringify(z))}catch(e){}}
 /* ===== travel from home: private to this device's person, never put on the published call sheet ===== */
 function shootDay(e,sh){sh=sh||sheetAnchor(e).sheet||{};return (sh.days||[]).find(x=>x.id===e.id)||{}}
 function shootPlace(e,sh){sh=sh||sheetAnchor(e).sheet||{};const at=l=>((l&&(l.address||l.name))||'').trim();return at(shootDay(e,sh).location)||(e.location||'').trim()||(sh.days||[]).map(d=>at(d.location)).find(Boolean)||''}
@@ -2422,6 +2427,7 @@ document.addEventListener('click',async ev=>{
     case 'leavefrom':patch('events',v,{leaveFrom:b.dataset.k});if(S.modal&&S.modal.type==='callsheet')csTravel();break;
     case 'drfolders':S.drOpen={...(S.drOpen||{}),[v]:!(S.drOpen||{})[v]};render();break;
     case 'drrelink':S.drEdit=v;render();break;
+    case 'filmhide':filmHide(v);render();toast('Removed from Today');break;
     case 'drsnooze':drSnooze(v.split(','));render();toast('Hidden for 3 days, or until it gets fuller');break;
     case 'arch':{const w=b.dataset.k;const it=archItems()[v]||{};setArch(v,{[w]:it[w]?0:Date.now(),skip:false});break}
     case 'archmark':setArch(v,{marked:true,skip:false});toast('Added to Ready to archive');break;
