@@ -610,7 +610,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=45;
+const APP_VERSION=46;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1819,8 +1819,11 @@ function archPanel(){const r=readyToArchive();if(!r.length)return '';const tot=r
   return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Ready to archive</h3><span class="note">'+r.length+' folder'+(r.length===1?'':'s')+(tot?' · '+fmtBytes(tot)+' to free up':'')+(safe.length?' · '+safe.length+' safe to delete now':'')+'</span></div>'+
   '<p class="note" style="margin:0 0 4px">One-off work that’s finished and signed off. Copy it to the NAS and to the archive drive, tick both, then delete it from the T7. Studio remembers where it went.</p><div class="list">'+r.map(archRow).join('')+'</div></section>'}
 
-function lowDrivesNudge(){const low=DRIVES.filter(driveLow);if(!low.length)return '';
-  return '<div class="nudge"><span class="dot" style="background:var(--danger)"></span><div><b>'+(low.length===1?esc(low[0].name)+' is':low.map(d=>esc(d.name)).join(', ')+' are')+' low on space</b><div class="note">'+low.map(d=>esc(d.name)+': '+fmtBytes(driveRec(d.id).free)+' free, needs '+driveMin(d)+' GB').join(' · ')+(()=>{const r=readyToArchive().filter(x=>low.includes(x.d));const b=r.reduce((t,x)=>t+(x.f.size||0),0);return r.length?' · '+(b?fmtBytes(b)+' of':r.length)+' finished work ready to archive':''})()+' · <button class="link" data-act="nav" data-v="drives">See what to clear</button></div></div></div>'}
+/* Dismissing the Today warning hides it on this device for 3 days, or until that drive loses another 50 GB. */
+function drSnoozed(d){try{const z=JSON.parse(localStorage.getItem('qm-drsnooze')||'{}')[d.id];return !!z&&Date.now()-z.at<3*864e5&&(driveRec(d.id).free||0)>=z.free-50*GB}catch(e){return false}}
+function drSnooze(ids){try{const z=JSON.parse(localStorage.getItem('qm-drsnooze')||'{}');ids.forEach(id=>{z[id]={at:Date.now(),free:driveRec(id).free||0}});localStorage.setItem('qm-drsnooze',JSON.stringify(z))}catch(e){}}
+function lowDrivesNudge(){const low=DRIVES.filter(d=>driveLow(d)&&!drSnoozed(d));if(!low.length)return '';
+  return '<div class="nudge"><span class="dot" style="background:var(--danger)"></span><div><b>'+(low.length===1?esc(low[0].name)+' is':low.map(d=>esc(d.name)).join(', ')+' are')+' low on space</b><div class="note">'+low.map(d=>esc(d.name)+': '+fmtBytes(driveRec(d.id).free)+' free, needs '+driveMin(d)+' GB').join(' · ')+(()=>{const r=readyToArchive().filter(x=>low.includes(x.d));const b=r.reduce((t,x)=>t+(x.f.size||0),0);return r.length?' · '+(b?fmtBytes(b)+' of':r.length)+' finished work ready to archive':''})()+' · <button class="link" data-act="nav" data-v="drives">See what to clear</button> · <button class="link" data-act="drsnooze" data-v="'+low.map(d=>d.id).join(',')+'">Dismiss</button></div></div></div>'}
 
 function clientDrivesPanel(cid){
   if(!DRIVES.some(d=>driveRec(d.id).spaceAt))return '';
@@ -2402,6 +2405,7 @@ document.addEventListener('click',async ev=>{
     case 'syncnow':syncAll();toast('Syncing');break;
     case 'drfolders':S.drOpen={...(S.drOpen||{}),[v]:!(S.drOpen||{})[v]};render();break;
     case 'drrelink':S.drEdit=v;render();break;
+    case 'drsnooze':drSnooze(v.split(','));render();toast('Hidden for 3 days, or until it gets fuller');break;
     case 'arch':{const w=b.dataset.k;const it=archItems()[v]||{};setArch(v,{[w]:it[w]?0:Date.now(),skip:false});break}
     case 'archmark':setArch(v,{marked:true,skip:false});toast('Added to Ready to archive');break;
     case 'archskip':setArch(v,{skip:true,marked:false,nas:0,hdd:0});toast('Kept on the T7');break;
