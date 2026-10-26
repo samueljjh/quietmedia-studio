@@ -515,7 +515,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 .wkin{width:88px;text-align:right;padding:8px 10px!important;font-size:14px!important}
 .topfade{position:fixed;left:0;right:0;top:0;height:calc(env(safe-area-inset-top,0px) + 22px);z-index:90;pointer-events:none;background:linear-gradient(to bottom,var(--bg) 0,var(--bg) calc(env(safe-area-inset-top,0px) - 4px),color-mix(in srgb,var(--bg) 70%,transparent) calc(env(safe-area-inset-top,0px) + 6px),transparent 100%);opacity:0;transition:opacity .25s}
 body.scrolled .topfade{opacity:1}@media (min-width:820px){.topfade{display:none}}
-.filming .nudge{margin:0 0 16px;box-shadow:inset 0 0 0 1.5px var(--fg)}.filming a.btn{text-decoration:none}
+.filming .nudge{margin:0 0 16px;box-shadow:inset 0 0 0 1.5px var(--fg)}.filming a.btn{text-decoration:none}.travel{margin-top:6px;font-size:14px}.travel a{color:inherit}.csb-travel{max-width:720px;margin:-8px auto 24px;padding:14px 16px;border-radius:var(--r);background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong);display:grid;gap:6px}.csb-travel:not(:has(.travel)){display:none}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
@@ -604,7 +604,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=42;
+const APP_VERSION=43;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1116,12 +1116,13 @@ function icsFor(ev){
   const desc=[cname(ev.clientId),ev.type,who&&('Crew: '+who),ev.notes].filter(Boolean).join('\n');
   return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Quiet Media//Hours//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:qms-'+ev.id+'@studio.quietmedia.co.uk','DTSTAMP:'+f(Date.now()),'DTSTART:'+f(ev.start),'DTEND:'+f(ev.end),'SUMMARY:'+e(ev.title),ev.location?'LOCATION:'+e(ev.location):'','DESCRIPTION:'+e(desc),'END:VEVENT','END:VCALENDAR'].filter(Boolean).join('\r\n');
 }
-function addToAppleCalendar(ev){
-  const blob=new Blob([icsFor(ev)],{type:'text/calendar;charset=utf-8'});const url=URL.createObjectURL(blob);
+function addToAppleCalendar(ev){openIcs(icsFor(ev),ev.title||'booking','Calendar file saved. Open it to add the booking.')}
+function openIcs(text,title,msg){
+  const blob=new Blob([text],{type:'text/calendar;charset=utf-8'});const url=URL.createObjectURL(blob);
   const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
   if(ios){window.location.href=url;setTimeout(()=>URL.revokeObjectURL(url),60000);return}
-  const a=document.createElement('a');a.href=url;a.download=(ev.title||'booking').replace(/[^a-z0-9]+/gi,'-')+'.ics';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1000);
-  toast('Calendar file saved. Open it to add the booking.');
+  const a=document.createElement('a');a.href=url;a.download=title.replace(/[^a-z0-9]+/gi,'-')+'.ics';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1000);
+  toast(msg);
 }
 function gcalLink(ev){
   const f=ms=>{const d=new Date(ms);return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'T'+pad(d.getHours())+pad(d.getMinutes())+'00'};
@@ -1210,17 +1211,65 @@ function vToday(){
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
   '<section class="panel"><div class="panel-head"><h3>Coming up</h3><button class="link" data-act="nav" data-v="schedule">Schedule</button></div>'+upl+'</section></div>';
 }
-/* on a filming day, the call sheet is the document that matters: put it one tap away at the top of Today */
+/* on a filming day, the call sheet is the document that matters: put it one tap away at the top of Today.
+   The day before, the same card shows tomorrow's shoot so you know when to leave. */
 function filmingToday(d0){
-  const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&startOfDay(e.start)===d0).sort((a,b)=>a.start-b.start);
+  const d1=startOfDay(d0+36*3.6e6);
+  const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&(startOfDay(e.start)===d0||startOfDay(e.start)===d1)).sort((a,b)=>a.start-b.start);
   if(!shoots.length)return '';
   return '<div class="filming">'+shoots.map(e=>{const a=sheetAnchor(e);const sh=a.sheet||{};const url=sh.publishedAt?sheetUrlFor(e,sh):'';
-    const d=(sh.days||[]).find(x=>x.id===e.id)||{};const loc=d.location&&(d.location.name||d.location.address)||e.location||'';
+    const d=shootDay(e);const loc=d.location&&(d.location.name||d.location.address)||e.location||'';
     const g=groupOf(e).filter(x=>x.status!=='cancelled');const n=g.length>1?' · day '+(g.findIndex(x=>x.id===e.id)+1)+' of '+g.length:'';
-    return '<div class="nudge"><span class="dot" style="background:'+colour(e.clientId)+'"></span><div><b>Filming today: '+esc(e.title)+'</b><div class="note">Call '+esc(d.call||e.callTime||fmtTime(e.start))+(e.clientId?' · '+esc(cname(e.clientId)):'')+(loc?' · '+esc(loc):'')+n+'</div></div>'+
+    return '<div class="nudge"><span class="dot" style="background:'+colour(e.clientId)+'"></span><div><b>Filming '+(startOfDay(e.start)===d0?'today':'tomorrow')+': '+esc(e.title)+'</b><div class="note">Call '+esc(d.call||e.callTime||fmtTime(e.start))+(e.clientId?' · '+esc(cname(e.clientId)):'')+(loc?' · '+esc(loc):'')+n+'</div>'+travelLine(e)+'</div>'+
     (url?'<a class="btn small" href="'+esc(url)+'" target="_blank" rel="noopener">Open call sheet</a><button class="link" data-act="callsheet" data-v="'+a.id+'">edit</button>'
     :'<button class="btn small ghost" data-act="callsheet" data-v="'+a.id+'">'+(sh.days?'Finish call sheet':'Build call sheet')+'</button>')+'</div>'}).join('')+'</div>';
 }
+/* ===== travel from home: private to this device's person, never put on the published call sheet ===== */
+function shootDay(e,sh){sh=sh||sheetAnchor(e).sheet||{};return (sh.days||[]).find(x=>x.id===e.id)||{}}
+function shootPlace(e,sh){sh=sh||sheetAnchor(e).sheet||{};const at=l=>((l&&(l.address||l.name))||'').trim();return at(shootDay(e,sh).location)||(e.location||'').trim()||(sh.days||[]).map(d=>at(d.location)).find(Boolean)||''}
+function homeOf(p){return ((S.settings.homes||{})[p]||'').trim()}
+function callMs(e,sh){const c=shootDay(e,sh).call||e.callTime;const m=/^(\d{1,2}):(\d{2})/.exec(c||'');return m?startOfDay(e.start)+(+m[1])*3.6e6+(+m[2])*6e4:e.start}
+const TRAVEL={};try{Object.assign(TRAVEL,JSON.parse(localStorage.getItem('qm-travel')||'{}'))}catch(e){}
+async function placeLL(q){
+  const pc=q.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i);
+  if(pc){try{const r=await (await fetch('https://api.postcodes.io/postcodes/'+encodeURIComponent((pc[1]+pc[2]).toUpperCase()))).json();if(r&&r.result)return [r.result.longitude,r.result.latitude]}catch(e){}}
+  try{const g=await (await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=gb&q='+encodeURIComponent(q))).json();if(g&&g[0])return [+g[0].lon,+g[0].lat]}catch(e){}
+  return null;
+}
+/* driving time with no traffic, from OpenStreetMap routing. Looked up once per home/location pair and kept on this device. */
+function travelFor(from,to){const k=from+'→'+to;const t=TRAVEL[k];if(t)return t.mins!=null?t:null;
+  TRAVEL[k]={pending:1};
+  (async()=>{try{const [o,d]=await Promise.all([placeLL(from),placeLL(to)]);if(!o||!d){TRAVEL[k]={none:1};return}
+    const r=await (await fetch('https://router.project-osrm.org/route/v1/driving/'+o.join(',')+';'+d.join(',')+'?overview=false')).json();
+    const rt=r&&r.routes&&r.routes[0];TRAVEL[k]=rt?{mins:Math.round(rt.duration/60),miles:Math.round(rt.distance/1609)}:{none:1};
+    try{localStorage.setItem('qm-travel',JSON.stringify(Object.fromEntries(Object.entries(TRAVEL).filter(([,v])=>v.mins!=null))))}catch(e){}
+  }catch(e){TRAVEL[k]={none:1}}render();if(S.modal&&S.modal.type==='callsheet')csTravel()})();
+  return null}
+const dur=m=>m<60?m+' min':Math.floor(m/60)+'h'+(m%60?' '+String(m%60).padStart(2,'0')+'m':'');
+function leaveInfo(e,sh){const home=homeOf(S.person);const to=shootPlace(e,sh);if(!home||!to)return {home,to};
+  const t=travelFor(home,to);if(!t)return {home,to,pending:!(TRAVEL[home+'→'+to]||{}).none};
+  const buf=S.settings.travelBuffer!=null?+S.settings.travelBuffer:15;const leave=Math.floor((callMs(e,sh)-(t.mins+buf)*6e4)/3e5)*3e5;
+  return {home,to,mins:t.mins,miles:t.miles,buf,leave}}
+function travelLine(e,sh){const i=leaveInfo(e,sh);
+  if(!i.home)return i.to?'<div class="note travel"><button class="link" data-act="nav" data-v="settings">Add your home address</button> to see when to leave.</div>':'';
+  if(!i.to)return '<div class="note travel">Add the location to the call sheet to see when to leave.</div>';
+  if(i.mins==null)return '<div class="note travel">'+(i.pending?'Working out the drive from home…':'Couldn’t work out the drive to this location. Check the address has a postcode.')+'</div>';
+  const maps='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(i.home)+'&destination='+encodeURIComponent(i.to)+'&travelmode=driving';
+  return '<div class="travel"><b>Leave by '+fmtTime(i.leave)+'</b> <span class="note">· '+dur(i.mins)+' drive from home, '+i.miles+' mi'+(i.buf?' + '+i.buf+' min spare':'')+' · <a href="'+esc(maps)+'" target="_blank" rel="noopener">directions</a> · <button class="link" data-act="leaveics" data-v="'+e.id+'">remind me</button></span></div>';
+}
+/* calendar event "Leave for …" with alerts the evening before and before leaving; tapping it opens the call sheet link */
+function leaveIcs(e){const i=leaveInfo(e);if(i.mins==null){toast('Travel time not ready yet.');return}
+  const sh=sheetAnchor(e).sheet||{};const url=sh.publishedAt?sheetUrlFor(e,sh):'';
+  const f=ms=>{const d=new Date(ms);return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+'T'+pad(d.getUTCHours())+pad(d.getUTCMinutes())+'00Z'};
+  const x=t=>String(t||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/[,;]/g,m=>'\\'+m);
+  const call=fmtTime(callMs(e));const eve=startOfDay(e.start)-6*3.6e6;
+  const alarm=(trig,txt)=>['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+x(txt),trig,'END:VALARM'];
+  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Quiet Media//Hours//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:qms-leave-'+e.id+'@studio.quietmedia.co.uk','DTSTAMP:'+f(Date.now()),'DTSTART:'+f(i.leave),'DTEND:'+f(callMs(e)),
+    'SUMMARY:'+x('Leave for '+e.title+' (call '+call+')'),'LOCATION:'+x(i.to),url?'URL:'+url:'','DESCRIPTION:'+x((url?'Call sheet: '+url+'\n':'')+dur(i.mins)+' drive, call '+call),
+    ...alarm('TRIGGER;VALUE=DATE-TIME:'+f(eve),'Tomorrow: '+e.title+'. Leave by '+fmtTime(i.leave)+', call '+call),
+    ...alarm('TRIGGER:-PT45M','Leave by '+fmtTime(i.leave)+' for '+e.title),
+    'END:VEVENT','END:VCALENDAR'].filter(Boolean).join('\r\n');
+  openIcs(ics,'leave-'+(e.title||'shoot'),'Calendar file saved. Open it to add the reminders.')}
 function entryRow(e){
   const inv=e.invoiceId&&S.invoices[e.invoiceId];
   return '<div class="item"><span class="sw" style="background:'+colour(e.clientId)+'"></span><div class="main"><div class="t">'+esc(cname(e.clientId))+' <span class="muted">· '+esc(e.category)+'</span></div><div class="meta">'+esc(name(e.person))+' · '+fmtDate(e.start)+' '+fmtTime(e.start)+'–'+(e.end?fmtTime(e.end):'now')+(e.task?' · '+esc(e.task):'')+(e.billable===false?' · not billable':'')+'</div></div>'+
@@ -1362,7 +1411,7 @@ function vSettings(){
   '<div class="row" style="align-items:center"><span class="eyebrow" style="flex:0 0 auto">Shown on the page</span>'+PEOPLE.map(p=>'<label class="chip" style="flex:0 0 auto"><input type="checkbox" data-set="availPeople.'+p.id+'" '+(availShown(p.id)?'checked':'')+'> '+esc(name(p.id))+'</label>').join('')+'</div>'+
   '<div class="row"><label class="f">Enquiry email shown<input type="email" id="s-ae" data-set="availEmail" value="'+esc(s.availEmail||'')+'"></label><label class="f">A day counts as busy from (hrs)<input type="number" id="s-am" min="1" max="12" data-set="availMinHours" value="'+(s.availMinHours||3)+'"></label><label class="f">Editing days<select id="s-aef" data-set="availEditFlex"><option value="1" '+(s.availEditFlex!==false?'selected':'')+'>Shown as possible, could move</option><option value="0" '+(s.availEditFlex===false?'selected':'')+'>Shown as booked</option></select></label></div>'+
   '<p class="note">'+(S.avail==='ok'?'Last published '+fmtTime(S.availAt)+'.':S.avail==='noaccess'?'Not published: the GitHub token also needs Contents read and write on quietmedia-hours.':S.avail==='error'?'Not published yet; will retry after the next change.':'Publishes a few seconds after any booking changes.')+' <button class="link" data-act="pubavail">Publish now</button></p></section>'+
-  '<section class="panel grid"><h3>Sending to clients and crew</h3><div class="row"><label class="f">Sign messages as<input type="text" id="s-sn" data-set="senderName" value="'+esc(s.senderName||'')+'"></label><label class="f">Reply email<input type="email" id="s-re" data-set="replyEmail" value="'+esc(s.replyEmail||'')+'"></label><label class="f">Reply mobile<input type="tel" id="s-rp" data-set="replyPhone" value="'+esc(s.replyPhone||'')+'"></label>'+PEOPLE.map(p=>'<label class="f">'+esc(name(p.id))+' mobile (for call sheets)<input type="tel" id="s-ph-'+p.id+'" data-set="phones.'+p.id+'" value="'+esc((s.phones||{})[p.id]||'')+'"></label>').join('')+'<label class="f">Chase a pencil after (days)<input type="number" id="s-pd" min="1" data-set="pencilDays" value="'+(s.pencilDays||7)+'"></label></div>'+
+  '<section class="panel grid"><h3>Sending to clients and crew</h3><div class="row"><label class="f">Sign messages as<input type="text" id="s-sn" data-set="senderName" value="'+esc(s.senderName||'')+'"></label><label class="f">Reply email<input type="email" id="s-re" data-set="replyEmail" value="'+esc(s.replyEmail||'')+'"></label><label class="f">Reply mobile<input type="tel" id="s-rp" data-set="replyPhone" value="'+esc(s.replyPhone||'')+'"></label>'+PEOPLE.map(p=>'<label class="f">'+esc(name(p.id))+' home address (private, for leave-by times)<input type="text" id="s-hm-'+p.id+'" data-set="homes.'+p.id+'" placeholder="Street, town, postcode" value="'+esc((s.homes||{})[p.id]||'')+'"></label>').join('')+'<label class="f">Spare time on top of the drive (min)<input type="number" id="s-tb" min="0" data-set="travelBuffer" value="'+(s.travelBuffer!=null?s.travelBuffer:15)+'"></label>'+PEOPLE.map(p=>'<label class="f">'+esc(name(p.id))+' mobile (for call sheets)<input type="tel" id="s-ph-'+p.id+'" data-set="phones.'+p.id+'" value="'+esc((s.phones||{})[p.id]||'')+'"></label>').join('')+'<label class="f">Chase a pencil after (days)<input type="number" id="s-pd" min="1" data-set="pencilDays" value="'+(s.pencilDays||7)+'"></label></div>'+
   '<label class="f">Booking terms shown to clients<textarea id="s-terms" rows="7" data-set="bookingTerms">'+esc(s.bookingTerms||'')+'</textarea></label><p class="note">Shown on every client booking page. Pencil holds the dates; a confirmed booking is subject to these terms.</p></section>'+
   '<section class="panel"><h3 style="margin-bottom:12px">Crew bookings</h3><div class="row"><label class="f">Company name on crew forms<input type="text" data-set="companyName" value="'+esc(s.companyName||'Quiet Media Limited')+'"></label><label class="f">Pay crew within (days)<input type="number" min="0" data-set="crewPayDays" value="'+(s.crewPayDays||30)+'"></label></div><label class="f">Terms crew sign on the booking form<textarea rows="9" data-set="crewTerms">'+esc(s.crewTerms||DEFAULT_CREW_TERMS)+'</textarea></label><p class="note">Shown on every crew booking form and signed with the fee and dates. A starting point, not legal advice: check it says what you want.</p></section>'+
   '<section class="panel grid"><h3>Goals</h3><div class="row"><label class="f">Monthly revenue goal, ex VAT (£)<input type="number" id="s-goal" min="0" step="50" data-set="monthlyGoal" value="'+(s.monthlyGoal||'')+'"></label><label class="f">Weekly hours target each<input type="number" id="s-wk" min="0" data-set="weeklyHoursTarget" value="'+(s.weeklyHoursTarget||'')+'"></label></div></section>'+
@@ -2044,6 +2093,9 @@ function crewSheetPayload(ev,sh,version){
 }
 function sheetUrlFor(ev,sh){const a=sheetAnchor(ev);const k=a.sheetKey||ev.sheetKey;if(!k||!sh.publishedAt)return '';return SHEETS_HOST+'/#'+(ev.groupId||ev.id)+'c.'+k}
 function readSheetForm(){const sh=S.modal.sheet;document.querySelectorAll('#csb-form [data-s]').forEach(el=>{const p=el.dataset.s.split('.');let o=sh;for(let i=0;i<p.length-1;i++){if(o[p[i]]==null)o[p[i]]={};o=o[p[i]]}const k=p[p.length-1];o[k]=el.type==='checkbox'?el.checked:el.value});S.modal.dirty=true}
+function csTravelHtml(){const m=S.modal;const ev=S.events[m.evid];if(!ev)return '';const grp=groupOf(ev).filter(e=>e.status!=='cancelled');
+  return '<div class="eyebrow">Just for you · not on the crew’s sheet</div>'+grp.map(e=>'<div>'+(grp.length>1?'<span class="note">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+'</span> ':'')+travelLine(e,m.sheet)+'</div>').join('')}
+function csTravel(){const el=document.getElementById('csb-travel');if(el&&S.modal&&S.modal.type==='callsheet')el.innerHTML=csTravelHtml()}
 function csPreview(){const m=S.modal;if(!m||m.type!=='callsheet')return;const el=document.getElementById('csb-page');if(!el)return;const ev=S.events[m.evid];el.innerHTML=QMSheet.render({...crewSheetPayload(ev,m.sheet),preview:true});(m.wx||[]).forEach((h,i)=>{const w=el.querySelector('#cs-wx-'+i);if(w&&h)w.innerHTML=h});const st=document.getElementById('csb-status');if(st)st.textContent=m.dirty?'Unsaved changes':(m.sheet.publishedAt?'Published v'+m.sheet.version+' · '+fmtDate(m.sheet.publishedAt,{day:'numeric',month:'short'})+' '+fmtTime(m.sheet.publishedAt):'Draft')}
 async function csWeather(){const m=S.modal;if(!m||m.type!=='callsheet')return;const el=document.getElementById('csb-page');if(!el)return;const data=crewSheetPayload(S.events[m.evid],m.sheet);await QMSheet.weather(el,data);m.wx=data.days.map((d,i)=>{const w=el.querySelector('#cs-wx-'+i);return w?w.innerHTML:''})}
 const fld=(label,path,val,type,ph)=>'<label class="f">'+label+'<input type="'+(type||'text')+'" data-s="'+path+'" value="'+esc(val||'')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'></label>';
@@ -2079,7 +2131,7 @@ function openCallSheet(evid){
       '<section class="csb-sec"><h3>Notes</h3><label class="f">Catering, dress code, safety, anything else<textarea rows="4" data-s="notes">'+esc(sh.notes||'')+'</textarea></label><div class="row" style="margin-top:10px"><label class="chip"><input type="checkbox" data-s="weather" '+(sh.weather!==false?'checked':'')+'> Show the weather forecast</label><label class="chip"><input type="checkbox" data-s="showMap" '+(sh.showMap!==false?'checked':'')+'> Show a map of the location</label></div></section>'+
       '</div>';
     return '<div class="csb'+(m.tab==='preview'?' showprev':'')+'"><div class="csb-head"><div style="min-width:0"><h2>Call sheet</h2><span class="note">'+esc(ev.title)+' · '+esc(dates)+'</span></div><div class="seg csb-tabs"><button data-act="cstab" data-v="form" aria-pressed="'+(m.tab!=='preview')+'">Edit</button><button data-act="cstab" data-v="preview" aria-pressed="'+(m.tab==='preview')+'">Preview</button></div><button class="iconbtn" data-act="closemodal" aria-label="Close"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>'+
-      '<div class="csb-body">'+form+'<div class="csb-prev"><div class="csb-page" id="csb-page">'+QMSheet.render(crewSheetPayload(ev,sh))+'</div></div></div>'+
+      '<div class="csb-body">'+form+'<div class="csb-prev"><div class="csb-page" id="csb-page">'+QMSheet.render(crewSheetPayload(ev,sh))+'</div><div class="csb-travel" id="csb-travel">'+csTravelHtml()+'</div></div></div>'+
       '<div class="csb-foot"><span class="note" id="csb-status">'+(m.dirty?'Unsaved changes':(sh.publishedAt?'Published v'+sh.version+' · '+fmtDate(sh.publishedAt,{day:'numeric',month:'short'})+' '+fmtTime(sh.publishedAt):'Draft'))+'</span>'+
       (url?'<div class="linkbox" style="flex:1 1 240px"><span>'+esc(url)+'</span><button class="link" data-act="copy" data-v="'+esc(url)+'">Copy</button></div>':'')+
       '<div class="row" style="flex:0 1 auto;align-items:center"><button class="btn ghost small" data-act="cssave">Save draft</button><button class="btn small" data-act="cspublish" '+(S.writable?'':'disabled')+'>'+(sh.publishedAt?'Publish update':'Publish & get link')+'</button></div>'+
@@ -2189,6 +2241,7 @@ document.addEventListener('click',async ev=>{
     case 'teamadd':openTeamAdd(b.dataset.c||null,b.dataset.e||null);break;
     case 'taddsave':await teamAddSave(v==='1');break;
     case 'callsheet':openCallSheet(v);break;
+    case 'leaveics':leaveIcs(S.events[v]);break;
     case 'cstab':readSheetForm();S.modal.tab=v;renderModal();csPreview();break;
     case 'csrow':{readSheetForm();const d=S.modal.sheet.days[+b.dataset.d];if(v==='add')d.schedule.push({time:'',item:''});else d.schedule.splice(+b.dataset.j,1);renderModal();csPreview();break}
     case 'cscrew':{readSheetForm();const c=S.modal.sheet.crew;if(v==='add')c.push({name:'',role:'',call:'',phone:'',include:true});else c.splice(+b.dataset.j,1);renderModal();csPreview();break}
@@ -2280,6 +2333,7 @@ document.addEventListener('change',ev=>{
     if(k==='availPublish'||k==='availWeekends')val=val==='1';
     if(k==='haptics')val=t.checked;
     if(k.startsWith('availPeople.')){const p=k.split('.')[1];saveSettings({availPeople:{...(S.settings.availPeople||{}),[p]:t.checked}})}else
+    if(k.startsWith('homes.')){const p=k.split('.')[1];saveSettings({homes:{...(S.settings.homes||{}),[p]:val.trim()}})}else
     if(k.startsWith('phones.')){const p=k.split('.')[1];saveSettings({phones:{...(S.settings.phones||{}),[p]:val}})}else
     if(k.startsWith('names.')){const p=k.split('.')[1];saveSettings({names:{...S.settings.names,[p]:val||PEOPLE.find(x=>x.id===p).def}})}else saveSettings({[k]:val})}
 });
@@ -2322,7 +2376,7 @@ document.addEventListener('keydown',ev=>{if(S.locked)return;const typing=ev.targ
   if(ev.key==='/'&&!typing&&!S.modal){ev.preventDefault();openSearch();return}
   if(S.modal&&S.modal.type==='search'&&ev.target.id==='qin'){const n=(S.qres||[]).length;if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault();S.qsel=((S.qsel||0)+(ev.key==='ArrowDown'?1:-1)+n)%Math.max(1,n);document.getElementById('qres').innerHTML=searchHtml(ev.target.value);const el=document.querySelector('.qres [aria-selected=true]');if(el)el.scrollIntoView({block:'nearest'})}else if(ev.key==='Enter'){ev.preventDefault();searchGo(S.qsel||0)}}},true);
 document.addEventListener('input',ev=>{if(ev.target.id==='tmq'){S.tmQuery=ev.target.value;const l=document.getElementById('tmlist');if(l)l.innerHTML=teamListHtml();return}if(ev.target.id==='clq'){S.clQuery=ev.target.value;const l=document.getElementById('cllist');if(l)l.innerHTML=clientsListHtml();return}if(ev.target.id==='qin'){S.qsel=0;document.getElementById('qres').innerHTML=searchHtml(ev.target.value)}});
-document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='callsheet'&&ev.target.closest('#csb-form')){readSheetForm();csPreview()}});
+document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='callsheet'&&ev.target.closest('#csb-form')){readSheetForm();csPreview();clearTimeout(csTravel.t);csTravel.t=setTimeout(csTravel,900)}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}if(S.modal&&S.modal.type==='event'){feeNote();availNote()}
   if(t.id==='cs-msg'){const msg=t.value;document.querySelectorAll('[data-act="crewsend"]').forEach(a=>{const h=a.getAttribute('href');if(a.dataset.k==='wa')a.href=h.replace(/text=.*$/,'text='+encodeURIComponent(msg));else a.href=h.replace(/body=.*$/,'body='+encodeURIComponent(msg))})}
   if(S.modal&&S.modal.type==='dayprompt'&&(t.id==='dp-s'||t.id==='dp-e')){const c=S.modal.ctx;const a=document.getElementById('dp-s').value,b=document.getElementById('dp-e').value;if(a&&b){let st=parseLocal(dayKey(c.day),a),en=parseLocal(dayKey(c.day),b);if(en<=st)en+=DAYMS;const el=document.getElementById('dp-h');if(el)el.textContent=hrs(c.other+(en-st)/3.6e6)}}});
