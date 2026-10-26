@@ -610,7 +610,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=46;
+const APP_VERSION=47;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1252,16 +1252,24 @@ function travelFor(from,to){const k=from+'→'+to;const t=TRAVEL[k];if(t)return 
   }catch(e){TRAVEL[k]={none:1}}render();if(S.modal&&S.modal.type==='callsheet')csTravel()})();
   return null}
 const dur=m=>m<60?m+' min':Math.floor(m/60)+'h'+(m%60?' '+String(m%60).padStart(2,'0')+'m':'');
-function leaveInfo(e,sh){const home=homeOf(S.person);const to=shootPlace(e,sh);if(!home||!to)return {home,to};
-  const t=travelFor(home,to);if(!t)return {home,to,pending:!(TRAVEL[home+'→'+to]||{}).none};
+/* Where the day's drive starts: home, or the call sheet's hotel when you were filming the day before (so you stayed over).
+   A hotel labelled as a unit base or green room is not somewhere you sleep. e.leaveFrom ('home' or 'hotel') overrides one day. */
+function hotelOf(e,sh){sh=sh||sheetAnchor(e).sheet||{};const h=sh.hotel||{};const addr=(h.address||'').trim()||(h.name||'').trim();
+  if(!addr||/unit base|green room|base camp/i.test(h.label||''))return null;return {addr,name:(h.name||'').trim()||'the hotel'}}
+function stayedOver(e){const d=startOfDay(e.start);return groupOf(e).some(x=>x.id!==e.id&&x.status!=='cancelled'&&startOfDay(x.start)===addDays(d,-1))}
+function startFrom(e,sh){const h=hotelOf(e,sh);
+  return h&&(e.leaveFrom==='hotel'||(e.leaveFrom!=='home'&&stayedOver(e)))?{from:h.addr,where:h.name,hotel:true,can:true}:{from:homeOf(S.person),where:'home',hotel:false,can:!!h}}
+function leaveInfo(e,sh){const s=startFrom(e,sh);const home=s.from;const to=shootPlace(e,sh);if(!home||!to)return {home,to,s};
+  const t=travelFor(home,to);if(!t)return {home,to,s,pending:!(TRAVEL[home+'→'+to]||{}).none};
   const buf=S.settings.travelBuffer!=null?+S.settings.travelBuffer:15;const leave=Math.floor((callMs(e,sh)-(t.mins+buf)*6e4)/3e5)*3e5;
-  return {home,to,mins:t.mins,miles:t.miles,buf,leave}}
+  return {home,to,s,mins:t.mins,miles:t.miles,buf,leave}}
 function travelLine(e,sh){const i=leaveInfo(e,sh);
   if(!i.home)return i.to?'<div class="note travel"><button class="link" data-act="nav" data-v="settings">Add your home address</button> to see when to leave.</div>':'';
   if(!i.to)return '<div class="note travel">Add the location to the call sheet to see when to leave.</div>';
-  if(i.mins==null)return '<div class="note travel">'+(i.pending?'Working out the drive from home…':'Couldn’t work out the drive to this location. Check the address has a postcode.')+'</div>';
+  const sw=i.s.can?' · <button class="link" data-act="leavefrom" data-v="'+e.id+'" data-k="'+(i.s.hotel?'home':'hotel')+'">'+(i.s.hotel?'leave from home instead':'from the hotel instead')+'</button>':'';
+  if(i.mins==null)return '<div class="note travel">'+(i.pending?'Working out the drive from '+esc(i.s.where)+'…':'Couldn’t work out the drive '+(i.s.hotel?'from the hotel ':'')+'to this location. Check the address has a postcode.')+sw+'</div>';
   const maps='https://www.google.com/maps/dir/?api=1&origin='+encodeURIComponent(i.home)+'&destination='+encodeURIComponent(i.to)+'&travelmode=driving';
-  return '<div class="travel"><b>Leave by '+fmtTime(i.leave)+'</b> <span class="note">· '+dur(i.mins)+' drive from home, '+i.miles+' mi'+(i.buf?' + '+i.buf+' min spare':'')+' · <a href="'+esc(maps)+'" target="_blank" rel="noopener">directions</a> · <button class="link" data-act="leaveics" data-v="'+e.id+'">remind me</button></span></div>';
+  return '<div class="travel"><b>Leave by '+fmtTime(i.leave)+'</b> <span class="note">· '+dur(i.mins)+' drive from '+esc(i.s.where)+', '+i.miles+' mi'+(i.buf?' + '+i.buf+' min spare':'')+' · <a href="'+esc(maps)+'" target="_blank" rel="noopener">directions</a> · <button class="link" data-act="leaveics" data-v="'+e.id+'">remind me</button>'+sw+'</span></div>';
 }
 /* calendar event "Leave for …" with alerts the evening before and before leaving; tapping it opens the call sheet link */
 function leaveIcs(e){const i=leaveInfo(e);if(i.mins==null){toast('Travel time not ready yet.');return}
@@ -1271,7 +1279,7 @@ function leaveIcs(e){const i=leaveInfo(e);if(i.mins==null){toast('Travel time no
   const call=fmtTime(callMs(e));const eve=startOfDay(e.start)-6*3.6e6;
   const alarm=(trig,txt)=>['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+x(txt),trig,'END:VALARM'];
   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Quiet Media//Hours//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:qms-leave-'+e.id+'@studio.quietmedia.co.uk','DTSTAMP:'+f(Date.now()),'DTSTART:'+f(i.leave),'DTEND:'+f(callMs(e)),
-    'SUMMARY:'+x('Leave for '+e.title+' (call '+call+')'),'LOCATION:'+x(i.to),url?'URL:'+url:'','DESCRIPTION:'+x((url?'Call sheet: '+url+'\n':'')+dur(i.mins)+' drive, call '+call),
+    'SUMMARY:'+x('Leave for '+e.title+' (call '+call+')'),'LOCATION:'+x(i.to),url?'URL:'+url:'','DESCRIPTION:'+x((url?'Call sheet: '+url+'\n':'')+dur(i.mins)+' drive from '+i.s.where+', call '+call),
     ...alarm('TRIGGER;VALUE=DATE-TIME:'+f(eve),'Tomorrow: '+e.title+'. Leave by '+fmtTime(i.leave)+', call '+call),
     ...alarm('TRIGGER:-PT45M','Leave by '+fmtTime(i.leave)+' for '+e.title),
     'END:VEVENT','END:VCALENDAR'].filter(Boolean).join('\r\n');
@@ -2403,6 +2411,7 @@ document.addEventListener('click',async ev=>{
     case 'copy':try{await navigator.clipboard.writeText(v);toast('Copied')}catch(e){toast('Select the link and copy it')}break;
     case 'evstatus':{const ev=S.events[b.dataset.e];for(const e of groupOf(ev)){await patch('events',e.id,{status:v})}renderModal();break}
     case 'syncnow':syncAll();toast('Syncing');break;
+    case 'leavefrom':patch('events',v,{leaveFrom:b.dataset.k});if(S.modal&&S.modal.type==='callsheet')csTravel();break;
     case 'drfolders':S.drOpen={...(S.drOpen||{}),[v]:!(S.drOpen||{})[v]};render();break;
     case 'drrelink':S.drEdit=v;render();break;
     case 'drsnooze':drSnooze(v.split(','));render();toast('Hidden for 3 days, or until it gets fuller');break;
