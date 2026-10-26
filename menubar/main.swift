@@ -322,6 +322,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         status.button?.image = brandMark(18); status.button?.imagePosition = .imageLeading
         status.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         status.button?.target = self; status.button?.action = #selector(toggle)
+        status.isVisible = true   // in case macOS remembered it as removed from the menu bar
 
         popover.contentViewController = NSViewController(); popover.contentViewController!.view = panel
         popover.behavior = .transient; popover.animates = true; popover.delegate = self
@@ -339,6 +340,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         paint()
     }
     func webView(_ w: WKWebView, didFinish nav: WKNavigation!) { refresh() }
+    // clicking Quiet Studio in Applications or Launchpad while it runs opens the window, so it is reachable even if the ring is hidden
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool { openApp(); return true }
 
     func js(_ code: String, _ done: ((Any?) -> Void)? = nil) {
         web.evaluateJavaScript(code) { r, _ in done?(r) }
