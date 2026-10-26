@@ -306,7 +306,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
     var live: Live? = nil
     var signedIn = false
     var tick: Timer?, poll: Timer?
-    let driveWatcher = DriveWatcher()
+    var driveWatcher: DriveWatcher!   // started once the ring is up, so nothing runs before the app has finished launching
 
     func applicationDidFinishLaunching(_ n: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -322,6 +322,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         status.button?.image = brandMark(18); status.button?.imagePosition = .imageLeading
         status.button?.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular)
         status.button?.target = self; status.button?.action = #selector(toggle)
+        status.autosaveName = "QuietStudioRing"   // a fresh saved place, in case the old one was bad
         status.isVisible = true   // in case macOS remembered it as removed from the menu bar
 
         popover.contentViewController = NSViewController(); popover.contentViewController!.view = panel
@@ -331,14 +332,18 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         panel.open.target = self; panel.open.action = #selector(openApp)
         panel.quit.target = NSApp; panel.quit.action = #selector(NSApplication.terminate(_:))
         panel.syncDrives.target = self; panel.syncDrives.action = #selector(syncDrives)
-        driveWatcher.app = self
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
 
         poll = Timer.scheduledTimer(withTimeInterval: POLL, repeats: true) { [weak self] _ in self?.refresh() }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.paint() }
         RunLoop.main.add(poll!, forMode: .common); RunLoop.main.add(tick!, forMode: .common)
         paint()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.checkRing() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self = self else { return }
+            self.driveWatcher = DriveWatcher(); self.driveWatcher.app = self
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            if self.signedIn { self.driveWatcher.scan() }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.checkRing() }
     }
     // macOS can hide the ring: behind the camera notch when the menu bar is full, or when the app is not allowed in the menu bar.
     // Say where it is (shown in Terminal when run from there), and open the window if it cannot be seen so the app is still usable.
@@ -368,7 +373,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         js("(function(){try{return window.QM?JSON.stringify(window.QM.live()):'nope'}catch(e){return 'nope'}})()") { [weak self] r in
             guard let self = self else { return }
             let was = self.signedIn
-            defer { if self.signedIn && !was { self.driveWatcher.scan() } }   // drives plugged in before sign-in or app load
+            defer { if self.signedIn && !was { self.driveWatcher?.scan() } }   // drives plugged in before sign-in or app load
             if let s = r as? String, s != "nope", let d = try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any] {
                 self.live = Live(d); self.signedIn = true
             } else { self.live = nil; self.signedIn = false }
@@ -382,19 +387,19 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         else if let l = live, let r = l.running { b.title = " \(clock(Date().timeIntervalSince1970 - l.since)) · \(short(r.title))"; b.toolTip = r.subtitle }
         else if let l = live, l.paused != nil { b.title = " On hold"; b.toolTip = l.paused!.title }
         else if let l = live, l.nudge { b.title = " Booked · clock in"; b.toolTip = l.bookedTitle }
-        else if let low = driveWatcher.lowName { b.title = " \(low) low on space"; b.toolTip = "Open Quiet Studio, Drives, to see what to clear" }
+        else if let low = driveWatcher?.lowName { b.title = " \(low) low on space"; b.toolTip = "Open Quiet Studio, Drives, to see what to clear" }
         else { b.title = ""; b.toolTip = "Quiet Studio" }
-        if popover.isShown { panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher.summary() }
+        if popover.isShown { panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher?.summary() ?? "" }
     }
     func short(_ s: String) -> String { s.count > 22 ? String(s.prefix(21)) + "…" : s }
 
     @objc func toggle() {
         if popover.isShown { popover.performClose(nil); return }
-        panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher.summary()
+        panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher?.summary() ?? ""
         popover.show(relativeTo: status.button!.bounds, of: status.button!, preferredEdge: .minY)
         refresh()
     }
-    @objc func syncDrives() { driveWatcher.scan(full: true); paint() }
+    @objc func syncDrives() { driveWatcher?.scan(full: true); paint() }
     @objc func openApp() { popover.performClose(nil); NSApp.activate(ignoringOtherApps: true); webWindow.makeKeyAndOrderFront(nil) }
 
     func primary() {
