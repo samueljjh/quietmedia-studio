@@ -610,7 +610,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=48;
+const APP_VERSION=49;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -712,6 +712,8 @@ async function publishAvailability(){
   try{const {error}=await sb.from('availability').upsert({org_id:ORG,slug:ORG_SLUG,data:availabilityData(),updated_at:new Date().toISOString()});if(error)throw error;S.avail='ok';S.availAt=Date.now()}
   catch(e){S.avail='error'}
 }
+const AVAIL_URL='https://sheets.quietmedia.co.uk/availability/';
+function copyText(t){if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(t);const x=document.createElement('textarea');x.value=t;x.setAttribute('readonly','');x.style.position='fixed';x.style.opacity='0';document.body.appendChild(x);x.select();const ok=document.execCommand('copy');x.remove();return ok?Promise.resolve():Promise.reject()}
 function scheduleAvailability(){clearTimeout(availTimer);availTimer=setTimeout(publishAvailability,4000)}
 
 /* session */
@@ -1420,7 +1422,8 @@ function vSettings(){
   '<div class="row"><button class="btn ghost small" data-act="syncnow">Sync now</button><button class="btn ghost small" data-act="changepass">Change password</button><button class="btn danger small" data-act="signout">Sign out of this device</button></div></section>'+
   '<section class="panel grid"><h3>People</h3><div class="row">'+PEOPLE.map(p=>'<label class="f">Name<input type="text" id="s-name-'+p.id+'" data-set="names.'+p.id+'" value="'+esc(name(p.id))+'"></label>').join('')+'</div>'+
   '<p class="note">Each device remembers who is using it. Choose your name at the top of the page on your own computer and phone.</p></section>'+
-  '<section class="panel grid"><h3>Public availability page</h3><p class="note">Clients can see which days are free at <b>sheets.quietmedia.co.uk/availability/</b>. Only dates and a free, limited or busy flag are published.</p>'+
+  '<section class="panel grid"><h3>Public availability page</h3><p class="note">Clients can see which days are free at this link. Only dates and a free, limited or busy flag are published.</p>'+
+  '<div class="linkbox"><a href="'+AVAIL_URL+'" target="_blank" rel="noopener" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:var(--sand)">'+AVAIL_URL.replace('https://','')+'</a><button class="btn ghost small" data-act="copyavail" style="flex:none">Copy link</button></div>'+
   '<div class="row"><label class="f">Publish<select id="s-ap" data-set="availPublish"><option value="1" '+(s.availPublish!==false?'selected':'')+'>On</option><option value="0" '+(s.availPublish===false?'selected':'')+'>Off</option></select></label><label class="f">Weeks ahead<input type="number" id="s-aw" min="2" max="52" data-set="availWeeks" value="'+(s.availWeeks||12)+'"></label><label class="f">Weekends<select id="s-awe" data-set="availWeekends"><option value="0" '+(!s.availWeekends?'selected':'')+'>Not available</option><option value="1" '+(s.availWeekends?'selected':'')+'>Available</option></select></label></div>'+
   '<div class="row" style="align-items:center"><span class="eyebrow" style="flex:0 0 auto">Shown on the page</span>'+PEOPLE.map(p=>'<label class="chip" style="flex:0 0 auto"><input type="checkbox" data-set="availPeople.'+p.id+'" '+(availShown(p.id)?'checked':'')+'> '+esc(name(p.id))+'</label>').join('')+'</div>'+
   '<div class="row"><label class="f">Enquiry email shown<input type="email" id="s-ae" data-set="availEmail" value="'+esc(s.availEmail||'')+'"></label><label class="f">A day counts as busy from (hrs)<input type="number" id="s-am" min="1" max="12" data-set="availMinHours" value="'+(s.availMinHours||3)+'"></label><label class="f">Editing days<select id="s-aef" data-set="availEditFlex"><option value="1" '+(s.availEditFlex!==false?'selected':'')+'>Shown as possible, could move</option><option value="0" '+(s.availEditFlex===false?'selected':'')+'>Shown as booked</option></select></label></div>'+
@@ -2363,6 +2366,7 @@ document.addEventListener('click',async ev=>{
       for(const p of ppl){await put('entries',null,{person:p,clientId:e.clientId,category:cat,task:e.title,start:e.start,end:e.end,billable:BILLABLE_DEFAULT[cat]!==false,created:Date.now(),fromEvent:v})}
       toast('Logged '+hrs((e.end-e.start)/3.6e6)+' for '+ppl.map(name).join(' & '));break}
     case 'ical':addToAppleCalendar(S.events[v]);break;
+    case 'copyavail':copyText(AVAIL_URL).then(()=>toast('Availability link copied'),()=>toast('Could not copy, press and hold the link instead'));break;
     case 'pubavail':publishAvailability().then(()=>{render();toast(S.avail==='ok'?'Availability published':'Could not publish, see note')});break;
     case 'sub':S.sub=v;render();break;
     case 'newproject':openProjectModal(null,b.dataset.c||S.client||'');break;
