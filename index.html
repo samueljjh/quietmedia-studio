@@ -610,7 +610,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=47;
+const APP_VERSION=48;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1857,7 +1857,7 @@ function folderRow(d,f,why){const key=d.id+'|'+f.name;const l=f.link;
 
 function driveCard(d){const r=driveRec(d.id);
   const head='<div class="panel-head"><div style="display:flex;gap:10px;align-items:center;min-width:0">'+driveSw(d)+'<h3>'+esc(d.name)+'</h3><span class="note">'+d.tb+' TB '+d.model+'</span></div>'+(r.spaceAt?'<span class="eyebrow">'+(driveNow(r)?'Plugged in now':'Seen '+ago(r.spaceAt))+'</span>':'')+'</div>';
-  if(!r.spaceAt)return '<section class="panel">'+head+'<div class="empty">'+(r.uuid?'Recognised, waiting for its first read.':'Not synced yet. Plug it into a Mac running the Quiet Studio menu bar app and pick “'+esc(d.name)+'” when it asks which drive it is.')+'</div></section>';
+  if(!r.spaceAt)return '<section class="panel">'+head+'<div class="empty">'+(r.uuid?'Recognised, waiting for its first read.':'Not synced yet. Plug it into a Mac running the Studio Menu Bar app and pick “'+esc(d.name)+'” when it asks which drive it is.')+'</div></section>';
   const total=r.total||d.tb*1e12;const free=Math.max(0,r.free||0);const pct=Math.min(100,Math.max(0,(total-free)/total*100));
   const low=driveLow(d),tight=driveTight(d);
   const fs=driveFolders(d.id);const sized=fs.filter(f=>f.size!=null&&!f.stale);const lastSize=sized.length?Math.min(...sized.map(f=>f.sizeAt||0)):0;
@@ -1883,7 +1883,7 @@ function vDrives(){
   (loose.length?'<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Needs sorting</h3><span class="note">'+loose.length+' folder'+(loose.length===1?'':'s')+' not linked to a client</span></div><p class="note" style="margin:0 0 4px">Pick the client once and it sticks. Or rename the folder on the drive to the client’s name in Studio and it links itself.</p><div class="list">'+loose.map(({d,f})=>folderRow(d,f,'on '+esc(d.name))).join('')+'</div></section>':'')+
   archPanel()+
   '<div class="grid g2">'+DRIVES.map(driveCard).join('')+'</div>'+
-  '<p class="note" style="margin-top:16px">Drives update by themselves when they are plugged into a Mac running the Quiet Studio menu bar app: free space straight away and every few minutes, then each folder’s size in the background. Leave them plugged in a while for sizes to finish. Warning levels are in Settings.</p>';
+  '<p class="note" style="margin-top:16px">Drives update by themselves when they are plugged into a Mac running the Studio Menu Bar app: free space straight away and every few minutes, then each folder’s size in the background. Leave them plugged in a while for sizes to finish. Warning levels are in Settings.</p>';
 }
 /* ===== Team: everyone you book, what they are on, and where each booking stands ===== */
 /* one person on one job: pencilled → holding → booked, with the forms and an override */

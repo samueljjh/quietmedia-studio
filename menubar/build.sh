@@ -1,22 +1,22 @@
 #!/bin/bash
-# Builds "Quiet Studio.app" next to this script. Needs Xcode Command Line Tools (xcode-select --install).
+# Builds "Studio Menu Bar.app" (the Quiet Studio menu bar ring) next to this script. Needs Xcode Command Line Tools (xcode-select --install).
 set -e
 cd "$(dirname "$0")"
-APP="Quiet Studio.app"
+APP="Studio Menu Bar.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 echo "Compiling…"
-swiftc -O -framework Cocoa -framework WebKit -framework UserNotifications main.swift -o "$APP/Contents/MacOS/Quiet Studio"
+swiftc -O -framework Cocoa -framework WebKit -framework UserNotifications main.swift -o "$APP/Contents/MacOS/Studio Menu Bar"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleName</key><string>Quiet Studio</string>
-<key>CFBundleDisplayName</key><string>Quiet Studio</string>
+<key>CFBundleName</key><string>Studio Menu Bar</string>
+<key>CFBundleDisplayName</key><string>Studio Menu Bar</string>
 <key>CFBundleIdentifier</key><string>co.uk.quietmedia.studio.menubar</string>
-<key>CFBundleVersion</key><string>6</string>
-<key>CFBundleShortVersionString</key><string>6.0</string>
-<key>CFBundleExecutable</key><string>Quiet Studio</string>
+<key>CFBundleVersion</key><string>7</string>
+<key>CFBundleShortVersionString</key><string>7.0</string>
+<key>CFBundleExecutable</key><string>Studio Menu Bar</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSUIElement</key><true/>
