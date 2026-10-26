@@ -366,6 +366,12 @@ tfoot td{border-bottom:0;font-weight:400}
 .ad span{display:flex;gap:3px}.ad span i{width:7px;height:7px;border-radius:2px;display:block}.ad span i.free{background:none;border:1px solid var(--line-strong)}
 .ad.we{opacity:.5}.ad.sel{box-shadow:inset 0 0 0 1.5px var(--fg)}.ad:hover{background:var(--raise2)}
 .rbar{height:8px;background:var(--raise);position:relative;border-radius:4px;overflow:hidden}.rbar i{display:block;height:100%;max-width:100%}
+.drspace{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:18px}.drspace b{font-weight:500}
+.drmeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.drmeta select.drlink{width:auto;max-width:100%;font-size:13px;padding:4px 8px}
+.drlow{box-shadow:inset 0 0 0 1.5px var(--danger)}
+.archtick{border:0;background:none;border-radius:999px;padding:4px 11px;font-size:12px;color:var(--fg);box-shadow:inset 0 0 0 1px var(--line-strong)}.archtick[aria-pressed="true"]{background:var(--ok);color:var(--bg);box-shadow:none}
+nav.tabs button.alert{position:relative}nav.tabs button.alert::after{content:'';position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--danger)}
+@media (max-width:720px){nav.tabs button.alert::after{right:calc(50% - 17px);top:4px}}
 .swatches input[type=color]{width:30px;height:30px;padding:0;border:0;border-radius:50%;background:none;cursor:pointer;overflow:hidden}
 .swatches input[type=color]::-webkit-color-swatch-wrapper{padding:0}.swatches input[type=color]::-webkit-color-swatch{border:0;border-radius:50%}
 .pill.st-pencil{color:var(--fg);background:transparent;box-shadow:inset 0 0 0 1px var(--line-strong)}.pill.st-confirmed{color:var(--ok);background:transparent;box-shadow:inset 0 0 0 1px var(--ok)}.pill.st-cancelled{color:var(--danger);background:transparent;box-shadow:inset 0 0 0 1px var(--danger)}
@@ -556,9 +562,9 @@ const GENRES=['Promo content','Feature film','Short film','Music video','Social 
 const BUSY_TYPES={Shoot:1,Edit:1,'Web design':1,'Software design':1,Unavailable:1};
 const DEFAULT_CREW_TERMS='1. Confirmation. This booking is confirmed when you sign below. The fee shown is agreed and fixed for the dates and hours on this form. Overtime is only paid if agreed with us beforehand.\n\n2. Your commitment. Once confirmed, you keep these dates for us. If you cannot attend because of illness or emergency, tell us as soon as you know. Otherwise you may not pull out of a confirmed booking; if you need to, give us as much notice as possible and help us find a replacement of equal experience that we approve.\n\n3. If we cancel or move the job. More than 7 days before: no fee. Between 7 days and 48 hours before: 50% of the fee for the cancelled days. Less than 48 hours before: the full fee. If the client postpones, we offer you the new dates first.\n\n4. Payment. Invoice us after the job quoting the reference on this form. We pay within the payment terms shown. Agreed expenses are paid at cost against receipts.\n\n5. Status. You work as a self-employed freelancer and are responsible for your own tax and National Insurance, your own kit and its insurance, and your own public liability cover.\n\n6. Material and confidentiality. Everything you shoot or create on the job belongs to us and our client. Please do not share footage, stills, behind-the-scenes or client details, or post them online, without our written agreement.\n\n7. On set. Follow reasonable instructions from the Quiet Media lead on the day, including health and safety and location rules.';
 const DEFAULT_TERMS='A pencil holds the dates for you without obligation on either side. Once you confirm, the dates are yours and we turn other work away for them.\n\nMoving or cancelling a confirmed booking: free with more than 7 days\u2019 notice (one move per booking). Within 7 days, 50% of the fee is payable. Within 48 hours, the full fee is payable.\n\nFees are ex VAT and exclude travel and expenses, which are agreed in advance and itemised on the invoice. Payment is due within 30 days of invoice.\n\nWeather, access or illness on our side: we will offer the next available dates at no charge.';
-const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availWeeks:12,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS};
+const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availWeeks:12,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS,driveMinShield:500,driveMinT7:250};
 
-const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},settings:{...DEF_SETTINGS},
+const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},settings:{...DEF_SETTINGS},
   view:'today',client:null,week:0,period:'month',draft:{},modal:null,live:false,writable:true,loaded:{},
   cal:{mode:matchMedia('(max-width:720px)').matches?'month':'week',cursor:Date.now(),sel:null}};
 try{const cm=localStorage.getItem('qm-calmode');if(cm)S.cal.mode=cm==='list'?'day':cm}catch(e){}
@@ -599,12 +605,12 @@ const SB_URL='https://jxfnzlwwsvfcrstxpgzr.supabase.co';
 const SB_KEY='sb_publishable_tQiBC9EehadDkCdVhsqzUQ__7FfYpEV';
 const SHEETS_HOST='https://sheets.quietmedia.co.uk';
 const ORG_SLUG='quiet-media';
-const COLS=['clients','crew','projects','entries','invoices','events','settings'];
+const COLS=['clients','crew','projects','entries','invoices','events','drives','settings'];
 const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=44;
+const APP_VERSION=47;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1132,11 +1138,11 @@ function gcalLink(ev){
 }
 
 /* ---------- views ---------- */
-const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['team','Team'],['invoicing','To invoice'],['insights','Insights'],['settings','Settings']];
+const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['team','Team'],['drives','Drives'],['invoicing','To invoice'],['insights','Insights'],['settings','Settings']];
 function renderChrome(){
   $('#personSeg').innerHTML=PEOPLE.map(p=>'<button data-act="person" data-v="'+p.id+'" aria-pressed="'+(S.person===p.id)+'">'+esc(name(p.id))+'</button>').join('');
-  const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',team:'<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
-  $('#tabs').innerHTML=TABS.map(([k,l])=>'<button class="t-'+k+'" data-act="nav" data-v="'+k+'" '+(S.view===k?'aria-current="page"':'')+'><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+l+'</button>').join('');
+  const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',drives:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 14h5"/><circle cx="16.5" cy="12" r=".6"/>',team:'<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
+  $('#tabs').innerHTML=TABS.map(([k,l])=>'<button class="t-'+k+(k==='drives'&&DRIVES.some(driveLow)?' alert':'')+'" data-act="nav" data-v="'+k+'" '+(S.view===k?'aria-current="page"':'')+'><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+l+'</button>').join('');
 }
 let renderQueued=false;
 function render(){ if(renderQueued)return; renderQueued=true; requestAnimationFrame(()=>{renderQueued=false;doRender()}) }
@@ -1145,7 +1151,7 @@ function doRender(){
   document.body.classList.toggle('locked',!!S.locked);if(S.locked){$('#view').innerHTML=vLock();renderLive();return}
   const v=S.view;let h='';
   if(v==='today')h=vToday();else if(v==='schedule')h=vSchedule();else if(v==='clients')h=S.client&&client(S.client)?vClient(S.client):vClients();
-  else if(v==='team')h=vTeam();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else h=vSettings();
+  else if(v==='team')h=vTeam();else if(v==='drives')h=vDrives();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else h=vSettings();
   const view=$('#view');const key=v+'|'+(S.client||'')+'|'+(v==='clients'?S.sub||'':'');
   view.innerHTML=h; if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
   renderLive();
@@ -1205,7 +1211,7 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
-  filmingToday(d0)+
+  filmingToday(d0)+lowDrivesNudge()+
   '<div class="grid g2">'+cards+'</div>'+
   (()=>{const ex=[unassignedPanel(),allocatePanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
@@ -1325,7 +1331,7 @@ function vClient(cid){
   (()=>{const ps=activeProjects(cid).filter(p=>pstatus(p)!=='invoiced');return ps.length?'<section class="panel"><div class="panel-head"><h3>Projects</h3><span class="note num">'+gbp(ps.reduce((s,p)=>s+projectValue(p),0))+' · '+gbp(ps.reduce((s,p)=>s+projectValue(p)-projectCost(p),0))+' net</span></div><div class="grid" style="gap:12px">'+ps.map(projectCard).join('')+'</div></section>':''})()+
   (upcoming.length?'<section class="panel"><div class="panel-head"><h3>Booked, not yet done</h3><span class="note num">'+gbp(upcoming.reduce((s,e)=>s+eventValue(e),0))+' coming</span></div><div class="cards">'+upcoming.slice(0,6).map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div></section>':'')+
   '<section class="panel"><div class="panel-head"><h3>Time logged'+(li?' since '+esc(li.number):'')+'</h3><button class="link" data-act="manual" data-v="'+cid+'">Add time</button></div><div class="list">'+(ents.length?ents.slice(0,30).map(entryRow).join(''):'<div class="empty">No time logged yet.</div>')+'</div></section></div>'+
-  '<div class="grid" style="align-content:start"><section class="panel"><h3 style="margin-bottom:14px">Who did the work</h3><div class="bars">'+people+'</div>'+
+  '<div class="grid" style="align-content:start">'+clientDrivesPanel(cid)+'<section class="panel"><h3 style="margin-bottom:14px">Who did the work</h3><div class="bars">'+people+'</div>'+
   (Object.keys(byCat).length?'<hr class="s" style="margin:16px 0"><dl class="kv">'+Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,h])=>'<dt>'+esc(k)+'</dt><dd>'+hrs(h)+'</dd>').join('')+'</dl>':'')+'</section>'+
   '<section class="panel"><h3 style="margin-bottom:12px">Suggested fees</h3><p class="note" style="margin:0 0 10px">Used to pre-fill a fee when you book. Change the fee on any booking.</p><dl class="kv">'+(r.billing==='retainer'?'<dt>Retainer fee</dt><dd>'+gbp2(r.monthlyFee)+' per '+(r.retainerPeriod||'month')+'</dd><dt>Promised</dt><dd>'+(['Shoot','Edit'].filter(t=>r.retainerPlan[t]).map(t=>fmtDays(r.retainerPlan[t])+' '+(t==='Shoot'?'filming':'edit')).join(' + ')||'0 days')+' × '+r.retainerDayHours+'h per '+(r.retainerPeriod||'month')+'</dd><dt>Basis</dt><dd>'+(r.retainerBasis==='scope'?'Agreed work, hours measure profit':'Time, days delivered')+'</dd><dt>Since</dt><dd>'+(monthKeyOf(r.retainerStart,c.created)?monthLabel(monthKeyOf(r.retainerStart,c.created)):'client added')+'</dd>':r.billing==='hourly'?'<dt>Hourly</dt><dd>'+gbp2(r.hourlyRate)+'</dd>':'<dt>Filming up to 2 hrs</dt><dd>'+gbp(r.shortRate)+'</dd><dt>Half day, 3–4 hrs</dt><dd>'+gbp(r.halfDay)+'</dd><dt>Full day, 4+ hrs</dt><dd>'+gbp(r.fullDay)+'</dd><dt>Edit day</dt><dd>'+gbp(r.editDay)+'</dd>')+'</dl>'+(c.notes?'<p class="note" style="margin-top:12px">'+esc(c.notes)+'</p>':'')+'</section>'+
   '<section class="panel"><div class="panel-head"><h3>Invoices</h3>'+(invs.length?'<button class="link" data-act="xero" data-v="'+cid+'">Export for Xero</button>':'')+'</div><div class="list">'+(invs.length?invs.map(invRow).join(''):'<div class="empty">No invoices yet.</div>')+'</div></section></div></div>';
@@ -1422,6 +1428,7 @@ function vSettings(){
   '<section class="panel grid"><h3>Sending to clients and crew</h3><div class="row"><label class="f">Sign messages as<input type="text" id="s-sn" data-set="senderName" value="'+esc(s.senderName||'')+'"></label><label class="f">Reply email<input type="email" id="s-re" data-set="replyEmail" value="'+esc(s.replyEmail||'')+'"></label><label class="f">Reply mobile<input type="tel" id="s-rp" data-set="replyPhone" value="'+esc(s.replyPhone||'')+'"></label>'+PEOPLE.map(p=>'<label class="f">'+esc(name(p.id))+' home address (private, for leave-by times)<input type="text" id="s-hm-'+p.id+'" data-set="homes.'+p.id+'" placeholder="Street, town, postcode" value="'+esc((s.homes||{})[p.id]||'')+'"></label>').join('')+'<label class="f">Spare time on top of the drive (min)<input type="number" id="s-tb" min="0" data-set="travelBuffer" value="'+(s.travelBuffer!=null?s.travelBuffer:15)+'"></label>'+PEOPLE.map(p=>'<label class="f">'+esc(name(p.id))+' mobile (for call sheets)<input type="tel" id="s-ph-'+p.id+'" data-set="phones.'+p.id+'" value="'+esc((s.phones||{})[p.id]||'')+'"></label>').join('')+'<label class="f">Chase a pencil after (days)<input type="number" id="s-pd" min="1" data-set="pencilDays" value="'+(s.pencilDays||7)+'"></label></div>'+
   '<label class="f">Booking terms shown to clients<textarea id="s-terms" rows="7" data-set="bookingTerms">'+esc(s.bookingTerms||'')+'</textarea></label><p class="note">Shown on every client booking page. Pencil holds the dates; a confirmed booking is subject to these terms.</p></section>'+
   '<section class="panel"><h3 style="margin-bottom:12px">Crew bookings</h3><div class="row"><label class="f">Company name on crew forms<input type="text" data-set="companyName" value="'+esc(s.companyName||'Quiet Media Limited')+'"></label><label class="f">Pay crew within (days)<input type="number" min="0" data-set="crewPayDays" value="'+(s.crewPayDays||30)+'"></label></div><label class="f">Terms crew sign on the booking form<textarea rows="9" data-set="crewTerms">'+esc(s.crewTerms||DEFAULT_CREW_TERMS)+'</textarea></label><p class="note">Shown on every crew booking form and signed with the fee and dates. A starting point, not legal advice: check it says what you want.</p></section>'+
+  '<section class="panel grid"><h3>Drives</h3><div class="row"><label class="f">Keep free on the 4 TB Shields (GB)<input type="number" min="0" step="50" data-set="driveMinShield" value="'+(s.driveMinShield||0)+'"></label><label class="f">Keep free on Black and Silver (GB)<input type="number" min="0" step="50" data-set="driveMinT7" value="'+(s.driveMinT7||0)+'"></label></div><p class="note">A drive turns amber as it nears this and red below it, with a warning on Today and on the Mac when it is plugged in.</p></section>'+
   '<section class="panel grid"><h3>Goals</h3><div class="row"><label class="f">Monthly revenue goal, ex VAT (£)<input type="number" id="s-goal" min="0" step="50" data-set="monthlyGoal" value="'+(s.monthlyGoal||'')+'"></label><label class="f">Weekly hours target each<input type="number" id="s-wk" min="0" data-set="weeklyHoursTarget" value="'+(s.weeklyHoursTarget||'')+'"></label></div></section>'+
   '<section class="panel grid"><h3>Invoicing</h3><div class="row"><label class="f">Number prefix<input type="text" id="s-prefix" data-set="prefix" value="'+esc(s.prefix)+'"></label><label class="f">Next number<input type="number" id="s-next" data-set="nextInvoice" value="'+s.nextInvoice+'"></label></div>'+
   '<div class="row"><label class="f">VAT rate (%)<input type="number" id="s-vat" data-set="vatRate" value="'+s.vatRate+'"></label><label class="f">Payment terms (days)<input type="number" id="s-terms" data-set="terms" value="'+s.terms+'"></label><label class="f">Xero sales account<input type="text" id="s-acct" data-set="accountCode" value="'+esc(s.accountCode)+'"></label></div>'+
@@ -1734,6 +1741,149 @@ function vClients(){
   (S.sub==='projects'?'<div class="fgrid" style="margin-bottom:14px">'+sel('client',activeClients().map(c=>[c.id,c.name]),'Client')+sel('status',[['active','Open'],['complete','Closed'],['invoiced','Invoiced']],'Status')+sel('pricing',[['fee','Quoted fee'],['days','Per day'],['retainer','In retainer']],'Priced as')+sel('genre',GENRES.map(g=>[g,g]),'Kind of job')+'</div>':'')+
   '<div id="cllist">'+clientsListHtml()+'</div>'+
   (arch.length&&S.sub!=='projects'?'<p class="note" style="margin-top:20px">Archived: '+arch.map(c=>'<button class="link" data-act="openclient" data-v="'+c.id+'">'+esc(c.name)+'</button>').join(', ')+'</p>':'');
+}
+/* ===== Drives: the six T7s. The Mac menu bar app reads a drive whenever it is plugged in (free space, its main folders, then each folder's size in the background)
+   and hands it over through QM.drive*. Drives are told apart by the volume's hidden ID, since every T7 is called "T7" out of the box. ===== */
+const DRIVES=[
+  {id:'t7-yellow',name:'T7 Yellow',model:'T7 Shield',tb:4,colour:'#D9B43A'},
+  {id:'t7-pink',name:'T7 Pink',model:'T7 Shield',tb:4,colour:'#D98AA6'},
+  {id:'t7-green',name:'T7 Green',model:'T7 Shield',tb:4,colour:'#6FA36A'},
+  {id:'t7-blue',name:'T7 Blue',model:'T7 Shield',tb:4,colour:'#5F86BF'},
+  {id:'t7-black',name:'T7 Black',model:'T7',tb:2,colour:'#2B2B2B'},
+  {id:'t7-silver',name:'T7 Silver',model:'T7',tb:2,colour:'#AEB3B9'}];
+const GB=1e9;
+const driveRec=id=>S.drives[id]||{};
+const driveDef=id=>DRIVES.find(d=>d.id===id);
+const driveByUuid=u=>u?DRIVES.find(d=>driveRec(d.id).uuid===u):null;
+const driveMin=d=>(d.model==='T7 Shield'?+S.settings.driveMinShield:+S.settings.driveMinT7)||0;
+const driveLow=d=>{const r=driveRec(d.id);return !!r.spaceAt&&r.free<driveMin(d)*GB};
+const driveTight=d=>{const r=driveRec(d.id);return !!r.spaceAt&&r.free<driveMin(d)*GB*1.5};
+const driveNow=r=>!!r.spaceAt&&Date.now()-r.spaceAt<10*6e4;
+const driveSw=d=>'<span class="dot" style="background:'+d.colour+';box-shadow:inset 0 0 0 1px var(--line-strong)"></span>';
+const fmtBytes=b=>{b=+b||0;const t=x=>x.includes('.')?x.replace(/\.?0+$/,''):x;if(b>=1e12)return t((b/1e12).toFixed(b>=1e13?0:2))+' TB';if(b>=1e9)return Math.round(b/1e9)+' GB';if(b>=1e6)return Math.round(b/1e6)+' MB';return b?'under 1 MB':'empty'};
+const ago=ms=>{const m=Math.round((Date.now()-ms)/6e4);if(m<2)return 'just now';if(m<60)return m+' min ago';const h=Math.round(m/60);if(h<24)return h+' hour'+(h===1?'':'s')+' ago';const d=Math.round((startOfDay(Date.now())-startOfDay(ms))/864e5);return d<=1?'yesterday':d<14?d+' days ago':fmtDate(ms,{day:'numeric',month:'short',year:'numeric'})};
+
+/* Main folders are named by client, so a folder links itself to the client (or project) with the closest name. A manual link always wins. */
+const normName=s=>String(s||'').toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').replace(/^\s*(\d{2,4}\s*){1,3}/,'').replace(/\b(the|ltd|limited|llp|plc|uk|footage|rushes|project|projects)\b/g,' ').replace(/\s+/g,' ').trim();
+function folderMatch(fname){
+  const f=normName(fname);if(f.length<3)return null;let best=null,score=0,tie=false;
+  const test=(n,cid,pid)=>{const c=normName(n);if(c.length<3)return;let s=0;
+    if(c===f)s=100;else if((c.length>=4&&(' '+f+' ').includes(' '+c+' '))||(f.length>=4&&(' '+c+' ').includes(' '+f+' ')))s=80;
+    else{const a=f.split(' ').filter(w=>w.length>2),b=c.split(' ').filter(w=>w.length>2);const sh=a.length<=b.length?a:b,lo=sh===a?b:a;if(sh.length&&sh.every(w=>lo.includes(w)))s=60}
+    if(pid)s-=5;
+    if(s>score){score=s;best={clientId:cid,projectId:pid||''};tie=false}else if(s&&s===score&&best.clientId!==cid)tie=true};
+  Object.values(S.clients).forEach(c=>test(c.name,c.id));
+  Object.values(S.projects).forEach(p=>{if(p.clientId&&client(p.clientId)&&pstatus(p)!=='cancelled')test(p.title,p.clientId,p.id)});
+  return score>=60&&!tie?best:null;
+}
+function folderLink(did,fname){const l=(driveRec(did).links||{})[fname];if(l==='-')return {none:true,manual:true};if(l&&client(l))return {clientId:l,projectId:'',manual:true};return folderMatch(fname)||{}}
+function driveFolders(did){const fs=driveRec(did).folders||{};return Object.keys(fs).map(n=>({name:n,...fs[n],link:folderLink(did,n)}))}
+function clientDrives(cid){const out=[];DRIVES.forEach(d=>driveFolders(d.id).forEach(f=>{if(f.link.clientId===cid)out.push({d,f})}));return out}
+// work for this client is over: not on a retainer, has projects and all are closed, nothing booked ahead
+function clientDone(cid){const c=client(cid);if(!c||rateCard(c).billing==='retainer')return false;
+  const ps=activeProjects(cid);return ps.length>0&&ps.every(p=>pstatus(p)==='invoiced'||pstatus(p)==='complete')&&!Object.values(S.events).some(e=>e.clientId===cid&&e.start>Date.now()&&e.status!=='cancelled')}
+
+/* What the menu bar app calls. Each takes and returns plain JSON. */
+Object.assign(window.QM,{
+  driveSlots(){return DRIVES.map(d=>({id:d.id,name:d.name,label:d.name+' · '+d.tb+' TB '+d.model,taken:!!driveRec(d.id).uuid}))},
+  driveFor(uuid){const d=driveByUuid(uuid);return d?d.id:S.sync.last?'':'?'},  // '?' = not synced yet, so a drive set up on the other Mac is not asked about again
+  assignDrive(uuid,id){if(!uuid||!driveDef(id))return false;DRIVES.forEach(d=>{if(d.id!==id&&driveRec(d.id).uuid===uuid)patch('drives',d.id,{uuid:''})});patch('drives',id,{uuid});return true},
+  // s = {uuid, volName, total, free, folders:[{name, mtime}]}. Saves the snapshot; returns which folders to measure, those changed since last time first.
+  driveSeen(s){const d=driveByUuid(s&&s.uuid);if(!d)return null;const r=driveRec(d.id);const old=r.folders||{};const now=Date.now();const folders={};
+    (s.folders||[]).forEach(f=>{const o=old[f.name];const mt=+f.mtime||0;folders[f.name]={size:o?o.size:null,sizeAt:o?o.sizeAt||0:0,mtime:mt,stale:!o||o.size==null||!!o.stale||mt>(o.mtime||0)+1000}});
+    const same=Object.keys(folders).length===Object.keys(old).length&&Object.keys(folders).every(n=>old[n]&&folders[n].mtime===old[n].mtime&&!folders[n].stale);
+    if(!same||Math.abs((r.free||0)-(+s.free||0))>GB||now-(r.spaceAt||0)>5*6e4||r.by!==S.person)
+      patch('drives',d.id,{volName:s.volName||'',total:+s.total||0,free:+s.free||0,spaceAt:now,by:S.person,folders});
+    const order=Object.keys(folders).sort((a,b)=>(folders[b].stale-folders[a].stale)||(folders[a].sizeAt-folders[b].sizeAt));
+    return {id:d.id,name:d.name,free:+s.free||0,minGB:driveMin(d),low:(+s.free||0)<driveMin(d)*GB,stale:order.filter(n=>folders[n].stale),all:order}},
+  driveSize(s){const d=driveByUuid(s&&s.uuid);if(!d)return false;const fs={...(driveRec(d.id).folders||{})};const f=fs[s.name];if(!f)return false;
+    fs[s.name]={...f,size:+s.size||0,sizeAt:Date.now(),stale:false};patch('drives',d.id,{folders:fs});return true}
+});
+
+/* Archive: one-off work that is finished and signed off (not a retainer, every project complete or invoiced, nothing booked ahead) comes off the T7.
+   Tick it once it is on the NAS and once it is on the archive drive; then it is safe to delete from the T7. Kept in one record, so where it went outlives the folder. */
+const archKey=(did,fname)=>did+'|'+fname;
+const archSplit=k=>{const i=k.indexOf('|');return [k.slice(0,i),k.slice(i+1)]};
+const archItems=()=>(S.drives.archive||{}).items||{};
+const archItem=(did,fname)=>archItems()[archKey(did,fname)]||{};
+const archSafe=a=>!!(a&&a.nas&&a.hdd);
+const archReady=(d,f)=>{const a=archItem(d.id,f.name);return !a.skip&&(a.marked||a.nas||a.hdd||!!(f.link.clientId&&clientDone(f.link.clientId)))};
+function setArch(k,data){const [did,fname]=archSplit(k);const f=(driveRec(did).folders||{})[fname]||{};const l=folderLink(did,fname);
+  const items={...archItems()};items[k]={...(items[k]||{}),drive:did,name:fname,clientId:l.clientId||(items[k]||{}).clientId||'',size:f.size!=null?f.size:(items[k]||{}).size||0,...data};patch('drives','archive',{items})}
+function readyToArchive(){const out=[];DRIVES.forEach(d=>driveFolders(d.id).forEach(f=>{if(archReady(d,f))out.push({d,f,a:archItem(d.id,f.name)})}));
+  return out.sort((x,y)=>archSafe(y.a)-archSafe(x.a)||(y.f.size||0)-(x.f.size||0))}
+// archived and since deleted from the T7
+function archivedGone(){return Object.entries(archItems()).filter(([k,a])=>{const [did,fname]=archSplit(k);return archSafe(a)&&driveRec(did).spaceAt&&!(driveRec(did).folders||{})[fname]}).map(([k,a])=>({...a,d:driveDef(a.drive)}))}
+const archWhen=a=>fmtDate(Math.max(a.nas||0,a.hdd||0),{day:'numeric',month:'short',year:'numeric'});
+function archTag(d,f){const a=archItem(d.id,f.name);const k=esc(archKey(d.id,f.name));
+  if(archSafe(a))return '<span style="color:var(--ok)">archived, safe to delete</span>';
+  if(a.nas||a.hdd)return '<span class="muted">archiving, '+(a.nas?'on the NAS':'on the archive drive')+' so far</span>';
+  if(archReady(d,f))return '<span class="muted">ready to archive</span>';
+  return '<button class="link" data-act="archmark" data-v="'+k+'">Archive</button>'}
+function archRow({d,f,a}){const k=esc(archKey(d.id,f.name));const tick=(w,l)=>'<button class="archtick" data-act="arch" data-v="'+k+'" data-k="'+w+'" aria-pressed="'+!!a[w]+'">'+(a[w]?'✓ ':'')+l+'</button>';
+  return '<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(f.name)+' <span class="muted">· on '+esc(d.name)+(f.link.clientId?' · '+esc(cname(f.link.clientId))+(clientDone(f.link.clientId)?', finished':''):'')+'</span></div><div class="meta drmeta">'+tick('nas','On the NAS')+tick('hdd','On the archive drive')+
+  (archSafe(a)?'<b style="color:var(--ok)">Safe to delete from '+esc(d.name)+'</b>':'<button class="link" data-act="archskip" data-v="'+k+'">Keep on the T7</button>')+'</div></div><div class="end"><span class="num">'+(f.size!=null?fmtBytes(f.size):'')+'</span></div></div>'}
+function archPanel(){const r=readyToArchive();if(!r.length)return '';const tot=r.reduce((t,x)=>t+(x.f.size||0),0);const safe=r.filter(x=>archSafe(x.a));
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Ready to archive</h3><span class="note">'+r.length+' folder'+(r.length===1?'':'s')+(tot?' · '+fmtBytes(tot)+' to free up':'')+(safe.length?' · '+safe.length+' safe to delete now':'')+'</span></div>'+
+  '<p class="note" style="margin:0 0 4px">One-off work that’s finished and signed off. Copy it to the NAS and to the archive drive, tick both, then delete it from the T7. Studio remembers where it went.</p><div class="list">'+r.map(archRow).join('')+'</div></section>'}
+
+/* Dismissing the Today warning hides it on this device for 3 days, or until that drive loses another 50 GB. */
+function drSnoozed(d){try{const z=JSON.parse(localStorage.getItem('qm-drsnooze')||'{}')[d.id];return !!z&&Date.now()-z.at<3*864e5&&(driveRec(d.id).free||0)>=z.free-50*GB}catch(e){return false}}
+function drSnooze(ids){try{const z=JSON.parse(localStorage.getItem('qm-drsnooze')||'{}');ids.forEach(id=>{z[id]={at:Date.now(),free:driveRec(id).free||0}});localStorage.setItem('qm-drsnooze',JSON.stringify(z))}catch(e){}}
+function lowDrivesNudge(){const low=DRIVES.filter(d=>driveLow(d)&&!drSnoozed(d));if(!low.length)return '';
+  return '<div class="nudge"><span class="dot" style="background:var(--danger)"></span><div><b>'+(low.length===1?esc(low[0].name)+' is':low.map(d=>esc(d.name)).join(', ')+' are')+' low on space</b><div class="note">'+low.map(d=>esc(d.name)+': '+fmtBytes(driveRec(d.id).free)+' free, needs '+driveMin(d)+' GB').join(' · ')+(()=>{const r=readyToArchive().filter(x=>low.includes(x.d));const b=r.reduce((t,x)=>t+(x.f.size||0),0);return r.length?' · '+(b?fmtBytes(b)+' of':r.length)+' finished work ready to archive':''})()+' · <button class="link" data-act="nav" data-v="drives">See what to clear</button> · <button class="link" data-act="drsnooze" data-v="'+low.map(d=>d.id).join(',')+'">Dismiss</button></div></div></div>'}
+
+function clientDrivesPanel(cid){
+  if(!DRIVES.some(d=>driveRec(d.id).spaceAt))return '';
+  const hits=clientDrives(cid);const gone=archivedGone().filter(a=>a.clientId===cid);
+  return '<section class="panel"><div class="panel-head"><h3>On drives</h3><button class="link" data-act="nav" data-v="drives">All drives</button></div>'+
+  (hits.length||gone.length?'<div class="list">'+gone.map(a=>'<div class="item"><span class="dot" style="background:var(--ok)"></span><div class="main"><div class="t">Archived <span class="muted">· '+esc(a.name)+'</span></div><div class="meta">On the NAS and the archive drive since '+archWhen(a)+(a.d?' · was on '+esc(a.d.name):'')+(a.size?' · '+fmtBytes(a.size):'')+'</div></div><span></span></div>').join('')+hits.map(({d,f})=>'<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(d.name)+' <span class="muted">· '+esc(f.name)+'</span></div><div class="meta">'+(archSafe(archItem(d.id,f.name))?'archived, safe to delete · ':archReady(d,f)?'ready to archive · ':'')+(f.size!=null?fmtBytes(f.size)+' · ':'')+'changed '+fmtDate(f.mtime||driveRec(d.id).spaceAt)+' · drive '+(driveNow(driveRec(d.id))?'plugged in now':'last seen '+ago(driveRec(d.id).spaceAt))+'</div></div><span></span></div>').join('')+'</div>'
+  :'<div class="empty">Not found on any drive yet. A main folder called “'+esc(client(cid).name)+'” on a T7 links here by itself.</div>')+'</section>';
+}
+
+function driveFindHtml(){
+  const q=normName(S.drQuery||'');if(!q)return '';
+  const hits=[];DRIVES.forEach(d=>driveFolders(d.id).forEach(f=>{const cn=f.link.clientId?cname(f.link.clientId):'';if(normName(f.name).includes(q)||normName(cn).includes(q))hits.push({d,f,cn})}));
+  const gone=archivedGone().filter(a=>normName(a.name).includes(q)||normName(a.clientId?cname(a.clientId):'').includes(q));
+  return '<section class="panel" style="margin-bottom:16px"><div class="list">'+(hits.length||gone.length?hits.map(({d,f,cn})=>'<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(f.name)+' <span class="muted">· on '+esc(d.name)+'</span></div><div class="meta">'+(cn?esc(cn)+' · ':'')+(f.size!=null?fmtBytes(f.size)+' · ':'')+'drive '+(driveNow(driveRec(d.id))?'plugged in now':'last seen '+ago(driveRec(d.id).spaceAt))+'</div></div><span></span></div>').join('')+gone.map(a=>'<div class="item"><span class="dot" style="background:var(--ok)"></span><div class="main"><div class="t">'+esc(a.name)+' <span class="muted">· archived</span></div><div class="meta">'+(a.clientId?esc(cname(a.clientId))+' · ':'')+'on the NAS and the archive drive since '+archWhen(a)+(a.d?' · was on '+esc(a.d.name):'')+'</div></div><span></span></div>').join(''):'<div class="empty">Not on any drive Studio has seen. Drives update when they are plugged in.</div>')+'</div></section>';
+}
+
+function linkPicker(did,fname){const l=(driveRec(did).links||{})[fname]||'';
+  return '<select class="drlink" data-drlink="'+esc(did+'|'+fname)+'" aria-label="Client for '+esc(fname)+'"><option value="auto">'+(l?'Match automatically':'Which client?')+'</option>'+activeClients().map(c=>'<option value="'+c.id+'" '+(l===c.id?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'<option value="-" '+(l==='-'?'selected':'')+'>Not a client folder</option></select>'}
+
+function folderRow(d,f,why){const key=d.id+'|'+f.name;const l=f.link;
+  const who=S.drEdit===key?linkPicker(d.id,f.name):l.clientId?'<button class="link" style="color:var(--fg);text-decoration:none" data-act="openclient" data-v="'+l.clientId+'"><span class="dot" style="background:'+colour(l.clientId)+';width:8px;height:8px"></span> '+esc(cname(l.clientId))+'</button> <button class="link" data-act="drrelink" data-v="'+esc(key)+'">change</button>':l.none?'<span class="muted">Not a client folder</span> <button class="link" data-act="drrelink" data-v="'+esc(key)+'">change</button>':linkPicker(d.id,f.name);
+  return '<div class="item"><span></span><div class="main"><div class="t">'+esc(f.name)+(why?' <span class="muted">· '+why+'</span>':'')+'</div><div class="meta drmeta">'+who+'<span>changed '+fmtDate(f.mtime||0,{day:'numeric',month:'short',year:'numeric'})+'</span>'+archTag(d,f)+'</div></div><div class="end"><span class="num">'+(f.size!=null?fmtBytes(f.size):'<span class="muted">measuring</span>')+'</span></div></div>'}
+
+function driveCard(d){const r=driveRec(d.id);
+  const head='<div class="panel-head"><div style="display:flex;gap:10px;align-items:center;min-width:0">'+driveSw(d)+'<h3>'+esc(d.name)+'</h3><span class="note">'+d.tb+' TB '+d.model+'</span></div>'+(r.spaceAt?'<span class="eyebrow">'+(driveNow(r)?'Plugged in now':'Seen '+ago(r.spaceAt))+'</span>':'')+'</div>';
+  if(!r.spaceAt)return '<section class="panel">'+head+'<div class="empty">'+(r.uuid?'Recognised, waiting for its first read.':'Not synced yet. Plug it into a Mac running the Quiet Studio menu bar app and pick “'+esc(d.name)+'” when it asks which drive it is.')+'</div></section>';
+  const total=r.total||d.tb*1e12;const free=Math.max(0,r.free||0);const pct=Math.min(100,Math.max(0,(total-free)/total*100));
+  const low=driveLow(d),tight=driveTight(d);
+  const fs=driveFolders(d.id);const sized=fs.filter(f=>f.size!=null&&!f.stale);const lastSize=sized.length?Math.min(...sized.map(f=>f.sizeAt||0)):0;
+  const sorted=fs.slice().sort((a,b)=>(b.size||0)-(a.size||0)||a.name.localeCompare(b.name));
+  const clear=low||tight?fs.slice().sort((a,b)=>archSafe(archItem(d.id,b.name))-archSafe(archItem(d.id,a.name))||archReady(d,b)-archReady(d,a)||(a.mtime||0)-(b.mtime||0)).slice(0,5):[];
+  const open=(S.drOpen||{})[d.id];
+  return '<section class="panel'+(low?' drlow':'')+'">'+head+
+  '<div class="rbar" style="height:10px"><i style="width:'+pct+'%;background:'+(low?'var(--danger)':tight?'var(--warn)':'var(--ok)')+'"></i></div>'+
+  '<div class="drspace"><b style="'+(low?'color:var(--danger)':tight?'color:var(--warn)':'')+'">'+fmtBytes(free)+' free</b><span class="note">of '+fmtBytes(total)+' · keep '+driveMin(d)+' GB free'+(low?' · <b style="color:var(--danger)">below that now</b>':tight?' · getting close':'')+'</span></div>'+
+  '<p class="note" style="margin:6px 0 0">'+fs.length+' main folder'+(fs.length===1?'':'s')+' · '+(sized.length<fs.length?'measuring folder sizes, '+sized.length+' of '+fs.length+' done':'sizes updated '+ago(lastSize))+(r.by?' · last read on '+esc(name(r.by))+'’s Mac':'')+'</p>'+
+  (clear.length?'<div class="drclear"><div class="eyebrow" style="margin:14px 0 2px">'+(low?'Clear first':'Candidates to clear')+'</div><div class="list">'+clear.map(f=>folderRow(d,f,archReady(d,f)?'':'untouched '+ago(f.mtime||0).replace(' ago',''))).join('')+'</div></div>':'')+
+  (fs.length?'<button class="link" style="margin-top:12px" data-act="drfolders" data-v="'+d.id+'">'+(open?'Hide folders':'Show all '+fs.length+' folders')+'</button>'+(open?'<div class="list">'+sorted.map(f=>folderRow(d,f)).join('')+'</div>':''):'<div class="empty" style="margin-top:12px">No folders on this drive.</div>')+
+  '<p class="note" style="margin:14px 0 0"><button class="link" data-act="drforget" data-v="'+d.id+'">Wrong drive? Forget it</button>, and the Mac asks again next time it is plugged in.</p></section>';
+}
+
+function vDrives(){
+  const seen=DRIVES.filter(d=>driveRec(d.id).spaceAt);const low=DRIVES.filter(driveLow);const now=DRIVES.filter(d=>driveNow(driveRec(d.id)));
+  const loose=[];DRIVES.forEach(d=>driveFolders(d.id).forEach(f=>{if(!f.link.clientId&&!f.link.none)loose.push({d,f})}));
+  const free=seen.reduce((t,d)=>t+(driveRec(d.id).free||0),0);
+  return '<div class="panel-head"><h1>Drives</h1><span class="eyebrow num">'+(low.length?'<span style="color:var(--danger)">'+low.length+' low on space</span> · ':'')+(now.length?now.length+' plugged in · ':'')+fmtBytes(free)+' free across '+seen.length+' of '+DRIVES.length+'</span></div>'+
+  '<div class="row" style="align-items:center;margin-bottom:14px"><div class="qbox" style="flex:1;min-width:200px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="drq" type="search" placeholder="Where is… (client or folder)" value="'+esc(S.drQuery||'')+'" autocomplete="off" style="font-size:15px;padding:11px 0"></div></div>'+
+  '<div id="drfind">'+driveFindHtml()+'</div>'+
+  (loose.length?'<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Needs sorting</h3><span class="note">'+loose.length+' folder'+(loose.length===1?'':'s')+' not linked to a client</span></div><p class="note" style="margin:0 0 4px">Pick the client once and it sticks. Or rename the folder on the drive to the client’s name in Studio and it links itself.</p><div class="list">'+loose.map(({d,f})=>folderRow(d,f,'on '+esc(d.name))).join('')+'</div></section>':'')+
+  archPanel()+
+  '<div class="grid g2">'+DRIVES.map(driveCard).join('')+'</div>'+
+  '<p class="note" style="margin-top:16px">Drives update by themselves when they are plugged into a Mac running the Quiet Studio menu bar app: free space straight away and every few minutes, then each folder’s size in the background. Leave them plugged in a while for sizes to finish. Warning levels are in Settings.</p>';
 }
 /* ===== Team: everyone you book, what they are on, and where each booking stands ===== */
 /* one person on one job: pencilled → holding → booked, with the forms and an override */
@@ -2262,6 +2412,13 @@ document.addEventListener('click',async ev=>{
     case 'evstatus':{const ev=S.events[b.dataset.e];for(const e of groupOf(ev)){await patch('events',e.id,{status:v})}renderModal();break}
     case 'syncnow':syncAll();toast('Syncing');break;
     case 'leavefrom':patch('events',v,{leaveFrom:b.dataset.k});if(S.modal&&S.modal.type==='callsheet')csTravel();break;
+    case 'drfolders':S.drOpen={...(S.drOpen||{}),[v]:!(S.drOpen||{})[v]};render();break;
+    case 'drrelink':S.drEdit=v;render();break;
+    case 'drsnooze':drSnooze(v.split(','));render();toast('Hidden for 3 days, or until it gets fuller');break;
+    case 'arch':{const w=b.dataset.k;const it=archItems()[v]||{};setArch(v,{[w]:it[w]?0:Date.now(),skip:false});break}
+    case 'archmark':setArch(v,{marked:true,skip:false});toast('Added to Ready to archive');break;
+    case 'archskip':setArch(v,{skip:true,marked:false,nas:0,hdd:0});toast('Kept on the T7');break;
+    case 'drforget':{if(!confirmed('drforget'+v)){toast('Press again to forget which drive this is');break}patch('drives',v,{uuid:''});toast('Forgotten. The Mac asks which drive it is next time it is plugged in.');break}
     case 'signout':if(!confirmed('signout')){toast('Press again to sign out and clear this device');break}signOut();break;
     case 'authmode':S.authMode=v;S.unlockErr='';S.authMsg='';render();break;
     case 'invite':{const el=document.getElementById('s-invite');const em=(el.value||'').trim();if(!/@/.test(em)){toast('Enter an email address');break}try{await invite(em);el.value='';toast('Invited '+em+'. They can now create an account.')}catch(e){toast(e.message)}break}
@@ -2384,6 +2541,8 @@ document.addEventListener('keydown',ev=>{if(S.locked)return;const typing=ev.targ
   if((ev.metaKey||ev.ctrlKey)&&ev.key.toLowerCase()==='k'){ev.preventDefault();if(S.modal&&S.modal.type==='search')closeModal();else openSearch();return}
   if(ev.key==='/'&&!typing&&!S.modal){ev.preventDefault();openSearch();return}
   if(S.modal&&S.modal.type==='search'&&ev.target.id==='qin'){const n=(S.qres||[]).length;if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault();S.qsel=((S.qsel||0)+(ev.key==='ArrowDown'?1:-1)+n)%Math.max(1,n);document.getElementById('qres').innerHTML=searchHtml(ev.target.value);const el=document.querySelector('.qres [aria-selected=true]');if(el)el.scrollIntoView({block:'nearest'})}else if(ev.key==='Enter'){ev.preventDefault();searchGo(S.qsel||0)}}},true);
+document.addEventListener('input',ev=>{if(ev.target.id==='drq'){S.drQuery=ev.target.value;const l=document.getElementById('drfind');if(l)l.innerHTML=driveFindHtml();return}});
+document.addEventListener('change',ev=>{const t=ev.target;if(!t.dataset||!t.dataset.drlink)return;const k=t.dataset.drlink,i=k.indexOf('|'),did=k.slice(0,i),fname=k.slice(i+1);const links={...(driveRec(did).links||{})};if(t.value==='auto')delete links[fname];else links[fname]=t.value;S.drEdit=null;patch('drives',did,{links})});
 document.addEventListener('input',ev=>{if(ev.target.id==='tmq'){S.tmQuery=ev.target.value;const l=document.getElementById('tmlist');if(l)l.innerHTML=teamListHtml();return}if(ev.target.id==='clq'){S.clQuery=ev.target.value;const l=document.getElementById('cllist');if(l)l.innerHTML=clientsListHtml();return}if(ev.target.id==='qin'){S.qsel=0;document.getElementById('qres').innerHTML=searchHtml(ev.target.value)}});
 document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='callsheet'&&ev.target.closest('#csb-form')){readSheetForm();csPreview();clearTimeout(csTravel.t);csTravel.t=setTimeout(csTravel,900)}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}if(S.modal&&S.modal.type==='event'){feeNote();availNote()}
