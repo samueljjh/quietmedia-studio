@@ -338,6 +338,19 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.paint() }
         RunLoop.main.add(poll!, forMode: .common); RunLoop.main.add(tick!, forMode: .common)
         paint()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in self?.checkRing() }
+    }
+    // macOS can hide the ring: behind the camera notch when the menu bar is full, or when the app is not allowed in the menu bar.
+    // Say where it is (shown in Terminal when run from there), and open the window if it cannot be seen so the app is still usable.
+    func checkRing() {
+        guard let w = status.button?.window else { print("Quiet Studio: the menu bar gave no space for the ring"); openApp(); return }
+        let f = w.frame, scr = w.screen ?? NSScreen.main
+        var notch = false
+        if let s = scr, let l = s.auxiliaryTopLeftArea, let r = s.auxiliaryTopRightArea { notch = f.maxX > l.maxX && f.minX < r.minX }
+        let onScreen = scr.map { $0.frame.intersects(f) } ?? false
+        let seen = w.occlusionState.contains(.visible)
+        print("Quiet Studio: ring at x \(Int(f.minX))–\(Int(f.maxX)) on \(scr?.localizedName ?? "no screen"); on screen: \(onScreen); visible: \(seen); behind the notch: \(notch)")
+        if !onScreen || !seen || notch { openApp() }
     }
     func webView(_ w: WKWebView, didFinish nav: WKNavigation!) { refresh() }
     // clicking Quiet Studio in Applications or Launchpad while it runs opens the window, so it is reachable even if the ring is hidden
