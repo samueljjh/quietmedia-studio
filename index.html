@@ -369,6 +369,7 @@ tfoot td{border-bottom:0;font-weight:400}
 .drspace{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:18px}.drspace b{font-weight:500}
 .drmeta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.drmeta select.drlink{width:auto;max-width:100%;font-size:13px;padding:4px 8px}
 .drlow{box-shadow:inset 0 0 0 1.5px var(--danger)}
+.archtick{border:0;background:none;border-radius:999px;padding:4px 11px;font-size:12px;color:var(--fg);box-shadow:inset 0 0 0 1px var(--line-strong)}.archtick[aria-pressed="true"]{background:var(--ok);color:var(--bg);box-shadow:none}
 nav.tabs button.alert{position:relative}nav.tabs button.alert::after{content:'';position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--danger)}
 @media (max-width:720px){nav.tabs button.alert::after{right:calc(50% - 17px);top:4px}}
 .swatches input[type=color]{width:30px;height:30px;padding:0;border:0;border-radius:50%;background:none;cursor:pointer;overflow:hidden}
@@ -609,7 +610,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=44;
+const APP_VERSION=45;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1791,21 +1792,49 @@ Object.assign(window.QM,{
     fs[s.name]={...f,size:+s.size||0,sizeAt:Date.now(),stale:false};patch('drives',d.id,{folders:fs});return true}
 });
 
+/* Archive: one-off work that is finished and signed off (not a retainer, every project complete or invoiced, nothing booked ahead) comes off the T7.
+   Tick it once it is on the NAS and once it is on the archive drive; then it is safe to delete from the T7. Kept in one record, so where it went outlives the folder. */
+const archKey=(did,fname)=>did+'|'+fname;
+const archSplit=k=>{const i=k.indexOf('|');return [k.slice(0,i),k.slice(i+1)]};
+const archItems=()=>(S.drives.archive||{}).items||{};
+const archItem=(did,fname)=>archItems()[archKey(did,fname)]||{};
+const archSafe=a=>!!(a&&a.nas&&a.hdd);
+const archReady=(d,f)=>{const a=archItem(d.id,f.name);return !a.skip&&(a.marked||a.nas||a.hdd||!!(f.link.clientId&&clientDone(f.link.clientId)))};
+function setArch(k,data){const [did,fname]=archSplit(k);const f=(driveRec(did).folders||{})[fname]||{};const l=folderLink(did,fname);
+  const items={...archItems()};items[k]={...(items[k]||{}),drive:did,name:fname,clientId:l.clientId||(items[k]||{}).clientId||'',size:f.size!=null?f.size:(items[k]||{}).size||0,...data};patch('drives','archive',{items})}
+function readyToArchive(){const out=[];DRIVES.forEach(d=>driveFolders(d.id).forEach(f=>{if(archReady(d,f))out.push({d,f,a:archItem(d.id,f.name)})}));
+  return out.sort((x,y)=>archSafe(y.a)-archSafe(x.a)||(y.f.size||0)-(x.f.size||0))}
+// archived and since deleted from the T7
+function archivedGone(){return Object.entries(archItems()).filter(([k,a])=>{const [did,fname]=archSplit(k);return archSafe(a)&&driveRec(did).spaceAt&&!(driveRec(did).folders||{})[fname]}).map(([k,a])=>({...a,d:driveDef(a.drive)}))}
+const archWhen=a=>fmtDate(Math.max(a.nas||0,a.hdd||0),{day:'numeric',month:'short',year:'numeric'});
+function archTag(d,f){const a=archItem(d.id,f.name);const k=esc(archKey(d.id,f.name));
+  if(archSafe(a))return '<span style="color:var(--ok)">archived, safe to delete</span>';
+  if(a.nas||a.hdd)return '<span class="muted">archiving, '+(a.nas?'on the NAS':'on the archive drive')+' so far</span>';
+  if(archReady(d,f))return '<span class="muted">ready to archive</span>';
+  return '<button class="link" data-act="archmark" data-v="'+k+'">Archive</button>'}
+function archRow({d,f,a}){const k=esc(archKey(d.id,f.name));const tick=(w,l)=>'<button class="archtick" data-act="arch" data-v="'+k+'" data-k="'+w+'" aria-pressed="'+!!a[w]+'">'+(a[w]?'✓ ':'')+l+'</button>';
+  return '<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(f.name)+' <span class="muted">· on '+esc(d.name)+(f.link.clientId?' · '+esc(cname(f.link.clientId))+(clientDone(f.link.clientId)?', finished':''):'')+'</span></div><div class="meta drmeta">'+tick('nas','On the NAS')+tick('hdd','On the archive drive')+
+  (archSafe(a)?'<b style="color:var(--ok)">Safe to delete from '+esc(d.name)+'</b>':'<button class="link" data-act="archskip" data-v="'+k+'">Keep on the T7</button>')+'</div></div><div class="end"><span class="num">'+(f.size!=null?fmtBytes(f.size):'')+'</span></div></div>'}
+function archPanel(){const r=readyToArchive();if(!r.length)return '';const tot=r.reduce((t,x)=>t+(x.f.size||0),0);const safe=r.filter(x=>archSafe(x.a));
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Ready to archive</h3><span class="note">'+r.length+' folder'+(r.length===1?'':'s')+(tot?' · '+fmtBytes(tot)+' to free up':'')+(safe.length?' · '+safe.length+' safe to delete now':'')+'</span></div>'+
+  '<p class="note" style="margin:0 0 4px">One-off work that’s finished and signed off. Copy it to the NAS and to the archive drive, tick both, then delete it from the T7. Studio remembers where it went.</p><div class="list">'+r.map(archRow).join('')+'</div></section>'}
+
 function lowDrivesNudge(){const low=DRIVES.filter(driveLow);if(!low.length)return '';
-  return '<div class="nudge"><span class="dot" style="background:var(--danger)"></span><div><b>'+(low.length===1?esc(low[0].name)+' is':low.map(d=>esc(d.name)).join(', ')+' are')+' low on space</b><div class="note">'+low.map(d=>esc(d.name)+': '+fmtBytes(driveRec(d.id).free)+' free, needs '+driveMin(d)+' GB').join(' · ')+' · <button class="link" data-act="nav" data-v="drives">See what to clear</button></div></div></div>'}
+  return '<div class="nudge"><span class="dot" style="background:var(--danger)"></span><div><b>'+(low.length===1?esc(low[0].name)+' is':low.map(d=>esc(d.name)).join(', ')+' are')+' low on space</b><div class="note">'+low.map(d=>esc(d.name)+': '+fmtBytes(driveRec(d.id).free)+' free, needs '+driveMin(d)+' GB').join(' · ')+(()=>{const r=readyToArchive().filter(x=>low.includes(x.d));const b=r.reduce((t,x)=>t+(x.f.size||0),0);return r.length?' · '+(b?fmtBytes(b)+' of':r.length)+' finished work ready to archive':''})()+' · <button class="link" data-act="nav" data-v="drives">See what to clear</button></div></div></div>'}
 
 function clientDrivesPanel(cid){
   if(!DRIVES.some(d=>driveRec(d.id).spaceAt))return '';
-  const hits=clientDrives(cid);
+  const hits=clientDrives(cid);const gone=archivedGone().filter(a=>a.clientId===cid);
   return '<section class="panel"><div class="panel-head"><h3>On drives</h3><button class="link" data-act="nav" data-v="drives">All drives</button></div>'+
-  (hits.length?'<div class="list">'+hits.map(({d,f})=>'<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(d.name)+' <span class="muted">· '+esc(f.name)+'</span></div><div class="meta">'+(f.size!=null?fmtBytes(f.size)+' · ':'')+'changed '+fmtDate(f.mtime||driveRec(d.id).spaceAt)+' · drive '+(driveNow(driveRec(d.id))?'plugged in now':'last seen '+ago(driveRec(d.id).spaceAt))+'</div></div><span></span></div>').join('')+'</div>'
+  (hits.length||gone.length?'<div class="list">'+gone.map(a=>'<div class="item"><span class="dot" style="background:var(--ok)"></span><div class="main"><div class="t">Archived <span class="muted">· '+esc(a.name)+'</span></div><div class="meta">On the NAS and the archive drive since '+archWhen(a)+(a.d?' · was on '+esc(a.d.name):'')+(a.size?' · '+fmtBytes(a.size):'')+'</div></div><span></span></div>').join('')+hits.map(({d,f})=>'<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(d.name)+' <span class="muted">· '+esc(f.name)+'</span></div><div class="meta">'+(archSafe(archItem(d.id,f.name))?'archived, safe to delete · ':archReady(d,f)?'ready to archive · ':'')+(f.size!=null?fmtBytes(f.size)+' · ':'')+'changed '+fmtDate(f.mtime||driveRec(d.id).spaceAt)+' · drive '+(driveNow(driveRec(d.id))?'plugged in now':'last seen '+ago(driveRec(d.id).spaceAt))+'</div></div><span></span></div>').join('')+'</div>'
   :'<div class="empty">Not found on any drive yet. A main folder called “'+esc(client(cid).name)+'” on a T7 links here by itself.</div>')+'</section>';
 }
 
 function driveFindHtml(){
   const q=normName(S.drQuery||'');if(!q)return '';
   const hits=[];DRIVES.forEach(d=>driveFolders(d.id).forEach(f=>{const cn=f.link.clientId?cname(f.link.clientId):'';if(normName(f.name).includes(q)||normName(cn).includes(q))hits.push({d,f,cn})}));
-  return '<section class="panel" style="margin-bottom:16px"><div class="list">'+(hits.length?hits.map(({d,f,cn})=>'<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(f.name)+' <span class="muted">· on '+esc(d.name)+'</span></div><div class="meta">'+(cn?esc(cn)+' · ':'')+(f.size!=null?fmtBytes(f.size)+' · ':'')+'drive '+(driveNow(driveRec(d.id))?'plugged in now':'last seen '+ago(driveRec(d.id).spaceAt))+'</div></div><span></span></div>').join(''):'<div class="empty">Not on any drive Studio has seen. Drives update when they are plugged in.</div>')+'</div></section>';
+  const gone=archivedGone().filter(a=>normName(a.name).includes(q)||normName(a.clientId?cname(a.clientId):'').includes(q));
+  return '<section class="panel" style="margin-bottom:16px"><div class="list">'+(hits.length||gone.length?hits.map(({d,f,cn})=>'<div class="item">'+driveSw(d)+'<div class="main"><div class="t">'+esc(f.name)+' <span class="muted">· on '+esc(d.name)+'</span></div><div class="meta">'+(cn?esc(cn)+' · ':'')+(f.size!=null?fmtBytes(f.size)+' · ':'')+'drive '+(driveNow(driveRec(d.id))?'plugged in now':'last seen '+ago(driveRec(d.id).spaceAt))+'</div></div><span></span></div>').join('')+gone.map(a=>'<div class="item"><span class="dot" style="background:var(--ok)"></span><div class="main"><div class="t">'+esc(a.name)+' <span class="muted">· archived</span></div><div class="meta">'+(a.clientId?esc(cname(a.clientId))+' · ':'')+'on the NAS and the archive drive since '+archWhen(a)+(a.d?' · was on '+esc(a.d.name):'')+'</div></div><span></span></div>').join(''):'<div class="empty">Not on any drive Studio has seen. Drives update when they are plugged in.</div>')+'</div></section>';
 }
 
 function linkPicker(did,fname){const l=(driveRec(did).links||{})[fname]||'';
@@ -1813,7 +1842,7 @@ function linkPicker(did,fname){const l=(driveRec(did).links||{})[fname]||'';
 
 function folderRow(d,f,why){const key=d.id+'|'+f.name;const l=f.link;
   const who=S.drEdit===key?linkPicker(d.id,f.name):l.clientId?'<button class="link" style="color:var(--fg);text-decoration:none" data-act="openclient" data-v="'+l.clientId+'"><span class="dot" style="background:'+colour(l.clientId)+';width:8px;height:8px"></span> '+esc(cname(l.clientId))+'</button> <button class="link" data-act="drrelink" data-v="'+esc(key)+'">change</button>':l.none?'<span class="muted">Not a client folder</span> <button class="link" data-act="drrelink" data-v="'+esc(key)+'">change</button>':linkPicker(d.id,f.name);
-  return '<div class="item"><span></span><div class="main"><div class="t">'+esc(f.name)+(why?' <span class="muted">· '+why+'</span>':'')+'</div><div class="meta drmeta">'+who+'<span>changed '+fmtDate(f.mtime||0,{day:'numeric',month:'short',year:'numeric'})+'</span></div></div><div class="end"><span class="num">'+(f.size!=null?fmtBytes(f.size):'<span class="muted">measuring</span>')+'</span></div></div>'}
+  return '<div class="item"><span></span><div class="main"><div class="t">'+esc(f.name)+(why?' <span class="muted">· '+why+'</span>':'')+'</div><div class="meta drmeta">'+who+'<span>changed '+fmtDate(f.mtime||0,{day:'numeric',month:'short',year:'numeric'})+'</span>'+archTag(d,f)+'</div></div><div class="end"><span class="num">'+(f.size!=null?fmtBytes(f.size):'<span class="muted">measuring</span>')+'</span></div></div>'}
 
 function driveCard(d){const r=driveRec(d.id);
   const head='<div class="panel-head"><div style="display:flex;gap:10px;align-items:center;min-width:0">'+driveSw(d)+'<h3>'+esc(d.name)+'</h3><span class="note">'+d.tb+' TB '+d.model+'</span></div>'+(r.spaceAt?'<span class="eyebrow">'+(driveNow(r)?'Plugged in now':'Seen '+ago(r.spaceAt))+'</span>':'')+'</div>';
@@ -1822,13 +1851,13 @@ function driveCard(d){const r=driveRec(d.id);
   const low=driveLow(d),tight=driveTight(d);
   const fs=driveFolders(d.id);const sized=fs.filter(f=>f.size!=null&&!f.stale);const lastSize=sized.length?Math.min(...sized.map(f=>f.sizeAt||0)):0;
   const sorted=fs.slice().sort((a,b)=>(b.size||0)-(a.size||0)||a.name.localeCompare(b.name));
-  const clear=low||tight?fs.slice().sort((a,b)=>(b.link.clientId&&clientDone(b.link.clientId))-(a.link.clientId&&clientDone(a.link.clientId))||(a.mtime||0)-(b.mtime||0)).slice(0,5):[];
+  const clear=low||tight?fs.slice().sort((a,b)=>archSafe(archItem(d.id,b.name))-archSafe(archItem(d.id,a.name))||archReady(d,b)-archReady(d,a)||(a.mtime||0)-(b.mtime||0)).slice(0,5):[];
   const open=(S.drOpen||{})[d.id];
   return '<section class="panel'+(low?' drlow':'')+'">'+head+
   '<div class="rbar" style="height:10px"><i style="width:'+pct+'%;background:'+(low?'var(--danger)':tight?'var(--warn)':'var(--ok)')+'"></i></div>'+
   '<div class="drspace"><b style="'+(low?'color:var(--danger)':tight?'color:var(--warn)':'')+'">'+fmtBytes(free)+' free</b><span class="note">of '+fmtBytes(total)+' · keep '+driveMin(d)+' GB free'+(low?' · <b style="color:var(--danger)">below that now</b>':tight?' · getting close':'')+'</span></div>'+
   '<p class="note" style="margin:6px 0 0">'+fs.length+' main folder'+(fs.length===1?'':'s')+' · '+(sized.length<fs.length?'measuring folder sizes, '+sized.length+' of '+fs.length+' done':'sizes updated '+ago(lastSize))+(r.by?' · last read on '+esc(name(r.by))+'’s Mac':'')+'</p>'+
-  (clear.length?'<div class="drclear"><div class="eyebrow" style="margin:14px 0 2px">'+(low?'Clear first':'Candidates to clear')+'</div><div class="list">'+clear.map(f=>folderRow(d,f,f.link.clientId&&clientDone(f.link.clientId)?'work finished':'untouched '+ago(f.mtime||0).replace(' ago',''))).join('')+'</div></div>':'')+
+  (clear.length?'<div class="drclear"><div class="eyebrow" style="margin:14px 0 2px">'+(low?'Clear first':'Candidates to clear')+'</div><div class="list">'+clear.map(f=>folderRow(d,f,archReady(d,f)?'':'untouched '+ago(f.mtime||0).replace(' ago',''))).join('')+'</div></div>':'')+
   (fs.length?'<button class="link" style="margin-top:12px" data-act="drfolders" data-v="'+d.id+'">'+(open?'Hide folders':'Show all '+fs.length+' folders')+'</button>'+(open?'<div class="list">'+sorted.map(f=>folderRow(d,f)).join('')+'</div>':''):'<div class="empty" style="margin-top:12px">No folders on this drive.</div>')+
   '<p class="note" style="margin:14px 0 0"><button class="link" data-act="drforget" data-v="'+d.id+'">Wrong drive? Forget it</button>, and the Mac asks again next time it is plugged in.</p></section>';
 }
@@ -1841,6 +1870,7 @@ function vDrives(){
   '<div class="row" style="align-items:center;margin-bottom:14px"><div class="qbox" style="flex:1;min-width:200px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="drq" type="search" placeholder="Where is… (client or folder)" value="'+esc(S.drQuery||'')+'" autocomplete="off" style="font-size:15px;padding:11px 0"></div></div>'+
   '<div id="drfind">'+driveFindHtml()+'</div>'+
   (loose.length?'<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Needs sorting</h3><span class="note">'+loose.length+' folder'+(loose.length===1?'':'s')+' not linked to a client</span></div><p class="note" style="margin:0 0 4px">Pick the client once and it sticks. Or rename the folder on the drive to the client’s name in Studio and it links itself.</p><div class="list">'+loose.map(({d,f})=>folderRow(d,f,'on '+esc(d.name))).join('')+'</div></section>':'')+
+  archPanel()+
   '<div class="grid g2">'+DRIVES.map(driveCard).join('')+'</div>'+
   '<p class="note" style="margin-top:16px">Drives update by themselves when they are plugged into a Mac running the Quiet Studio menu bar app: free space straight away and every few minutes, then each folder’s size in the background. Leave them plugged in a while for sizes to finish. Warning levels are in Settings.</p>';
 }
@@ -2372,6 +2402,9 @@ document.addEventListener('click',async ev=>{
     case 'syncnow':syncAll();toast('Syncing');break;
     case 'drfolders':S.drOpen={...(S.drOpen||{}),[v]:!(S.drOpen||{})[v]};render();break;
     case 'drrelink':S.drEdit=v;render();break;
+    case 'arch':{const w=b.dataset.k;const it=archItems()[v]||{};setArch(v,{[w]:it[w]?0:Date.now(),skip:false});break}
+    case 'archmark':setArch(v,{marked:true,skip:false});toast('Added to Ready to archive');break;
+    case 'archskip':setArch(v,{skip:true,marked:false,nas:0,hdd:0});toast('Kept on the T7');break;
     case 'drforget':{if(!confirmed('drforget'+v)){toast('Press again to forget which drive this is');break}patch('drives',v,{uuid:''});toast('Forgotten. The Mac asks which drive it is next time it is plugged in.');break}
     case 'signout':if(!confirmed('signout')){toast('Press again to sign out and clear this device');break}signOut();break;
     case 'authmode':S.authMode=v;S.unlockErr='';S.authMsg='';render();break;
