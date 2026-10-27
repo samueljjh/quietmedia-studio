@@ -82,6 +82,8 @@ nav.tabs{display:flex;gap:2px;margin:6px 0 24px;overflow-x:auto;background:var(-
 nav.tabs button{background:none;border:0;padding:0 16px;height:34px;border-radius:999px;font-size:13px;font-weight:500;color:var(--muted);white-space:nowrap;transition:background .15s,color .15s}
 nav.tabs button[aria-current="page"]{color:var(--bg);background:var(--fg)}
 nav.tabs svg{display:none}
+nav.tabs .t-more,.moremenu{display:none}
+.iconbtn.off{opacity:.35}
 .livebar{display:none}
 @media (max-width:720px){
   .wrap{padding-block:10px 120px}
@@ -95,7 +97,25 @@ nav.tabs svg{display:none}
   nav.tabs button{flex:1;display:grid;justify-items:center;gap:3px;padding:6px 2px;height:auto;border-radius:12px;font-size:10px;letter-spacing:.02em;font-weight:500;background:none!important;color:var(--muted)}
   nav.tabs svg{display:block;width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.4}
   nav.tabs button[aria-current="page"]{color:var(--fg)}
-  nav.tabs .t-settings{display:none}
+  .top .iconbtn{width:36px;height:36px;min-height:36px}.top .seg button{padding:0 11px}.top{gap:6px}
+  @media (max-width:389px){.top .iconbtn{width:34px;height:34px;min-height:34px}.top .seg button{padding:0 9px}.top{gap:5px}}
+  nav.tabs{overflow:visible}
+  nav.tabs .t-settings,nav.tabs .t-drives,nav.tabs .t-invoicing,nav.tabs .t-insights,.top .hdr-settings{display:none}
+  nav.tabs .t-team{order:1}nav.tabs .t-clients{order:2}nav.tabs .t-today{order:3}nav.tabs .t-schedule{order:4}
+  nav.tabs .t-more{order:5;display:grid;position:relative}
+  nav.tabs .t-more.on,nav.tabs .t-more.open{color:var(--fg)}
+  nav.tabs .t-more svg{fill:currentColor;stroke:none}
+  nav.tabs .t-more .pg{position:absolute;bottom:calc(100% + 2px);right:4px;background:var(--fg);color:var(--bg);font-size:11px;letter-spacing:0;padding:4px 10px;border-radius:999px;white-space:nowrap;box-shadow:var(--shadow)}
+  nav.tabs .t-more.open .pg{display:none}
+  body.morepage .livebar.on{bottom:calc(94px + env(safe-area-inset-bottom,0px))}
+  .moremenu.on{display:block}
+  .moremenu .mscrim{position:fixed;inset:0;z-index:48;background:color-mix(in srgb,var(--bg) 40%,transparent);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);animation:f .2s var(--ease)}
+  .moremenu .mlist{position:fixed;right:10px;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:51;display:grid;gap:8px;justify-items:end}
+  .moremenu .mlist button{display:flex;align-items:center;gap:10px;background:var(--surface);color:var(--fg);border:0;border-radius:999px;padding:12px 18px 12px 14px;font-size:15px;font-weight:500;box-shadow:var(--shadow),inset 0 0 0 1px var(--line-strong);animation:fan .28s var(--ease) both;position:relative}
+  .moremenu .mlist button.cur{background:var(--fg);color:var(--bg)}
+  .moremenu .mlist button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.4}
+  .moremenu .mlist button:nth-last-child(1){animation-delay:0ms}.moremenu .mlist button:nth-last-child(2){animation-delay:35ms}.moremenu .mlist button:nth-last-child(3){animation-delay:70ms}.moremenu .mlist button:nth-last-child(4){animation-delay:105ms}
+  .moremenu .mlist button.alert::after{content:'';position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--danger)}
   .livebar.on{display:flex;position:fixed;left:12px;right:12px;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:49;background:var(--fg);color:var(--bg);align-items:center;gap:12px;padding:10px 12px 10px 16px;font-size:13px;border-radius:999px;box-shadow:var(--shadow)}
   .livebar .lt{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .livebar .lt b{font-weight:500;font-variant-numeric:tabular-nums;margin-right:8px}
@@ -130,6 +150,8 @@ nav.tabs svg{display:none}
 .mcell .n{transition:background .2s,color .2s,transform .2s var(--ease)}
 .mcell.sel .n{transform:scale(1.08)}
 .toast{animation:up .35s var(--ease)}
+@keyframes fan{from{opacity:0;transform:translateY(18px) scale(.9)}}
+.toast.act{display:flex;align-items:center;gap:14px;padding:6px 6px 6px 16px}.toast.act button{background:var(--bg);color:var(--fg);border:0;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:500}
 .livebar.on{animation:up .4s var(--ease)}
 .fab{transition:transform .2s var(--ease),box-shadow .2s}.fab:active{transform:scale(.92)}
 .syncdot{transition:background .4s}
@@ -137,7 +159,7 @@ nav.tabs svg{display:none}
 .stage{transform-origin:50% 25%;will-change:transform,opacity}
 @keyframes zi{from{transform:scale(var(--zfrom,.94));opacity:0}}@keyframes zo{from{transform:scale(var(--zfrom,1.06));opacity:0}}
 @keyframes sl{from{transform:translateX(26px);opacity:0}}@keyframes sr{from{transform:translateX(-26px);opacity:0}}
-@media (prefers-reduced-motion:reduce){.fade,.zi,.zo,.sl,.sr,#view.fade>*,.cards .card,.toast,.livebar.on{animation:none}}
+@media (prefers-reduced-motion:reduce){.fade,.zi,.zo,.sl,.sr,#view.fade>*,.cards .card,.toast,.livebar.on,.moremenu .mlist button,.moremenu .mscrim{animation:none}}
 
 /* banners */
 .banner{background:var(--raise);border-radius:var(--r);padding:10px 14px;font-size:13px;margin-bottom:20px;color:var(--muted)}
@@ -527,6 +549,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 body.scrolled .topfade{opacity:1}@media (min-width:820px){.topfade{display:none}}
 .filming .nudge{margin:0 0 16px;box-shadow:inset 0 0 0 1.5px var(--fg)}.filming a.btn{text-decoration:none}.travel{margin-top:6px;font-size:14px}.travel a{color:inherit}.csb-travel{max-width:720px;margin:-8px auto 24px;padding:14px 16px;border-radius:var(--r);background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong);display:grid;gap:6px}.csb-travel:not(:has(.travel)){display:none}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
+.nudge.has-x{position:relative;padding-right:46px}.nudge-x{position:absolute;top:6px;right:6px;width:36px;height:36px;border-radius:50%;background:transparent;border:0;color:var(--muted);display:grid;place-items:center;flex:none;opacity:.6}.nudge-x:hover{opacity:1;background:var(--line)}.nudge-x svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
 </style>
 <style>[hidden]{display:none!important}html,body{height:100%}body{padding-top:env(safe-area-inset-top,0px)}</style>
@@ -544,7 +567,8 @@ body.scrolled .topfade{opacity:1}@media (min-width:820px){.topfade{display:none}
     </div>
     <div class="seg" id="personSeg" role="group" aria-label="Who is using this device"></div>
     <button class="iconbtn" data-act="search" aria-label="Search (⌘K)" title="Search  ⌘K"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg></button><span id="syncDot" class="syncdot idle" title="Not synced"></span><button class="iconbtn" id="moneyBtn" aria-label="Show or hide amounts" aria-pressed="false" title="Show or hide amounts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/><path class="slash" d="M2.5 13.5l11-11"/></svg></button><button class="iconbtn" id="themeBtn" aria-label="Switch light or dark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><circle cx="8" cy="8" r="5.5"/><path d="M8 2.5v11" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg></button>
-    <button class="iconbtn" data-act="nav" data-v="settings" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="11" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg></button>
+    <button class="iconbtn off" id="undoBtn" data-act="undo" aria-label="Undo (⌘Z)" title="Undo  ⌘Z"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2.5 6.5l3 3"/><path d="M2.5 6.5h7a4 4 0 0 1 0 8H7"/></svg></button>
+    <button class="iconbtn hdr-settings" data-act="nav" data-v="settings" aria-label="Settings"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor"><path d="M2 4h12M2 8h12M2 12h12"/><circle cx="5" cy="4" r="1.5" fill="currentColor"/><circle cx="11" cy="8" r="1.5" fill="currentColor"/><circle cx="7" cy="12" r="1.5" fill="currentColor"/></svg></button>
   </header>
   <nav class="tabs" id="tabs"></nav>
   <div id="banner"></div>
@@ -600,7 +624,7 @@ const parseLocal=(date,time)=>{const [y,m,d]=date.split('-').map(Number);const [
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const activeClients=()=>Object.values(S.clients).filter(c=>!c.archived).sort((a,b)=>a.name.localeCompare(b.name));
 
-function toast(msg){const r=$('#toastRoot');r.innerHTML='<div class="toast" role="status">'+esc(msg)+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>r.innerHTML='',2600)}
+function toast(msg,o){const r=$('#toastRoot');r.innerHTML='<div class="toast'+(o&&o.undo?' act':'')+'" role="status">'+esc(msg)+(o&&o.undo?'<button data-act="undo">Undo</button>':'')+'</div>';clearTimeout(toast.t);toast.t=setTimeout(()=>r.innerHTML='',o&&o.undo?5000:2600)}
 
 /* ---------- data layer: Supabase (Postgres, row-level security, realtime) with a local cache so the app opens offline ----------
    Every record is a row in `records` (org, collection, id, JSON, updated_at). Newest write wins. Deletes are tombstones.
@@ -614,7 +638,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=50;
+const APP_VERSION=53;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -688,12 +712,27 @@ function subscribeRealtime(){
 }
 
 /* write API used by the views */
-function touch(col,id,data){S[col][id]={...data,id,_u:Date.now()};(DIRTY[col]=DIRTY[col]||{})[id]=true;cacheSave();render();schedulePush();return id}
+function touch(col,id,data){noteUndo(col,id);S[col][id]={...data,id,_u:Date.now()};(DIRTY[col]=DIRTY[col]||{})[id]=true;cacheSave();render();schedulePush();return id}
 async function put(col,id,data){return touch(col,id||uid(),data)}
 async function patch(col,id,data){return touch(col,id,{...S[col][id],...data})}
-async function remove(col,id){delete S[col][id];(DEAD[col]=DEAD[col]||{})[id]=Date.now();(DIRTY[col]=DIRTY[col]||{})[id]=true;cacheSave();render();schedulePush()}
-async function saveSettings(data){S.settings={...S.settings,...data,_u:Date.now()};(DIRTY.settings=DIRTY.settings||{}).app=true;cacheSave();render();schedulePush()}
+async function remove(col,id){noteUndo(col,id);delete S[col][id];(DEAD[col]=DEAD[col]||{})[id]=Date.now();(DIRTY[col]=DIRTY[col]||{})[id]=true;cacheSave();render();schedulePush()}
+async function saveSettings(data){noteUndo('settings','app');S.settings={...S.settings,...data,_u:Date.now()};(DIRTY.settings=DIRTY.settings||{}).app=true;cacheSave();render();schedulePush()}
 function stripId(o){const c={...o};delete c.id;return c}
+/* undo: every save above notes what the record looked like before. Saves a moment apart from one tap are one step; the last 30 steps
+   are kept. Only changes you made count (a tap or key in the last few seconds), so syncing and crew replies arriving are never undone.
+   ⌘Z / Ctrl+Z on a computer, the arrow in the header on the phone, or Undo on a message. */
+const UNDO=[];let undoQuiet=0,userAt=0;
+['pointerdown','keydown','input','change'].forEach(t=>document.addEventListener(t,()=>{userAt=Date.now()},true));
+function noteUndo(col,id){if(undoQuiet||Date.now()-userAt>5000)return;const now=Date.now();let st=UNDO[UNDO.length-1];
+  if(!st||st.fn||now-st.at>1000){st={at:now,recs:{}};UNDO.push(st);if(UNDO.length>30)UNDO.shift()}st.at=now;
+  const k=col+'|'+id;if(!(k in st.recs)){const cur=col==='settings'?S.settings:S[col][id];st.recs[k]=cur?JSON.parse(JSON.stringify(cur)):null}renderUndoBtn()}
+function pushUndo(fn){UNDO.push({at:Date.now(),fn});if(UNDO.length>30)UNDO.shift();renderUndoBtn()}
+function undo(){const st=UNDO.pop();if(!st){toast('Nothing to undo');return}if(S.modal)closeModal();undoQuiet++;
+  try{if(st.fn)st.fn();else Object.entries(st.recs).forEach(([k,v])=>{const i=k.indexOf('|'),col=k.slice(0,i),id=k.slice(i+1);
+    if(col==='settings'){S.settings={...DEF_SETTINGS,...v,_u:Date.now()};(DIRTY.settings=DIRTY.settings||{}).app=true;cacheSave();schedulePush()}
+    else if(v){if(DEAD[col])delete DEAD[col][id];touch(col,id,v)}else if(S[col][id])remove(col,id)})}
+  finally{undoQuiet--}render();renderUndoBtn();toast('Undone')}
+function renderUndoBtn(){const b=$('#undoBtn');if(b)b.classList.toggle('off',!UNDO.length)}
 function banner(msg,cls){$('#banner').innerHTML=msg?'<div class="banner '+(cls||'')+'">'+msg+'</div>':''}
 function renderSyncDot(){const el=$('#syncDot');if(!el)return;const s=S.sync.state;el.className='syncdot '+s;el.title=s==='ok'?'Synced '+fmtTime(S.sync.last):s==='syncing'?'Syncing':s==='offline'?'Offline, changes saved on this device':S.sync.err||s}
 
@@ -746,6 +785,8 @@ async function invite(email){const {error}=await sb.from('invites').upsert({emai
 
 /* both devices run the same version: check version.json (never cached) when the app is opened or comes back, and update */
 async function checkVersion(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=+(await r.json()).v||0;if(v<=APP_VERSION)return;
+  // reload once per new version: if the page comes back still old (a server handing out a cached copy), don't loop, wait for next time
+  try{if(+sessionStorage.getItem('qm-reloadedFor')===v)return;sessionStorage.setItem('qm-reloadedFor',v)}catch(e){return}
   try{const reg=await navigator.serviceWorker.getRegistration();if(reg)await reg.update()}catch(e){}
   if(!S.modal){location.reload();return}S.updateReady=v;renderSyncDot();toast('Update '+v+' ready. It installs when you close this.')}catch(e){}}
 async function boot(){if(S.view==='schedule')S.cal.toToday=true;
@@ -1148,8 +1189,15 @@ const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['te
 function renderChrome(){
   $('#personSeg').innerHTML=PEOPLE.map(p=>'<button data-act="person" data-v="'+p.id+'" aria-pressed="'+(S.person===p.id)+'">'+esc(name(p.id))+'</button>').join('');
   const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',drives:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 14h5"/><circle cx="16.5" cy="12" r=".6"/>',team:'<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
-  $('#tabs').innerHTML=TABS.map(([k,l])=>'<button class="t-'+k+(k==='drives'&&DRIVES.some(driveLow)?' alert':'')+'" data-act="nav" data-v="'+k+'" '+(S.view===k?'aria-current="page"':'')+'><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+l+'</button>').join('');
+  $('#tabs').innerHTML=TABS.map(([k,l])=>'<button class="t-'+k+(k==='drives'&&DRIVES.some(driveLow)?' alert':'')+'" data-act="nav" data-v="'+k+'" '+(S.view===k?'aria-current="page"':'')+'><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+l+'</button>').join('')+
+    (()=>{const cur=MORE.find(k=>k===S.view);return '<button class="t-more'+(cur?' on':'')+(S.moreOpen?' open':'')+(DRIVES.some(driveLow)?' alert':'')+'" data-act="more" aria-expanded="'+!!S.moreOpen+'"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>More'+(cur?'<span class="pg">'+TABS.find(t=>t[0]===cur)[1]+'</span>':'')+'</button>'})();
+  /* on the phone the bar keeps Team, Clients, Today, Schedule; the rest fan up from More */
+  let mm=$('#moreMenu');if(!mm){mm=document.createElement('div');mm.id='moreMenu';document.body.appendChild(mm)}
+  mm.className='moremenu'+(S.moreOpen?' on':'');
+  mm.innerHTML=S.moreOpen?'<div class="mscrim" data-act="more"></div><div class="mlist">'+MORE.map(k=>'<button class="'+(S.view===k?'cur':'')+(k==='drives'&&DRIVES.some(driveLow)?' alert':'')+'" data-act="nav" data-v="'+k+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+TABS.find(t=>t[0]===k)[1]+'</button>').join('')+'</div>':'';
+  document.body.classList.toggle('morepage',MORE.includes(S.view));
 }
+const MORE=['invoicing','insights','drives','settings'];
 let renderQueued=false;
 function render(){ if(renderQueued)return; renderQueued=true; requestAnimationFrame(()=>{renderQueued=false;doRender()}) }
 function doRender(){
@@ -1227,15 +1275,20 @@ function vToday(){
    The day before, the same card shows tomorrow's shoot so you know when to leave. */
 function filmingToday(d0){
   const d1=startOfDay(d0+36*3.6e6);
-  const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&(startOfDay(e.start)===d0||startOfDay(e.start)===d1)).sort((a,b)=>a.start-b.start);
+  const hid=filmHidden();const shoots=Object.values(S.events).filter(e=>e.type==='Shoot'&&e.status!=='cancelled'&&!hid[e.id]&&(startOfDay(e.start)===d0||startOfDay(e.start)===d1)).sort((a,b)=>a.start-b.start);
   if(!shoots.length)return '';
   return '<div class="filming">'+shoots.map(e=>{const a=sheetAnchor(e);const sh=a.sheet||{};const url=sh.publishedAt?sheetUrlFor(e,sh):'';
     const d=shootDay(e);const loc=d.location&&(d.location.name||d.location.address)||e.location||'';
     const g=groupOf(e).filter(x=>x.status!=='cancelled');const n=g.length>1?' · day '+(g.findIndex(x=>x.id===e.id)+1)+' of '+g.length:'';
-    return '<div class="nudge"><span class="dot" style="background:'+colour(e.clientId)+'"></span><div><b>Filming '+(startOfDay(e.start)===d0?'today':'tomorrow')+': '+esc(e.title)+'</b><div class="note">Call '+esc(d.call||e.callTime||fmtTime(e.start))+(e.clientId?' · '+esc(cname(e.clientId)):'')+(loc?' · '+esc(loc):'')+n+'</div>'+travelLine(e)+'</div>'+
+    return '<div class="nudge has-x"><span class="dot" style="background:'+colour(e.clientId)+'"></span><div><b>Filming '+(startOfDay(e.start)===d0?'today':'tomorrow')+': '+esc(e.title)+'</b><div class="note">Call '+esc(d.call||e.callTime||fmtTime(e.start))+(e.clientId?' · '+esc(cname(e.clientId)):'')+(loc?' · '+esc(loc):'')+n+'</div>'+travelLine(e)+'</div>'+
     (url?'<a class="btn small" href="'+esc(url)+'" target="_blank" rel="noopener">Open call sheet</a><button class="link" data-act="callsheet" data-v="'+a.id+'">edit</button>'
-    :'<button class="btn small ghost" data-act="callsheet" data-v="'+a.id+'">'+(sh.days?'Finish call sheet':'Build call sheet')+'</button>')+'</div>'}).join('')+'</div>';
+    :'<button class="btn small ghost" data-act="callsheet" data-v="'+a.id+'">'+(sh.days?'Finish call sheet':'Build call sheet')+'</button>')+
+    '<button class="nudge-x" data-act="filmhide" data-v="'+e.id+'" aria-label="Remove from Today" title="Remove from Today"><svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>'}).join('')+'</div>';
 }
+/* The X on a filming card hides that shoot from Today on this device. Old entries clear themselves after a month. */
+function filmHidden(){try{return JSON.parse(localStorage.getItem('qm-filmhide')||'{}')}catch(e){return {}}}
+function filmUnhide(id){try{const z=filmHidden();delete z[id];localStorage.setItem('qm-filmhide',JSON.stringify(z))}catch(e){}}
+function filmHide(id){try{const z=filmHidden();Object.keys(z).forEach(k=>{if(Date.now()-z[k]>30*864e5)delete z[k]});z[id]=Date.now();localStorage.setItem('qm-filmhide',JSON.stringify(z))}catch(e){}}
 /* ===== travel from home: private to this device's person, never put on the published call sheet ===== */
 function shootDay(e,sh){sh=sh||sheetAnchor(e).sheet||{};return (sh.days||[]).find(x=>x.id===e.id)||{}}
 function shootPlace(e,sh){sh=sh||sheetAnchor(e).sheet||{};const at=l=>((l&&(l.address||l.name))||'').trim();return at(shootDay(e,sh).location)||(e.location||'').trim()||(sh.days||[]).map(d=>at(d.location)).find(Boolean)||''}
@@ -2189,7 +2242,7 @@ async function crewRelease(evid,cid){const ev=S.events[evid];const x=(ev.crew||[
 /* replies from crew land in sheet_responses; apply the newest to the booking */
 async function pullCrewResponses(){if(!sb||!ORG)return;const want={};Object.values(S.events).forEach(e=>(e.crew||[]).forEach(x=>{const f=x.forms||{};if(f.pencil&&f.pencil.sid)want[f.pencil.sid]=1;if(f.book&&f.book.sid)want[f.book.sid]=1;Object.keys(x.call||{}).forEach(k=>want[k]=1)}));const ids=Object.keys(want);if(!ids.length)return;
   const {data,error}=await sb.from('sheet_responses').select('id,sheet_id,kind,data,created_at').in('sheet_id',ids).order('id',{ascending:true});if(error){if(!S.respWarned){S.respWarned=1;console.warn('crew replies:',error.message)}return}
-  for(const r of (data||[]))await applyCrewResponse(r)}
+  undoQuiet++;try{for(const r of (data||[]))await applyCrewResponse(r)}finally{undoQuiet--}}
 async function applyCallAck(r){const d=r.data||{};const cid=d.person;const v=+d.version||0;const at=Date.parse(r.created_at)||Date.now();
   const ev=Object.values(S.events).find(e=>{const a=sheetAnchor(e);return (a.groupId||a.id)+'c'===r.sheet_id&&(e.crew||[]).some(x=>x.id===cid)});if(!ev)return;
   const x=ev.crew.find(y=>y.id===cid);const cur=((x.call||{})[r.sheet_id])||{};if((cur.rid||0)>=r.id)return;
@@ -2338,7 +2391,7 @@ document.addEventListener('click',async ev=>{
   if(a!=='closemodal'||b.tagName==='BUTTON')haptic(a==='start'||a==='stop'||a==='saveevent'||a==='cspublish'?'heavy':'light');
   if(a==='closemodal'){if(ev.target===b||b.tagName==='BUTTON')closeModal();return}
   switch(a){
-    case 'nav':S.view=v;S.client=null;S.sub=null;try{localStorage.setItem('qm-view',v)}catch(e){}if(v==='schedule'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.cal.toToday=true}render();window.scrollTo(0,0);break;
+    case 'nav':S.moreOpen=false;S.view=v;S.client=null;S.sub=null;try{localStorage.setItem('qm-view',v)}catch(e){}if(v==='schedule'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.cal.toToday=true}render();window.scrollTo(0,0);break;
     case 'person':S.person=v;try{localStorage.setItem('qm-person',v)}catch(e){}render();break;
     case 'start':startTimer();break;
     case 'stop':stopTimer(v);break;
@@ -2422,6 +2475,9 @@ document.addEventListener('click',async ev=>{
     case 'leavefrom':patch('events',v,{leaveFrom:b.dataset.k});if(S.modal&&S.modal.type==='callsheet')csTravel();break;
     case 'drfolders':S.drOpen={...(S.drOpen||{}),[v]:!(S.drOpen||{})[v]};render();break;
     case 'drrelink':S.drEdit=v;render();break;
+    case 'filmhide':filmHide(v);pushUndo(()=>filmUnhide(v));render();toast('Removed from Today',{undo:true});break;
+    case 'undo':$('#toastRoot').innerHTML='';undo();break;
+    case 'more':S.moreOpen=!S.moreOpen;renderChrome();break;
     case 'drsnooze':drSnooze(v.split(','));render();toast('Hidden for 3 days, or until it gets fuller');break;
     case 'arch':{const w=b.dataset.k;const it=archItems()[v]||{};setArch(v,{[w]:it[w]?0:Date.now(),skip:false});break}
     case 'archmark':setArch(v,{marked:true,skip:false});toast('Added to Ready to archive');break;
@@ -2546,6 +2602,7 @@ addEventListener('scroll',()=>{document.body.classList.toggle('scrolled',scrollY
   document.addEventListener('pointerup',e=>{if(e.pointerType==='mouse'){const was=d&&d.on;end();if(was){const stop=ev=>{ev.stopPropagation();ev.preventDefault()};document.addEventListener('click',stop,{capture:true,once:true});setTimeout(()=>document.removeEventListener('click',stop,{capture:true}),50)}}});
 })();
 document.addEventListener('keydown',ev=>{if(S.locked)return;const typing=ev.target.matches&&ev.target.matches('input,select,textarea');
+  if((ev.metaKey||ev.ctrlKey)&&!ev.shiftKey&&ev.key.toLowerCase()==='z'&&!typing&&!(ev.target.isContentEditable)){ev.preventDefault();undo();return}
   if((ev.metaKey||ev.ctrlKey)&&ev.key.toLowerCase()==='k'){ev.preventDefault();if(S.modal&&S.modal.type==='search')closeModal();else openSearch();return}
   if(ev.key==='/'&&!typing&&!S.modal){ev.preventDefault();openSearch();return}
   if(S.modal&&S.modal.type==='search'&&ev.target.id==='qin'){const n=(S.qres||[]).length;if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault();S.qsel=((S.qsel||0)+(ev.key==='ArrowDown'?1:-1)+n)%Math.max(1,n);document.getElementById('qres').innerHTML=searchHtml(ev.target.value);const el=document.querySelector('.qres [aria-selected=true]');if(el)el.scrollIntoView({block:'nearest'})}else if(ev.key==='Enter'){ev.preventDefault();searchGo(S.qsel||0)}}},true);
@@ -2563,7 +2620,7 @@ document.addEventListener('change',async ev=>{const t=ev.target;
 document.addEventListener('input',ev=>{if(ev.target.id==='m-colour'){S.modal.c.colour=ev.target.value;document.querySelectorAll('.swatches [data-act=swatch]').forEach(b=>b.setAttribute('aria-pressed','false'))}});
 /* who is busy on a day: bookings of busy types, not cancelled, at least availMinHours long */
 function busyOn(day,person){const min=(+S.settings.availMinHours||3)*3.6e6;return Object.values(S.events).filter(e=>e.status!=='cancelled'&&BUSY_TYPES[e.type]&&startOfDay(e.start)===day&&(e.end-e.start)>=min&&(!person||(e.people||[]).includes(person)||e.type==='Unavailable'&&!(e.people||[]).length))}
-document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&S.modal)closeModal();if(S.view==='schedule'&&!S.modal&&!ev.target.matches('input,select,textarea')){if(ev.key==='ArrowLeft')calMove(-1);if(ev.key==='ArrowRight')calMove(1);if(ev.key==='ArrowUp'){ev.preventDefault();calZoom(-1)}if(ev.key==='ArrowDown'){ev.preventDefault();calZoom(1)}if(ev.key.toLowerCase()==='t'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.calAnim='zo';render()}if(ev.key.toLowerCase()==='n'){ev.preventDefault();openEventModal(null,S.cal.sel?dayKey(S.cal.sel):null)}}});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&S.modal)closeModal();if(ev.key==='Escape'&&S.moreOpen){S.moreOpen=false;renderChrome()}if(S.view==='schedule'&&!S.modal&&!ev.target.matches('input,select,textarea')){if(ev.key==='ArrowLeft')calMove(-1);if(ev.key==='ArrowRight')calMove(1);if(ev.key==='ArrowUp'){ev.preventDefault();calZoom(-1)}if(ev.key==='ArrowDown'){ev.preventDefault();calZoom(1)}if(ev.key.toLowerCase()==='t'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.calAnim='zo';render()}if(ev.key.toLowerCase()==='n'){ev.preventDefault();openEventModal(null,S.cal.sel?dayKey(S.cal.sel):null)}}});
 function syncThemeColor(){const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':!matchMedia('(prefers-color-scheme: light)').matches;const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=dark?'#0A0A0A':'#F5F4F2'}
 $('#themeBtn').addEventListener('click',()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':!matchMedia('(prefers-color-scheme: light)').matches;r.dataset.theme=dark?'light':'dark';try{localStorage.setItem('qm-theme',r.dataset.theme)}catch(e){}syncThemeColor()});
 matchMedia('(prefers-color-scheme: light)').addEventListener('change',syncThemeColor);
