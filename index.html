@@ -638,7 +638,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=52;
+const APP_VERSION=53;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -785,6 +785,8 @@ async function invite(email){const {error}=await sb.from('invites').upsert({emai
 
 /* both devices run the same version: check version.json (never cached) when the app is opened or comes back, and update */
 async function checkVersion(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const v=+(await r.json()).v||0;if(v<=APP_VERSION)return;
+  // reload once per new version: if the page comes back still old (a server handing out a cached copy), don't loop, wait for next time
+  try{if(+sessionStorage.getItem('qm-reloadedFor')===v)return;sessionStorage.setItem('qm-reloadedFor',v)}catch(e){return}
   try{const reg=await navigator.serviceWorker.getRegistration();if(reg)await reg.update()}catch(e){}
   if(!S.modal){location.reload();return}S.updateReady=v;renderSyncDot();toast('Update '+v+' ready. It installs when you close this.')}catch(e){}}
 async function boot(){if(S.view==='schedule')S.cal.toToday=true;
