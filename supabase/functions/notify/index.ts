@@ -46,7 +46,7 @@ export async function vapidHeader(endpoint: string, vapid: any) {
 async function sendPush(sub: any, msg: any, vapid: any) {
   const r = await fetch(sub.endpoint, { method: 'POST', body: await encrypt(JSON.stringify(msg), sub.keys.p256dh, sub.keys.auth), headers: {
     'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', TTL: '86400', Urgency: 'high', Authorization: await vapidHeader(sub.endpoint, vapid) } });
-  return r.status;
+  return { status: r.status, reply: r.status < 300 ? '' : (await r.text().catch(() => '')).slice(0, 200) };
 }
 
 /* ---------- what to say ---------- */
@@ -118,9 +118,14 @@ async function handle(req: Request) {
 
   const toSubs = async (subs: any[], msg: any) => {
     let sent = 0;
+    if (!subs || !subs.length) console.log('push: no devices to send to');
     for (const s of subs || []) {
-      try { const st = await sendPush(s.sub, { ...msg, url: './' }, vapid); if (st === 404 || st === 410) await db.from('push_subs').delete().eq('endpoint', s.endpoint); else if (st < 300) sent++; }
-      catch (_) { /* one bad device never stops the rest */ }
+      const host = (() => { try { return new URL(s.endpoint).host; } catch (_) { return '?'; } })();
+      try {
+        const { status, reply } = await sendPush(s.sub, { ...msg, url: './' }, vapid);
+        console.log('push', msg.tag, host, status, reply);   // shows in the function's Logs: 201 = accepted
+        if (status === 404 || status === 410) await db.from('push_subs').delete().eq('endpoint', s.endpoint); else if (status < 300) sent++;
+      } catch (e) { console.log('push', msg.tag, host, 'failed', String(e)); /* one bad device never stops the rest */ }
     }
     return sent;
   };
