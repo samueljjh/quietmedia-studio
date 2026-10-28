@@ -610,7 +610,7 @@ const DEFAULT_CREW_TERMS='1. Confirmation. This booking is confirmed when you si
 const DEFAULT_TERMS='A pencil holds the dates for you without obligation on either side. Once you confirm, the dates are yours and we turn other work away for them.\n\nMoving or cancelling a confirmed booking: free with more than 7 days\u2019 notice (one move per booking). Within 7 days, 50% of the fee is payable. Within 48 hours, the full fee is payable.\n\nFees are ex VAT and exclude travel and expenses, which are agreed in advance and itemised on the invoice. Payment is due within 30 days of invoice.\n\nWeather, access or illness on our side: we will offer the next available dates at no charge.';
 const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availWeeks:12,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS,driveMinShield:500,driveMinT7:250};
 
-const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},settings:{...DEF_SETTINGS},
+const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},enquiries:{},settings:{...DEF_SETTINGS},
   view:'today',client:null,week:0,period:'month',draft:{},modal:null,live:false,writable:true,loaded:{},
   cal:{mode:matchMedia('(max-width:720px)').matches?'month':'week',cursor:Date.now(),sel:null}};
 try{const cm=localStorage.getItem('qm-calmode');if(cm)S.cal.mode=cm==='list'?'day':cm}catch(e){}
@@ -651,12 +651,12 @@ const SB_URL='https://jxfnzlwwsvfcrstxpgzr.supabase.co';
 const SB_KEY='sb_publishable_tQiBC9EehadDkCdVhsqzUQ__7FfYpEV';
 const SHEETS_HOST='https://sheets.quietmedia.co.uk';
 const ORG_SLUG='quiet-media';
-const COLS=['clients','crew','projects','entries','invoices','events','drives','settings'];
+const COLS=['clients','crew','projects','entries','invoices','events','drives','settings','enquiries'];
 const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=55;
+const APP_VERSION=56;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -726,7 +726,7 @@ async function reconcile(force){
   return S.sync.check}
 function subscribeRealtime(){
   if(chan){try{sb.removeChannel(chan)}catch(e){}}
-  chan=sb.channel('records-'+ORG).on('postgres_changes',{event:'*',schema:'public',table:'records',filter:'org_id=eq.'+ORG},p=>{const r=p.new&&p.new.id?p.new:null;if(!r)return;applyRow(r);if(r.updated_at>SINCE)SINCE=r.updated_at;cacheSave();if(!S.modal||S.modal.type==='evsheet')render()}).subscribe();
+  chan=sb.channel('records-'+ORG).on('postgres_changes',{event:'*',schema:'public',table:'records',filter:'org_id=eq.'+ORG},p=>{const r=p.new&&p.new.id?p.new:null;if(!r)return;const fresh=r.col==='enquiries'&&!S.enquiries[r.id]&&!r.deleted_at;applyRow(r);if(r.updated_at>SINCE)SINCE=r.updated_at;cacheSave();if(fresh)toast('New booking request from '+((r.data||{}).name||'the availability page'));if(!S.modal||S.modal.type==='evsheet')render()}).subscribe();
 }
 
 /* write API used by the views */
@@ -1283,7 +1283,7 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
-  filmingToday(d0)+ditPanel('today')+lowDrivesNudge()+
+  filmingToday(d0)+ditPanel('today')+requestsPanel()+lowDrivesNudge()+
   '<div class="grid g2">'+cards+'</div>'+
   (()=>{const ex=[unassignedPanel(),allocatePanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
@@ -1581,8 +1581,9 @@ function animateOut(){const root=$('#modalRoot');const sc=root&&root.firstElemen
   sc.style.zIndex='199';document.body.appendChild(sc);const done=()=>{if(sc.parentNode)sc.remove()};sc.addEventListener('animationend',e=>{if(e.target===sc)done()});setTimeout(done,450)}
 function closeModal(){animateOut();S.modal=null;renderModal();if(S.updateReady)setTimeout(()=>{if(!S.modal)location.reload()},400)}
 
+const newClient=()=>({name:'',colour:COLOURS[Object.keys(S.clients).length%COLOURS.length],billing:'card',shortRate:300,halfDay:475,fullDay:750,editDay:350,editHours:8,hourlyRate:150,monthlyFee:0,vat:true,email:'',notes:''});
 function openClientModal(cid){
-  const c=cid?{...client(cid)}:{name:'',colour:COLOURS[Object.keys(S.clients).length%COLOURS.length],billing:'card',shortRate:300,halfDay:475,fullDay:750,editDay:350,editHours:8,hourlyRate:150,monthlyFee:0,vat:true,email:'',notes:''};
+  const c=cid?{...client(cid)}:newClient();
   S.modal={type:'client',c,html:()=>{const c=S.modal.c;return '<h2>'+(cid?'Edit client':'New client')+'</h2>'+
     '<label class="f">Client name<input type="text" id="m-name" value="'+esc(c.name)+'"></label>'+
     '<div><div class="eyebrow" style="margin-bottom:8px">Colour</div><div class="swatches">'+COLOURS.map(x=>'<button data-act="swatch" data-v="'+x+'" aria-label="Colour '+x+'" aria-pressed="'+(c.colour===x)+'" style="background:'+x+'"></button>').join('')+'<input type="color" id="m-colour" value="'+(/^#[0-9a-f]{6}$/i.test(c.colour)?c.colour:'#8A7F76')+'" title="Any colour" aria-label="Pick any colour"></div><p class="note" style="margin-top:6px">Brand neutrals, or the last swatch for any colour, such as the client\'s own.</p></div>'+
@@ -2137,12 +2138,12 @@ function miniCal(){
   const n=m.days.length;
   return h+'</div><p class="note" style="margin:6px 0 0">'+(n?n+' day'+(n===1?'':'s')+' selected: '+m.days.slice().sort((a,b)=>a-b).map(x=>fmtDate(x,{day:'numeric',month:'short'})).join(', '):'Tap the days you are working for this client.')+(m.evid?'':' Same times and crew apply to each day; edit a day afterwards if it differs.')+'</p>';
 }
-function openEventModal(evid,date,startAt,presetClient){
+function openEventModal(evid,date,startAt,presetClient,pre){
   const endAt=startAt?pad(Math.min(23,Number(startAt.slice(0,2))+(startAt>='15:00'?2:8)))+':00':null;
   const ev=evid?S.events[evid]:null;const t=ms=>fmtTime(ms);
   const day0=ev?startOfDay(ev.start):parseLocal(date||dayKey(Date.now()),'00:00');
   const crewSel={};(ev?ev.crew||[]:[]).forEach(x=>crewSel[x.id]=x);
-  S.modal={type:'event',evid:evid||null,days:(ev||date)?[day0]:[],calMonth:day0,crewSel,html:()=>'<h2>'+(ev?'Edit booking':'New booking')+'</h2>'+
+  S.modal={type:'event',evid:evid||null,days:pre&&pre.days?pre.days.slice():(ev||date)?[day0]:[],calMonth:day0,crewSel,enq:pre&&pre.enq||null,html:()=>'<h2>'+(ev?'Edit booking':pre&&pre.enq?'Pencil in the request':'New booking')+'</h2>'+
     '<div class="row"><label class="f">Client<select id="v-client">'+clientOptions(ev?ev.clientId:(presetClient||''),true)+'</select></label><label class="f">Type<select id="v-type">'+EVTYPES.map(x=>'<option '+(ev&&ev.type===x?'selected':'')+'>'+x+'</option>').join('')+'</select></label></div>'+
     '<label class="f" id="v-genrewrap">Kind of job<select id="v-genre"><option value="">Not set</option>'+GENRES.map(g=>'<option '+(((ev&&ev.genre)||(!ev&&S.presetProject&&projectGenre(S.presetProject)))===g?'selected':'')+'>'+g+'</option>').join('')+'</select></label>'+
     '<div id="v-projwrap"><label class="f">Project<select id="v-project">'+projectOptions(ev?ev.clientId:(presetClient||''),ev?ev.projectId:(S.presetProject||''))+'</select></label><p class="note" id="v-projnote" style="margin:-8px 0 0"></p>'+
@@ -2161,6 +2162,8 @@ function openEventModal(evid,date,startAt,presetClient){
     '<div id="v-confirm"></div>'+
     '<div class="acts">'+(ev?'<button class="btn ghost small" data-act="askdelevent" data-v="'+evid+'">Delete</button>':'')+(ev&&!ev.projectId&&ev.clientId?'<button class="btn ghost small" data-act="toproject" data-v="'+evid+'">Turn into a project</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveevent" data-v="'+(evid||'')+'">Save booking</button></div>'};
   renderModal();
+  if(pre){const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null&&v!=='')el.value=v};set('v-status',pre.status||'pencil');set('v-loc',pre.location);set('v-notes',pre.notes);set('v-npt',pre.project);
+    if(pre.newProject){set('v-project','__new')}feeNote();availNote()}
 }
 function crewSection(){
   const cs=activeCrew();const sel=S.modal.crewSel;
@@ -2211,8 +2214,9 @@ async function saveEventForm(evid){
   if(evid){const old=S.events[evid];const d=docs[0];if(old&&old.invoiceId)d.invoiceId=old.invoiceId;if(old&&old.groupId)d.groupId=old.groupId;if(old&&old.sheetKey)d.sheetKey=old.sheetKey;if(old&&old.pencilSent)d.pencilSent=old.pencilSent;const before=new Set((old&&old.crew||[]).map(x=>x.id));const added=(d.crew||[]).filter(x=>!before.has(x.id));await patch('events',evid,d);
     let spread=0;if(added.length){for(const e of jobDays(S.events[evid])){if(e.id===evid||e.status==='cancelled')continue;const cur=e.crew||[];const add=added.filter(x=>!cur.some(y=>y.id===x.id)).map(x=>({id:x.id,rate:x.rate,status:x.status||'pencil'}));if(add.length){await patch('events',e.id,{crew:cur.concat(add)});spread++}}}
     S.cal.cursor=d.start;S.cal.sel=startOfDay(d.start);toast(spread?'Booking saved. '+added.map(x=>crewName(x.id).split(' ')[0]).join(', ')+' also added to the other '+(spread===1?'day':spread+' days')+' of this job':'Booking saved');return}
-  const groupId=days.length>1?uid():null;
-  for(const d of docs){if(groupId)d.groupId=groupId;await put('events',null,d)}
+  const groupId=days.length>1?uid():null;let firstId=null;
+  for(const d of docs){if(groupId)d.groupId=groupId;const id=await put('events',null,d);firstId=firstId||id}
+  if(m.enq&&S.enquiries[m.enq])await patch('enquiries',m.enq,{status:'booked',bookedAt:Date.now(),eventId:firstId,clientId});
   S.cal.cursor=days[0];S.cal.sel=days[0];toast(days.length>1?days.length+' days booked for '+title:'Booking saved');
 }
 
@@ -2410,6 +2414,26 @@ async function publishCallSheet(b){const m=S.modal;const ev=S.events[m.evid];rea
   catch(e){toast('Could not publish: '+(e.message||'try again'))}
   renderModal()}
 
+/* booking requests sent from the public availability page (submit_enquiry). Pencil in opens the booking form filled in. */
+function requestsPanel(){
+  const list=Object.values(S.enquiries||{}).filter(q=>(q.status||'new')==='new').sort((a,b)=>(a.received||0)-(b.received||0));if(!list.length)return '';
+  const now=Date.now();
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Booking requests</h3><span class="note">'+list.length+' from the availability page</span></div><div class="list">'+list.map(q=>{
+    const ds=(q.dates||[]).map(x=>{const day=parseLocal(x.d,'00:00');const clash=busyOn(day);return '<span style="display:inline-flex;padding:4px 10px;border-radius:999px;font-size:13px;background:var(--raise);'+(day<startOfDay(now)?'opacity:.45;':'')+(clash.length?'box-shadow:inset 0 0 0 1px var(--warn);':'')+'">'+fmtDate(day,{weekday:'short',day:'numeric',month:'short'})+(x.maybe?'&nbsp;· possible':'')+(clash.length?'&nbsp;· <span style="color:var(--warn);margin-left:4px">'+esc(clash.map(e=>e.type==='Unavailable'?'unavailable':evTypeName(e).toLowerCase()).filter((v,i,a)=>a.indexOf(v)===i).join(', '))+'</span>':'')+'</span>'}).join('');
+    const c=matchClient(q);const who=esc(q.name||'Someone')+(q.company?' <span class="muted">· '+esc(q.company)+'</span>':'');
+    const meta=[q.project,q.location].filter(Boolean).map(esc).join(' · ');const ago=q.received?Math.floor((now-q.received)/DAYMS):null;
+    return '<div class="item" style="align-items:flex-start;flex-wrap:wrap"><div class="main" style="min-width:min(100%,260px)"><div class="t">'+who+'</div><div class="meta">'+(meta?meta+' · ':'')+(ago==null?'':ago===0?'today':ago===1?'yesterday':ago+' days ago')+(c?' · client: '+esc(c.name):' · new client')+'</div>'+
+      (ds?'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+ds+'</div>':'<div class="meta">No dates picked</div>')+
+      (q.details?'<p class="note" style="margin:8px 0 0;white-space:pre-wrap">'+esc(q.details)+'</p>':'')+
+      '<div class="meta" style="margin-top:6px"><a class="link" href="'+mailLink(q.email,'Your booking request','Hi '+(q.name||'').split(' ')[0]+',\n\n')+'">'+esc(q.email)+'</a>'+(q.phone?' · <a class="link" href="tel:'+esc(q.phone.replace(/[^0-9+]/g,''))+'">'+esc(q.phone)+'</a>':'')+'</div></div>'+
+      '<div class="end" style="display:flex;gap:6px;margin-left:auto"><button class="btn ghost small" data-act="enqdecline" data-v="'+q.id+'">Set aside</button><button class="btn small" data-act="enqbook" data-v="'+q.id+'">Pencil in</button></div></div>'}).join('')+'</div></section>'}
+function matchClient(q){const em=(q.email||'').trim().toLowerCase();const nm=(q.company||'').trim().toLowerCase();const all=Object.values(S.clients);
+  return (em&&all.find(c=>(c.email||'').trim().toLowerCase()===em))||(nm&&all.find(c=>(c.name||'').trim().toLowerCase()===nm))||null}
+async function enquiryBook(id){const q=S.enquiries[id];if(!q)return;let c=matchClient(q);const isNew=!c;
+  if(!c){const cid=await put('clients',null,{...newClient(),name:(q.company||q.name||'New client').trim(),email:q.email||'',notes:[q.company&&q.name?'Contact: '+q.name:'',q.phone?'Phone: '+q.phone:''].filter(Boolean).join('\n'),created:Date.now()});c=S.clients[cid]}
+  const t0=startOfDay(Date.now());const days=(q.dates||[]).map(x=>parseLocal(x.d,'00:00')).filter(d=>d>=t0);
+  openEventModal(null,dayKey(days[0]||t0),null,c.id,{enq:id,days,status:'pencil',project:q.project||'',location:q.location||'',notes:q.details||'',newProject:isNew||!activeProjects(c.id).some(p=>pstatus(p)==='active')});
+  if(isNew)toast('Added '+c.name+' as a client')}
 function pencilsPanel(){
   const now=Date.now();const seen={};const list=Object.values(S.events).filter(e=>evStatus(e)==='pencil'&&e.start>=startOfDay(now)&&e.clientId).sort((a,b)=>a.start-b.start).filter(e=>{const k=e.groupId||e.id;if(seen[k])return false;seen[k]=1;return true});
   if(!list.length)return '';
@@ -2460,6 +2484,8 @@ document.addEventListener('click',async ev=>{
       if(v){await patch('entries',v,data);closeModal()}else{const id=await put('entries',null,{...data,created:Date.now()});closeModal();dayPrompt(S.entries[id])}toast('Time saved');break}
     case 'askdelentry':confirmBox('e-confirm','Remove this time entry? It will no longer count towards invoices or totals.','delentry',v);break;
     case 'delentry':closeModal();await remove('entries',v);toast('Time entry removed');break;
+    case 'enqbook':{enquiryBook(v);break}
+    case 'enqdecline':{if(S.enquiries[v]){await patch('enquiries',v,{status:'declined',declinedAt:Date.now()});toast('Request set aside',{undo:true})}break}
     case 'newevent':{let st=null;if(b.dataset.day){const r=b.getBoundingClientRect();const h=7+Math.floor((ev.clientY-r.top)/44);st=pad(Math.max(7,Math.min(20,h)))+':00'}openEventModal(null,v,st,b.dataset.c);break}
     case 'editevent':openEventModal(v);break;
     case 'saveevent':await saveEventForm(v||null);break;
