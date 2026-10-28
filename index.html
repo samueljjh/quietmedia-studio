@@ -670,7 +670,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=60;
+const APP_VERSION=61;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1111,7 +1111,7 @@ async function startTimer(opt){
   S.draft.task='';render();toast((opt&&opt.resume?'Back on ':'Clocked in for ')+jobName(cid,pj));
 }
 /* small API for the Mac menu bar app: what is running, clock out, resume the last job */
-window.QM={dit(st){return ditIn(st)},live(){const r=running(S.person);const t=Object.values(S.entries).filter(e=>e.person===S.person&&e.start>=startOfDay(Date.now())).reduce((a,e)=>a+entryH(e),0);const bt=bookedToday(S.person);const pjn=e=>e.projectId&&S.projects[e.projectId]?S.projects[e.projectId].title:'';return {person:name(S.person),running:r?{since:r.start,client:cname(r.clientId),project:pjn(r),category:r.category,task:r.task||''}:null,paused:(j=>j?{client:cname(j.clientId),project:pjn(j),category:j.category,task:j.task||'',at:j.at}:null)(pausedJob(S.person)),todayHours:t,booked:bt.length?{client:cname(bt[0].clientId),project:pjn(bt[0]),title:bt[0].title,start:bt[0].start,end:bt[0].end,category:evCat(bt[0])}:null,nudge:!!(bt.length&&!r&&!t)}},
+window.QM={backupPrep(){syncAll();return true},backup(){return backupData()},backupDone(i){return backupDone(i)},dit(st){return ditIn(st)},live(){const r=running(S.person);const t=Object.values(S.entries).filter(e=>e.person===S.person&&e.start>=startOfDay(Date.now())).reduce((a,e)=>a+entryH(e),0);const bt=bookedToday(S.person);const pjn=e=>e.projectId&&S.projects[e.projectId]?S.projects[e.projectId].title:'';return {person:name(S.person),running:r?{since:r.start,client:cname(r.clientId),project:pjn(r),category:r.category,task:r.task||''}:null,paused:(j=>j?{client:cname(j.clientId),project:pjn(j),category:j.category,task:j.task||'',at:j.at}:null)(pausedJob(S.person)),todayHours:t,booked:bt.length?{client:cname(bt[0].clientId),project:pjn(bt[0]),title:bt[0].title,start:bt[0].start,end:bt[0].end,category:evCat(bt[0])}:null,nudge:!!(bt.length&&!r&&!t)}},
   start(){const def=defaultJob(S.person);if(!def)return false;S.draft={job:def.job,category:def.category,task:''};return startTimer(),true},
   stop(){return stopTimer(S.person)},
   pause(){return pauseTimer(S.person)},
@@ -1326,7 +1326,7 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
-  filmingToday(d0)+ditPanel('today')+requestsPanel()+lowDrivesNudge()+billsNudge()+
+  filmingToday(d0)+ditPanel('today')+requestsPanel()+lowDrivesNudge()+billsNudge()+backupNudge()+
   '<div class="grid g2">'+cards+'</div>'+
   (()=>{const ex=[unassignedPanel(),allocatePanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
@@ -1560,9 +1560,40 @@ function vLock(){
   (mode==='in'?'<button class="link" type="button" data-act="authmode" data-v="up">First time? Create your account</button><button class="link" type="button" data-act="authmode" data-v="forgot">Forgotten password</button>':mode==='reset'?'':'<button class="link" type="button" data-act="authmode" data-v="in">Back to sign in</button>')+'</div></form>'+
   '<p class="note" style="margin-top:28px;max-width:46ch">Data is stored in Quiet Media\'s own database in London, encrypted in transit and at rest, and only accounts invited to the studio can read it. A copy stays on this device so the app opens offline.</p></div>';
 }
+/* ===== Backups: the whole studio as one JSON file. The Mac menu bar app saves one to the NAS every night (QM.backup) and reports
+   back (QM.backupDone), so every device can see when the last one was made. Restore brings back anything missing or changed since the
+   backup; anything added since is kept. ===== */
+function backupData(){const data={};COLS.forEach(c=>{if(c!=='settings')data[c]=JSON.parse(JSON.stringify(S[c]))});
+  const counts={};Object.entries(data).forEach(([c,v])=>{counts[c]=Object.keys(v).length});
+  return {kind:'quiet-media-studio-backup',v:1,app:APP_VERSION,at:Date.now(),synced:S.sync.last||0,sync:S.sync.state,org:ORG,by:S.user&&S.user.email||'',counts,settings:JSON.parse(JSON.stringify(S.settings)),data}}
+const bkSize=b=>b<1e6?Math.max(1,Math.round(b/1e3))+' KB':(b/1e6).toFixed(1)+' MB';
+const lastBackup=()=>S.drives.backup&&S.drives.backup.at?S.drives.backup:null;
+function backupDone(info){if(!info||!info.at)return false;const q=undoQuiet;undoQuiet=true;try{touch('drives','backup',{at:+info.at,bytes:+info.bytes||0,file:String(info.file||''),mac:String(info.mac||''),records:+info.records||0})}finally{undoQuiet=q}return true}
+function downloadBackup(){const b=backupData();const blob=new Blob([JSON.stringify(b)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='studio-'+dayKey(Date.now())+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('Downloaded '+a.download)}
+const recSame=(a,b)=>JSON.stringify(stripMeta(a||{}))===JSON.stringify(stripMeta(b||{}));
+async function readBackup(file){try{const b=JSON.parse(await file.text());if(b.kind!=='quiet-media-studio-backup'||!b.data)throw new Error('That isn’t a Studio backup file');
+    const back=[],changed=[];let newer=0;Object.entries(b.data).forEach(([col,recs])=>{if(!COLS.includes(col)||col==='settings')return;Object.entries(recs||{}).forEach(([id,r])=>{const cur=S[col][id];if(!cur)back.push([col,id]);else if(!recSame(cur,r))changed.push([col,id])})});
+    COLS.forEach(c=>{if(c==='settings')return;Object.keys(S[c]).forEach(id=>{if(!(b.data[c]&&b.data[c][id]))newer++})});
+    const setCh=b.settings&&!recSame(S.settings,b.settings);
+    S.modal={type:'restore',html:()=>'<h2>Restore from backup</h2><p>Backup made '+fmtDate(b.at,{weekday:'short',day:'numeric',month:'long',year:'numeric'})+' at '+fmtTime(b.at)+(b.by?' by '+esc(b.by):'')+', '+Object.values(b.counts||{}).reduce((t,n)=>t+n,0)+' records.</p>'+
+      '<dl class="kv"><dt>Come back</dt><dd>'+back.length+' deleted since</dd><dt>Go back to the backup</dt><dd>'+changed.length+' changed since'+(setCh?', plus settings':'')+'</dd><dt>Kept as they are</dt><dd>'+newer+' added since</dd></dl>'+
+      ((back.length||changed.length)?'<p class="note">'+[...back,...changed].slice(0,8).map(([c,id])=>({clients:'Client',crew:'Team',projects:'Project',entries:'Hours',invoices:'Invoice',events:'Booking',drives:'Drive',enquiries:'Request',subs:'Cost'}[c]||esc(c))+': '+esc(b.data[c][id].name||b.data[c][id].title||b.data[c][id].number||id)).join(' · ')+(back.length+changed.length>8?' and '+(back.length+changed.length-8)+' more':'')+'</p>':'')+
+      (back.length||changed.length||setCh?'<p class="note">This changes every device. Undo in the header puts it back if it was the wrong file.</p><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="dorestore">Restore</button></div>':'<p class="note">Nothing to restore: Studio already matches this backup.</p><div class="acts"><button class="btn" data-act="closemodal">Close</button></div>'),
+      run(){userAt=Date.now();[...back,...changed].forEach(([c,id])=>{if(DEAD[c])delete DEAD[c][id];touch(c,id,stripMeta(b.data[c][id]))});if(setCh)saveSettings(stripMeta(b.settings));toast('Restored '+(back.length+changed.length)+' record'+(back.length+changed.length===1?'':'s'),{undo:true})}};renderModal()}
+  catch(e){toast(e.message&&!/JSON/.test(e.message)?e.message:'Could not read that file')}}
+document.addEventListener('change',ev=>{if(ev.target.id==='bkfile'&&ev.target.files&&ev.target.files[0]){readBackup(ev.target.files[0]);ev.target.value=''}});
+function backupPanel(){const lb=lastBackup();const age=lb?Date.now()-lb.at:0;const n=COLS.filter(c=>c!=='settings').reduce((t,c)=>t+Object.keys(S[c]).length,0);
+  return '<section class="panel grid" style="align-content:start"><h3>Backups</h3><dl class="kv"><dt>Last NAS backup</dt><dd'+(lb&&age>3*864e5?' style="color:var(--warn)"':'')+'>'+(lb?(startOfDay(lb.at)===startOfDay(Date.now())?'Today':startOfDay(lb.at)===addDays(startOfDay(Date.now()),-1)?'Yesterday':fmtDate(lb.at,{weekday:'short',day:'numeric',month:'short'}))+', '+fmtTime(lb.at)+(lb.mac?' from '+esc(lb.mac):'')+(lb.bytes?' · '+bkSize(lb.bytes):''):'None yet. Choose a folder in the Studio menu bar app on the Mac.')+'</dd><dt>In Studio now</dt><dd>'+n.toLocaleString('en-GB')+' records · about '+bkSize(new Blob([JSON.stringify(backupData())]).size)+'</dd></dl>'+
+  '<div class="row" style="align-items:center;gap:16px"><button class="btn small" data-act="bkdownload" style="flex:0 0 auto">Download a backup</button><label class="link" style="cursor:pointer;flex:0 0 auto">Restore from a backup<input type="file" id="bkfile" accept=".json,application/json" hidden></label></div>'+
+  '<p class="note">The Mac saves one every night to the folder you chose, keeps every day for 30 days and the first of each month for good. A backup holds every client, booking, hour, invoice, cost and setting.</p></section>'}
+/* Today: say so if the nightly backup has stopped (only once there has been one) */
+function backupNudge(){const lb=lastBackup();if(!lb||Date.now()-lb.at<3*864e5)return '';const k='bk'+startOfDay(Date.now());try{if(localStorage.getItem('qm-bksnooze')===k)return ''}catch(e){}
+  return '<div class="nudge"><span class="dot" style="background:var(--warn)"></span><div><b>No backup to the NAS since '+fmtDate(lb.at,{weekday:'long',day:'numeric',month:'short'})+'</b><div class="note">Check the Mac'+(lb.mac?' ('+esc(lb.mac)+')':'')+' is on, the Studio menu bar app is running and the NAS is connected · <button class="link" data-act="nav" data-v="settings">Backups</button> · <button class="link" data-act="bksnooze" data-v="'+k+'">Not today</button></div></div></div>'}
+
 function vSettings(){
   const s=S.settings;
   return '<div class="panel-head"><h1>Settings</h1></div><div class="grid g2">'+
+  backupPanel()+
   '<section class="panel grid"><h3>Account</h3><dl class="kv"><dt>Signed in as</dt><dd>'+esc(S.user?S.user.email:'')+'</dd><dt>Sync</dt><dd>'+(S.sync.state==='ok'?'Up to date, '+fmtTime(S.sync.last):S.sync.state==='offline'?'Offline, saved locally':S.sync.state==='syncing'?'Syncing':esc(S.sync.err||'Not synced yet'))+'</dd><dt>Where</dt><dd>Quiet Media database, London</dd><dt>App version</dt><dd>'+APP_VERSION+' · <button class="link" data-act="appreload">check for update</button></dd><dt>Matches database</dt><dd>'+(S.sync.check?(S.sync.check.fetched||S.sync.check.removed||S.sync.check.resent?'Fixed at '+fmtTime(S.sync.check.at)+': '+[S.sync.check.fetched?S.sync.check.fetched+' fetched':'',S.sync.check.removed?S.sync.check.removed+' removed':'',S.sync.check.resent?S.sync.check.resent+' re-sent':''].filter(Boolean).join(', '):'Yes, '+S.sync.check.total+' records checked at '+fmtTime(S.sync.check.at)):'Not checked yet')+' · <button class="link" data-act="resyncall">re-download everything</button></dd></dl>'+
   '<div class="row" style="align-items:end"><label class="f">Invite a teammate by email<input type="email" id="s-invite" placeholder="name@quietmedia.co.uk"></label><button class="btn ghost small" data-act="invite" style="flex:0 0 auto">Invite</button></div><p class="note">They create an account with that email and see everything you see.</p>'+
   '<label class="chip"><input type="checkbox" data-set="haptics" '+(s.haptics===false?'':'checked')+'> Haptic taps on the phone</label>'+
@@ -2777,6 +2808,9 @@ document.addEventListener('click',async ev=>{
     case 'billsnooze':try{localStorage.setItem('qm-billsnooze',v)}catch(e){}render();toast('Hidden until another bill comes into the week');break;
     case 'newsub':openSubModal(null);break;
     case 'subexport':exportSubs();break;
+    case 'bkdownload':downloadBackup();break;
+    case 'dorestore':{const m=S.modal;closeModal();if(m&&m.run)m.run();break}
+    case 'bksnooze':try{localStorage.setItem('qm-bksnooze',v)}catch(e){}render();break;
     case 'editsub':openSubModal(v);break;
     case 'savesub':saveSubForm(v||null);break;
     case 'delsub':{const nm=S.subs[v]&&S.subs[v].name;closeModal();remove('subs',v);toast('Deleted '+(nm||'cost'),{undo:true});break}

@@ -14,8 +14,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleName</key><string>Studio Menu Bar</string>
 <key>CFBundleDisplayName</key><string>Studio Menu Bar</string>
 <key>CFBundleIdentifier</key><string>co.uk.quietmedia.studio.menubar</string>
-<key>CFBundleVersion</key><string>8</string>
-<key>CFBundleShortVersionString</key><string>8.0</string>
+<key>CFBundleVersion</key><string>9</string>
+<key>CFBundleShortVersionString</key><string>9.0</string>
 <key>CFBundleExecutable</key><string>Studio Menu Bar</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
