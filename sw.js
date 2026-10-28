@@ -1,11 +1,13 @@
 /* Quiet Media Hours — offline shell. Caches the app files only; data is never cached here. */
-const CACHE='qm-studio-v57';
+const CACHE='qm-studio-v59';
 const SHELL=['./','./index.html','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png','./p/sheet.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
-self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&k!=='qm-fonts').map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
   const u=new URL(e.request.url);
   if(u.href.startsWith('https://cdn.jsdelivr.net/npm/@supabase/')){e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{const cp=res.clone();caches.open(CACHE).then(c=>c.put(e.request,cp));return res})));return}
+  // the DM Sans font: keep a copy so it is there instantly and the text doesn't redraw in a fallback font first
+  if(u.origin==='https://fonts.googleapis.com'||u.origin==='https://fonts.gstatic.com'){e.respondWith(caches.open('qm-fonts').then(c=>c.match(e.request).then(r=>r||fetch(e.request).then(res=>{if(res.ok||res.type==='opaque')c.put(e.request,res.clone());return res}))));return}
   if(u.origin!==location.origin)return;
   if(u.pathname.endsWith('/version.json'))return;               // always ask the server which version is current                       // Supabase and fonts go straight to the network
   if(e.request.mode==='navigate'||u.pathname.endsWith('/index.html')){
