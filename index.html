@@ -156,7 +156,7 @@ nav.tabs .t-more,.moremenu{display:none}
 @keyframes f{from{opacity:0;transform:translateY(8px)}}
 #view.fade>*:not(.stage){animation:f .45s var(--ease) both}
 #view.fade>*:nth-child(2){animation-delay:40ms}#view.fade>*:nth-child(3){animation-delay:80ms}#view.fade>*:nth-child(4){animation-delay:120ms}#view.fade>*:nth-child(5){animation-delay:160ms}#view.fade>*:nth-child(n+6){animation-delay:200ms}
-.cards .card{animation:f .4s var(--ease) both}
+#view.fade .cards .card{animation:f .4s var(--ease) both}
 .cards .card:nth-child(2){animation-delay:30ms}.cards .card:nth-child(3){animation-delay:60ms}.cards .card:nth-child(4){animation-delay:90ms}.cards .card:nth-child(5){animation-delay:120ms}.cards .card:nth-child(n+6){animation-delay:150ms}
 .mcell,.ym,.ccard,.item,.av,.seg button,nav.tabs button{transition:transform .15s var(--ease),background .2s,color .2s,opacity .2s}
 .mcell:active,.ym:active,.av:active,.seg button:active,nav.tabs button:active{transform:scale(.93)}
@@ -656,7 +656,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=57;
+const APP_VERSION=58;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -809,12 +809,12 @@ async function checkVersion(){try{const r=await fetch('version.json?t='+Date.now
   try{const reg=await navigator.serviceWorker.getRegistration();if(reg)await reg.update()}catch(e){}
   if(!S.modal){location.reload();return}S.updateReady=v;renderSyncDot();toast('Update '+v+' ready. It installs when you close this.')}catch(e){}}
 async function boot(){if(S.view==='schedule')S.cal.toToday=true;
-  S.locked=true;render();
-  if(!window.supabase){banner('Could not load the database library. Check the connection and reload.','warn');return}
+  S.locked=true;  // the sign-in screen is drawn only once we know there is no saved session, so it never flashes on open
+  if(!window.supabase){render();banner('Could not load the database library. Check the connection and reload.','warn');return}
   sb=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
   sb.auth.onAuthStateChange((ev,session)=>{if(ev==='PASSWORD_RECOVERY'){S.recovery=true;S.locked=true;render()}});
   const {data:{session}}=await sb.auth.getSession();
-  if(session&&!S.recovery)await startSession(session);
+  if(session&&!S.recovery)await startSession(session);else render();
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){syncAll();checkVersion()}});setTimeout(checkVersion,3000);setInterval(()=>{if(document.visibilityState==='visible')checkVersion()},5*60000);
   window.addEventListener('online',syncAll);
   if('serviceWorker' in navigator){
