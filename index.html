@@ -2069,7 +2069,7 @@ function billsNudge(){if(!Object.keys(S.subs).length)return '';const d0=startOfD
 
 function vCosts(){
   const subs=allSubs(),live=liveSubs(),off=subs.filter(s=>s.active===false);
-  const head='<div class="panel-head"><h1>Costs</h1><div style="display:flex;align-items:center;gap:16px;flex:none"><label class="link" style="cursor:pointer;white-space:nowrap">Import spreadsheet<input type="file" id="subfile" accept=".xlsx,.xls,.csv" hidden></label><button class="btn small" data-act="newsub">Add a cost</button></div></div>';
+  const head='<div class="panel-head"><h1>Costs</h1><div style="display:flex;align-items:center;gap:16px;flex:none">'+(subs.length?'<button class="link" data-act="subexport" style="white-space:nowrap">Download spreadsheet</button>':'')+'<label class="link" style="cursor:pointer;white-space:nowrap">Import spreadsheet<input type="file" id="subfile" accept=".xlsx,.xls,.csv" hidden></label><button class="btn small" data-act="newsub">Add a cost</button></div></div>';
   if(!subs.length)return head+'<section class="panel"><div class="empty"><b>No costs yet.</b> Add your subscriptions, insurance and other regular bills, or import them from a spreadsheet with a Name column and Monthly, Yearly, card and next payment columns. Once they are in, Insights shows profit after costs and Today warns you before the bigger bills go out.</div></section>';
   const now=Date.now(),d0=startOfDay(now),m0=startOfMonth(now),m1=addMonths(m0,1);
   const pm=live.reduce((t,s)=>t+subPM(s),0);const M=costMonth(m0);const left=psum(M.ps.filter(p=>p.at>=d0&&!p.noDay));
@@ -2115,7 +2115,7 @@ function saveSubForm(id){const g=k=>document.getElementById(k).value;const nm=g(
   if(!s.next&&s.every!==1){document.getElementById('u-next').focus();toast('Add the next payment date for a '+subBilled(s).toLowerCase()+' cost');return}
   closeModal();put('subs',id||null,s);toast('Saved '+nm)}
 function guessSubCat(n){n=n.toLowerCase();return /insur|hiscox|aviva|protection/.test(n)?'Insurance':/van|road tax|fuel|car\b/.test(n)?'Vehicle':/wix|godaddy|domain|email|squarespace/.test(n)?'Website & email':/epidemic|storyblocks|spotify|suno|music|artlist|sound/.test(n)?'Music & stock':/starlink|broadband|phone|mobile|internet/.test(n)?'Internet & phone':'Software'}
-/* Import: reads the first sheet. QM_Costs.xlsx has Name, Type, Amount, Billed, Next payment, Paid with, Notes, and is read as is.
+/* Import: reads the first sheet. QM_Costs.xlsx has Name, Type, Amount, Billed, Next payment, Paid with, Counted, Notes, and is read as is.
    The older QM_Subscriptions.xlsx layout (Names, Monthly, Yearly, card, Next Payment) works too:
    A real date in Next Payment means a yearly bill on that date; "Monthly" means monthly with no day yet. Ticks are ignored; a row with no amount comes in paused.
    A name already in Studio is updated, not added twice. */
@@ -2126,7 +2126,7 @@ async function importSubs(file){
     const isName=c=>/^(names?|subscriptions?|costs?|services?)$/i.test(String(c??'').trim());
     const hi=rows.findIndex(r=>r.some(isName)&&r.some(c=>/month|year|amount/i.test(String(c??''))));if(hi<0)throw new Error('No Name column found in '+file.name);
     const H=rows[hi].map(c=>String(c??'').trim().toLowerCase());const col=re=>H.findIndex(h=>re.test(h));
-    const cN=H.findIndex(isName),cM=col(/month/),cY=col(/year|annual/),cA=col(/about|card|paid|account/),cD=col(/next|date|renew/),cC=col(/categ|type/),cAm=col(/^amount/),cB=col(/^(billed|frequency|how often|every)/),cNo=col(/^notes?$/);
+    const cN=H.findIndex(isName),cM=col(/month/),cY=col(/year|annual/),cA=col(/about|card|paid|account/),cD=col(/next|date|renew/),cC=col(/categ|type/),cAm=col(/^amount/),cB=col(/^(billed|frequency|how often|every)/),cNo=col(/^notes?$/),cOn=col(/^(counted|status|active)$/);
     const byName={};Object.values(S.subs).forEach(s=>{byName[String(s.name).toLowerCase()]=s});
     const y0=new Date(new Date().getFullYear(),0,1).getTime();let added=0,updated=0;userAt=Date.now();
     for(const r of rows.slice(hi+1)){const nm=String(r[cN]??'').trim();if(!nm||/^total/i.test(nm))continue;
@@ -2135,12 +2135,69 @@ async function importSubs(file){
       if(cAm>=0&&cB>=0){amount=num(cAm);const bl=String(r[cB]??'').trim().toLowerCase();every=(SUB_EVERY.find(x=>x[1].toLowerCase()===bl)||[1])[0];if(dv instanceof Date)next=startOfDay(dv.getTime()+432e5)}
       else if(dv instanceof Date){every=12;amount=y||m*12;next=startOfDay(dv.getTime()+432e5)}else if(/year|annual/i.test(String(dv??''))){every=12;amount=y||m*12}
       amount=Math.round(amount*100)/100;
-      const ex=byName[nm.toLowerCase()];const since=ex&&ex.since||y0;const on=amount>0;
+      const ex=byName[nm.toLowerCase()];const since=ex&&ex.since||y0;const on=amount>0&&!(cOn>=0&&/^(no|n|false|paused|cancelled)$/i.test(String(r[cOn]??'').trim()));
       const s={...(ex?stripId(ex):{}),name:nm,amount,every,next,card:cA<0?'':String(r[cA]??'').trim().replace(/^-$/,''),category:(cC>=0&&r[cC]?String(r[cC]).trim():'')||ex&&ex.category||guessSubCat(nm),notes:(cNo>=0&&r[cNo]?String(r[cNo]).trim():'')||ex&&ex.notes||'',active:on,since};
       if(on)delete s.ended;else s.ended=ex&&ex.active===false&&ex.ended||since;
       put('subs',ex?ex.id:null,s);if(ex)updated++;else added++}
     toast((added?'Added '+added:'')+(added&&updated?', ':'')+(updated?'updated '+updated:'')+(added||updated?' from '+file.name:'Nothing to import in '+file.name),{undo:true})}
   catch(e){toast(e.message||'Could not read that file')}}
+/* Download: every cost as QM_Costs.xlsx in the Studio look, the same layout Import reads back (with Counted, so paused costs stay paused),
+   plus a sheet of each payment in the next 12 months. ExcelJS loads only when you download. */
+function loadExcelJS(){return window.ExcelJS?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';sc.crossOrigin='anonymous';sc.onload=ok;sc.onerror=()=>no(new Error('Could not load the spreadsheet writer. Check the connection.'));document.head.appendChild(sc)})}
+async function exportSubs(){
+  try{toast('Making the spreadsheet…');await loadExcelJS();
+    const C={bg:'FF0E0E0E',surf:'FF161716',surf2:'FF1C1C1B',fg:'FFFEFEFE',t2:'FFC9C7C4',mut:'FF9F9F9E',gold:'FFAD9A59',line:'FF2A2927'};const F='DM Sans';
+    const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});const font=(c,sz,b)=>({name:F,size:sz||11,color:{argb:c},bold:!!b});
+    const money='£#,##0.00;-£#,##0.00;"–"';const line={bottom:{style:'thin',color:{argb:C.line}}};
+    const wb=new ExcelJS.Workbook();wb.creator='Quiet Media Studio';wb.created=new Date();
+    const ws=wb.addWorksheet('Costs',{views:[{state:'frozen',xSplit:1,ySplit:6,showGridLines:false}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+    const L=wb.addWorksheet('Lists',{state:'hidden'});L.getCell('A1').value='Billed';L.getCell('B1').value='Months';L.getCell('D1').value='Type';
+    SUB_EVERY.forEach(([n,l],i)=>{L.getCell(i+2,1).value=l;L.getCell(i+2,2).value=n});SUB_CATS.forEach((t,i)=>{L.getCell(i+2,4).value=t});const nB=SUB_EVERY.length+1,nT=SUB_CATS.length+1;
+    const cols=[['Name',34],['Type',18],['Amount (£)',13],['Billed',16],['Next payment',15],['Paid with',17],['Per month (£)',14],['Per year (£)',14],['Counted',11],['Notes',58]];
+    cols.forEach(([,w],i)=>{ws.getColumn(i+1).width=w});ws.getColumn(11).width=3;ws.getColumn(5).width=17;
+    const subs=allSubs();const H=6,end=H+subs.length+10,T=end+1;
+    for(let r=1;r<=T+4;r++)for(let c=1;c<=11;c++)ws.getCell(r,c).fill=fill(C.bg);
+    ws.getCell('A1').value='quiet media';ws.getCell('A1').font=font(C.mut,11);
+    ws.getCell('A2').value='Costs';ws.getCell('A2').font=font(C.fg,28);ws.getRow(2).height=40;
+    ws.getCell('A3').value='Subscriptions, insurance and regular bills, from Studio on '+fmtDate(Date.now(),{day:'numeric',month:'long',year:'numeric'})+'. Per month and Per year work themselves out; costs marked No in Counted are left out.';
+    ws.getCell('A4').value='To load changes back into Studio: Costs, then Import spreadsheet, then pick this file. Costs with the same name are updated, not added twice.';
+    ['A3','A4'].forEach(a=>{ws.getCell(a).font=font(C.mut,10)});
+    const right=i=>i===2||i===6||i===7;
+    cols.forEach(([n],i)=>{const c=ws.getCell(H,i+1);c.value=n;c.font=font(C.mut,9,true);c.fill=fill(C.surf);c.alignment={horizontal:right(i)?'right':'left',vertical:'middle',indent:1}});ws.getRow(H).height=26;
+    const pmF=r=>({formula:'IF(C'+r+'="","",IF(I'+r+'="No",0,C'+r+'/INDEX(Lists!$B$2:$B$'+nB+',MATCH(D'+r+',Lists!$A$2:$A$'+nB+',0))))'});
+    for(let k=0;k<subs.length+10;k++){const r=H+1+k,s=subs[k];const nx=s&&s.active!==false?(subNext(s)||null):null;const on=s?s.active!==false:true;
+      const vals=s?[s.name,s.category||'',+s.amount||0,subBilled(s),nx&&!nx.noDay?new Date(nx.at):s.next?new Date(s.next):null,s.card||'',null,null,on?'Yes':'No',s.notes||'']:[null,null,null,null,null,null,null,null,null,null];
+      vals.forEach((v,i)=>{const c=ws.getCell(r,i+1);c.value=v;c.fill=fill(C.surf);c.border=line;c.font=font(i===9||!on?C.mut:i===6||i===7?C.t2:C.fg);c.alignment={vertical:'middle',horizontal:right(i)?'right':'left',indent:1,wrapText:i===9};if(right(i))c.numFmt=money;if(i===4)c.numFmt='d mmm yyyy'});
+      const pm=s&&on?subPM(s):0;ws.getCell(r,7).value={...pmF(r),result:s?pm:undefined};ws.getCell(r,8).value={formula:'IF(G'+r+'="","",G'+r+'*12)',result:s?pm*12:undefined};
+      ws.getCell(r,4).dataValidation={type:'list',allowBlank:true,formulae:['Lists!$A$2:$A$'+nB]};ws.getCell(r,2).dataValidation={type:'list',allowBlank:true,showErrorMessage:false,formulae:['Lists!$D$2:$D$'+nT]};ws.getCell(r,9).dataValidation={type:'list',allowBlank:true,formulae:['"Yes,No"']};
+      ws.getRow(r).height=s&&(s.notes||'').length>60?36:24}
+    const pm=liveSubs().reduce((t,s)=>t+subPM(s),0);
+    ws.getCell(T,1).value='Total';ws.getCell(T,2).value={formula:'COUNTIF(I'+(H+1)+':I'+end+',"Yes")&" costs counted"',result:liveSubs().length+' costs counted'};
+    ws.getCell(T,7).value={formula:'SUM(G'+(H+1)+':G'+end+')',result:pm};ws.getCell(T,8).value={formula:'SUM(H'+(H+1)+':H'+end+')',result:pm*12};
+    for(let i=1;i<=10;i++){const c=ws.getCell(T,i);c.fill=fill(C.surf2);c.font=font(i===7||i===8?C.gold:C.fg,12,i===7||i===8);c.alignment={vertical:'middle',indent:1,horizontal:i===7||i===8?'right':'left'};if(i===7||i===8)c.numFmt=money}
+    ws.getCell(T,2).font=font(C.mut,10);ws.getRow(T).height=30;
+    ws.getCell(H,7).note='Amount divided by the months in Billed. Yearly bills are spread over 12 months, the same way Studio counts them.';
+    /* the next 12 months, payment by payment: what an accountant or a cash-flow check wants */
+    const P=wb.addWorksheet('Next 12 months',{views:[{state:'frozen',ySplit:4,showGridLines:false}],pageSetup:{orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+    [['Date',22],['Cost',34],['Billed',16],['Paid with',17],['Amount (£)',13],['Month total (£)',16]].forEach(([,w],i)=>{P.getColumn(i+1).width=w});P.getColumn(7).width=3;
+    const d0=startOfDay(Date.now());const ps=payments(d0,addMonths(startOfMonth(d0),12)).filter(p=>!p.noDay);
+    const mon=liveSubs().filter(s=>!s.next&&subEvery(s)===1);
+    const PT=5+ps.length+(mon.length?mon.length+2:0)+2;
+    for(let r=1;r<=PT+2;r++)for(let c=1;c<=7;c++)P.getCell(r,c).fill=fill(C.bg);
+    P.getCell('A1').value='quiet media';P.getCell('A1').font=font(C.mut,11);P.getCell('A2').value='Next 12 months';P.getCell('A2').font=font(C.fg,24);P.getRow(2).height=34;
+    P.getCell('A3').value='Every dated payment from today. Monthly costs without a payment day are listed underneath, once a month.';P.getCell('A3').font=font(C.mut,10);
+    ['Date','Cost','Billed','Paid with','Amount (£)','Month total (£)'].forEach((n,i)=>{const c=P.getCell(4,i+1);c.value=n;c.font=font(C.mut,9,true);c.fill=fill(C.surf);c.alignment={horizontal:i>3?'right':'left',vertical:'middle',indent:1}});P.getRow(4).height=26;
+    const mTot={};ps.forEach(p=>{const k=startOfMonth(p.at);mTot[k]=(mTot[k]||0)+p.amount});
+    let r=5;ps.forEach((p,i)=>{const lastOfMonth=!ps[i+1]||startOfMonth(ps[i+1].at)!==startOfMonth(p.at);const big=subEvery(p.s)>1;
+      [new Date(p.at),p.s.name,subBilled(p.s),p.s.card||'',p.amount,lastOfMonth?mTot[startOfMonth(p.at)]:null].forEach((v,j)=>{const c=P.getCell(r,j+1);c.value=v;c.fill=fill(C.surf);c.border=line;c.font=font(j===5?C.t2:big&&j===4?C.gold:C.fg);c.alignment={vertical:'middle',indent:1,horizontal:j>3?'right':'left'};if(j===0)c.numFmt='ddd d mmm yyyy';if(j>3)c.numFmt=money});P.getRow(r).height=22;r++});
+    if(mon.length){r++;P.getCell(r,1).value='Monthly, day not set';P.getCell(r,1).font=font(C.mut,9,true);r++;
+      mon.forEach(s=>{['Every month',s.name,'Monthly',s.card||'',+s.amount||0,null].forEach((v,j)=>{const c=P.getCell(r,j+1);c.value=v;c.fill=fill(C.surf);c.border=line;c.font=font(j===0?C.mut:C.fg);c.alignment={vertical:'middle',indent:1,horizontal:j>3?'right':'left'};if(j>3)c.numFmt=money});P.getRow(r).height=22;r++})}
+    r++;const tot=psum(ps)+mon.reduce((t,s)=>t+(+s.amount||0),0)*12;
+    ['Next 12 months in all','','','',tot,null].forEach((v,j)=>{const c=P.getCell(r,j+1);c.value=v;c.fill=fill(C.surf2);c.font=font(j===4?C.gold:C.fg,12,j===4);c.alignment={vertical:'middle',indent:1,horizontal:j>3?'right':'left'};if(j===4)c.numFmt=money});P.getRow(r).height=30;
+    const blob=new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='QM_Costs_'+dayKey(Date.now())+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    toast('Downloaded '+a.download)}
+  catch(e){toast(e.message||'Could not make the spreadsheet')}}
 document.addEventListener('change',ev=>{if(ev.target.id==='subfile'&&ev.target.files&&ev.target.files[0]){importSubs(ev.target.files[0]);ev.target.value=''}});
 
 function vDrives(){
@@ -2719,6 +2776,7 @@ document.addEventListener('click',async ev=>{
     case 'more':S.moreOpen=!S.moreOpen;renderChrome();break;
     case 'billsnooze':try{localStorage.setItem('qm-billsnooze',v)}catch(e){}render();toast('Hidden until another bill comes into the week');break;
     case 'newsub':openSubModal(null);break;
+    case 'subexport':exportSubs();break;
     case 'editsub':openSubModal(v);break;
     case 'savesub':saveSubForm(v||null);break;
     case 'delsub':{const nm=S.subs[v]&&S.subs[v].name;closeModal();remove('subs',v);toast('Deleted '+(nm||'cost'),{undo:true});break}
