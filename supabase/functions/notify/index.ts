@@ -96,10 +96,20 @@ export function morningMsg(rows: any[], now: number) {
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
+// the server key: the legacy service role key, or the newer secret key on projects that use publishable/secret keys
+function serverKey() {
+  // @ts-ignore Deno global
+  const env = (k: string) => Deno.env.get(k) || '';
+  if (env('SUPABASE_SERVICE_ROLE_KEY')) return env('SUPABASE_SERVICE_ROLE_KEY');
+  if (env('SUPABASE_SECRET_KEY')) return env('SUPABASE_SECRET_KEY');
+  try { const all = JSON.parse(env('SUPABASE_SECRET_KEYS') || '{}'); return all.default || Object.values(all)[0] || ''; } catch (_) { return ''; }
+}
+
 async function handle(req: Request) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (!serverKey()) return json({ error: 'No server key found in the function environment' }, 500);
   // @ts-ignore Deno global
-  const db = createClient(Deno.env.get('SUPABASE_URL'), Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false } });
+  const db = createClient(Deno.env.get('SUPABASE_URL'), serverKey(), { auth: { persistSession: false } });
   const body = await req.json().catch(() => ({}));
   const { data: cfg } = await db.from('notify_config').select('secret,vapid').eq('id', 1).maybeSingle();
   if (!cfg) return json({ error: 'Run supabase/push.sql first' }, 500);
