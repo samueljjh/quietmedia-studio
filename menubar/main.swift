@@ -1,7 +1,8 @@
-// Studio Menu Bar — the Quiet Studio Mac menu bar companion, v7 (built as "Studio Menu Bar.app")
+// Studio Menu Bar — the Quiet Studio Mac menu bar companion, v9 (built as "Studio Menu Bar.app")
 // Shows the live timer from studio.quietmedia.co.uk in the menu bar, with clock in / pause / resume / clock out.
 // v5: project-aware (jobs), "booked today" nudge, QM.start(). Polls window.QM.live() every 5 s in a hidden WKWebView.
 // v6: drives. Reads each T7 when it is plugged in (free space, main folders, then folder sizes in the background) and hands it to QM.drive*.
+// v9: backups. Saves the whole of Studio to a folder you choose (the NAS) every night; see Backups.
 // v8: DIT. Reads the quiet media DIT app's progress on this Mac (127.0.0.1:8765/api/live) every 3 s and hands it to QM.dit,
 //     so card offloads show in Studio on any device.
 // Build: ./build.sh   (needs Xcode Command Line Tools)
@@ -222,6 +223,121 @@ final class DriveWatcher {
     }
 }
 
+// MARK: - nightly backup: the whole of Studio as one JSON file in a folder you choose (the NAS)
+// Once a day after 1am (or as soon as the Mac is next awake and the folder is connected) it asks Studio for QM.backup(), writes
+// Studio Backups/YYYY/MM/studio-YYYY-MM-DD.json, keeps every day for 30 days and the 1st of each month for good, and tells Studio (QM.backupDone).
+let BACKUP_CHECK: TimeInterval = 900
+final class Backups {
+    weak var app: App?
+    var timer: Timer?
+    var state = "", running = false
+    let fm = FileManager.default
+    var folder: URL? {
+        get { UserDefaults.standard.string(forKey: "backupFolder").map { URL(fileURLWithPath: $0, isDirectory: true) } }
+        set { UserDefaults.standard.set(newValue?.path, forKey: "backupFolder") }
+    }
+    var lastDay: String {
+        get { UserDefaults.standard.string(forKey: "backupLastDay") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "backupLastDay") }
+    }
+    var lastAt: Date? {
+        get { let t = UserDefaults.standard.double(forKey: "backupLastAt"); return t > 0 ? Date(timeIntervalSince1970: t) : nil }
+        set { UserDefaults.standard.set(newValue?.timeIntervalSince1970 ?? 0, forKey: "backupLastAt") }
+    }
+
+    init(app: App) {
+        self.app = app
+        timer = Timer.scheduledTimer(withTimeInterval: BACKUP_CHECK, repeats: true) { [weak self] _ in self?.due() }
+        RunLoop.main.add(timer!, forMode: .common)
+        let nc = NSWorkspace.shared.notificationCenter
+        nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 60) { self?.due() } }
+        nc.addObserver(forName: NSWorkspace.didMountNotification, object: nil, queue: .main) { [weak self] _ in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { self?.due() } }
+    }
+    static func day(_ d: Date) -> String { let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: d) }
+    func size(_ b: Int) -> String { b < 1_000_000 ? "\(max(1, b / 1000)) KB" : String(format: "%.1f MB", Double(b) / 1e6) }
+
+    func due() {
+        guard folder != nil, app?.signedIn == true, !running else { return }
+        let now = Date()
+        if lastDay == Backups.day(now) || Calendar.current.component(.hour, from: now) < 1 { return }
+        run()
+    }
+    func finish(_ msg: String) { running = false; state = msg; app?.paint() }
+
+    func run() {
+        guard let app = app else { return }
+        guard let base = folder else { state = "Choose a backup folder first."; app.paint(); return }
+        guard app.signedIn else { state = "Sign in to Quiet Studio on this Mac first."; app.paint(); return }
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: base.path, isDirectory: &isDir), isDir.boolValue else {
+            state = "\(base.lastPathComponent) isn't connected. Trying again every 15 minutes."; app.paint(); return }
+        if running { return }
+        running = true; state = "Backing up…"; app.paint()
+        app.js("window.QM&&QM.backupPrep&&QM.backupPrep()")        // sync first, so the file holds the latest from every device
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            app.js("(function(){try{return window.QM&&QM.backup?JSON.stringify(QM.backup()):null}catch(e){return null}})()") { r in
+                guard let self = self else { return }
+                guard let s = r as? String, let data = s.data(using: .utf8),
+                      let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      obj["kind"] as? String == "quiet-media-studio-backup" else {
+                    self.finish("Backup failed: Studio didn't answer. Open Quiet Studio from here once, then Back up now."); return }
+                let counts = obj["counts"] as? [String: Any] ?? [:]
+                let records = counts.values.reduce(0) { $0 + (($1 as? NSNumber)?.intValue ?? 0) }
+                if records == 0 { self.finish("Skipped: Studio hadn't loaded any data yet. Trying again soon."); return }
+                let now = Date(), d = Backups.day(now)
+                let rel = "Studio Backups/\(d.prefix(4))/\(d.dropFirst(5).prefix(2))/studio-\(d).json"
+                let file = base.appendingPathComponent(rel)
+                DispatchQueue.global(qos: .utility).async {
+                    do {
+                        try self.fm.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try data.write(to: file, options: .atomic)
+                        let pruned = self.prune(base.appendingPathComponent("Studio Backups", isDirectory: true), today: now)
+                        let mac = Host.current().localizedName ?? "Mac"
+                        DispatchQueue.main.async {
+                            self.lastDay = d; self.lastAt = now
+                            let info: [String: Any] = ["at": now.timeIntervalSince1970 * 1000, "bytes": data.count, "file": rel,
+                                                       "mac": mac, "records": records]
+                            app.call("QM.backupDone", [info])
+                            self.finish("Saved \(time(now.timeIntervalSince1970)) · \(records) records · \(self.size(data.count))" + (pruned > 0 ? " · \(pruned) old removed" : ""))
+                        }
+                    } catch {
+                        DispatchQueue.main.async { self.finish("Backup failed: \(error.localizedDescription)") }
+                    }
+                }
+            }
+        }
+    }
+    // every day for 30 days, then only the 1st of each month
+    func prune(_ root: URL, today: Date) -> Int {
+        guard let en = fm.enumerator(at: root, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) else { return 0 }
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+        guard let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: today) else { return 0 }
+        var old: [URL] = []
+        for case let u as URL in en {
+            let name = u.lastPathComponent
+            guard name.hasPrefix("studio-"), name.hasSuffix(".json") else { continue }
+            let ds = String(name.dropFirst(7).dropLast(5))
+            if let dd = f.date(from: ds), dd < cutoff, !ds.hasSuffix("-01") { old.append(u) }
+        }
+        return old.filter { (try? fm.removeItem(at: $0)) != nil }.count
+    }
+    func choose() {
+        let p = NSOpenPanel(); p.canChooseDirectories = true; p.canChooseFiles = false; p.canCreateDirectories = true; p.allowsMultipleSelection = false
+        p.prompt = "Back up here"; p.message = "Choose the folder on the NAS. Studio is saved there every night."
+        NSApp.activate(ignoringOtherApps: true)
+        if p.runModal() == .OK, let u = p.url { folder = u; state = ""; run() }
+    }
+    func summary() -> String {
+        guard let f = folder else { return "Backups: choose a folder on the NAS and Studio is saved there every night." }
+        let w = "Backup to \(f.lastPathComponent): "
+        if !state.isEmpty { return w + state }
+        if let a = lastAt { return w + "last \(Backups.day(a)) \(time(a.timeIntervalSince1970))" }
+        return w + "first one tonight after 1am"
+    }
+}
+
 // MARK: - the panel under the status item
 final class Panel: NSView {
     let title = NSTextField(labelWithString: ""), sub = NSTextField(labelWithString: ""), big = NSTextField(labelWithString: "")
@@ -230,6 +346,8 @@ final class Panel: NSView {
     let tertiary = NSButton(title: "", target: nil, action: nil)
     let open = NSButton(title: "Open Quiet Studio", target: nil, action: nil), quit = NSButton(title: "Quit", target: nil, action: nil)
     let syncDrives = NSButton(title: "Sync drives", target: nil, action: nil)
+    let backup = NSTextField(wrappingLabelWithString: "")
+    let backupNow = NSButton(title: "Back up now", target: nil, action: nil), backupFolder = NSButton(title: "Backup folder…", target: nil, action: nil)
     var onPrimary: (() -> Void)?, onSecondary: (() -> Void)?, onTertiary: (() -> Void)?
 
     override init(frame: NSRect) {
@@ -242,18 +360,20 @@ final class Panel: NSView {
         note.preferredMaxLayoutWidth = 268
         today.font = NSFont.systemFont(ofSize: 11); today.textColor = .tertiaryLabelColor
         drives.font = NSFont.systemFont(ofSize: 11); drives.textColor = .secondaryLabelColor; drives.preferredMaxLayoutWidth = 268
+        backup.font = NSFont.systemFont(ofSize: 11); backup.textColor = .secondaryLabelColor; backup.preferredMaxLayoutWidth = 268
         for b in [primary, secondary, tertiary] { b.bezelStyle = .rounded; b.controlSize = .large; b.font = NSFont.systemFont(ofSize: 13) }
         primary.keyEquivalent = "\r"
-        for b in [open, syncDrives, quit] { b.isBordered = false; b.font = NSFont.systemFont(ofSize: 12); b.contentTintColor = .secondaryLabelColor }
+        for b in [open, syncDrives, quit, backupNow, backupFolder] { b.isBordered = false; b.font = NSFont.systemFont(ofSize: 12); b.contentTintColor = .secondaryLabelColor }
         primary.target = self; primary.action = #selector(p1)
         secondary.target = self; secondary.action = #selector(p2)
         tertiary.target = self; tertiary.action = #selector(p3)
 
         let buttons = NSStackView(views: [primary, secondary, tertiary]); buttons.orientation = .horizontal; buttons.spacing = 8
         let foot = NSStackView(views: [open, syncDrives, quit]); foot.orientation = .horizontal; foot.distribution = .equalSpacing
-        let stack = NSStackView(views: [title, sub, big, note, buttons, today, drives, foot])
+        let bfoot = NSStackView(views: [backupNow, backupFolder]); bfoot.orientation = .horizontal; bfoot.spacing = 14
+        let stack = NSStackView(views: [title, sub, big, note, buttons, today, drives, backup, bfoot, foot])
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 6
-        stack.setCustomSpacing(10, after: sub); stack.setCustomSpacing(10, after: note); stack.setCustomSpacing(10, after: today); stack.setCustomSpacing(14, after: drives)
+        stack.setCustomSpacing(10, after: sub); stack.setCustomSpacing(10, after: note); stack.setCustomSpacing(10, after: today); stack.setCustomSpacing(10, after: drives); stack.setCustomSpacing(14, after: bfoot)
         stack.edgeInsets = NSEdgeInsets(top: 16, left: 16, bottom: 12, right: 16)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -309,6 +429,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
     var signedIn = false
     var tick: Timer?, poll: Timer?, ditPoll: Timer?
     var ditWas = false
+    var backups: Backups!
     var driveWatcher: DriveWatcher!   // started once the ring is up, so nothing runs before the app has finished launching
 
     func applicationDidFinishLaunching(_ n: Notification) {
@@ -335,6 +456,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         panel.open.target = self; panel.open.action = #selector(openApp)
         panel.quit.target = NSApp; panel.quit.action = #selector(NSApplication.terminate(_:))
         panel.syncDrives.target = self; panel.syncDrives.action = #selector(syncDrives)
+        panel.backupNow.target = self; panel.backupNow.action = #selector(backupNow)
+        panel.backupFolder.target = self; panel.backupFolder.action = #selector(backupFolder)
 
         poll = Timer.scheduledTimer(withTimeInterval: POLL, repeats: true) { [weak self] _ in self?.refresh() }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.paint() }
@@ -344,6 +467,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             guard let self = self else { return }
             self.driveWatcher = DriveWatcher(); self.driveWatcher.app = self
+            self.backups = Backups(app: self)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { self.backups.due() }
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
             if self.signedIn { self.driveWatcher.scan() }
         }
@@ -408,17 +533,19 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
         else if let l = live, l.nudge { b.title = " Booked · clock in"; b.toolTip = l.bookedTitle }
         else if let low = driveWatcher?.lowName { b.title = " \(low) low on space"; b.toolTip = "Open Quiet Studio, Drives, to see what to clear" }
         else { b.title = ""; b.toolTip = "Quiet Studio" }
-        if popover.isShown { panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher?.summary() ?? "" }
+        if popover.isShown { panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher?.summary() ?? ""; panel.backup.stringValue = backups?.summary() ?? "" }
     }
     func short(_ s: String) -> String { s.count > 22 ? String(s.prefix(21)) + "…" : s }
 
     @objc func toggle() {
         if popover.isShown { popover.performClose(nil); return }
-        panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher?.summary() ?? ""
+        panel.show(live, signedIn: signedIn); panel.drives.stringValue = driveWatcher?.summary() ?? ""; panel.backup.stringValue = backups?.summary() ?? ""
         popover.show(relativeTo: status.button!.bounds, of: status.button!, preferredEdge: .minY)
         refresh()
     }
     @objc func syncDrives() { driveWatcher?.scan(full: true); paint() }
+    @objc func backupNow() { backups?.run() }
+    @objc func backupFolder() { popover.performClose(nil); backups?.choose() }
     @objc func openApp() { popover.performClose(nil); NSApp.activate(ignoringOtherApps: true); webWindow.makeKeyAndOrderFront(nil) }
 
     func primary() {
