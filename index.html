@@ -126,7 +126,7 @@ nav.tabs .t-more,.moremenu{display:none}
   .top .iconbtn{width:36px;height:36px;min-height:36px}.top .seg.who button{min-width:36px;height:36px;min-height:36px;padding:0}.top{gap:6px}
   @media (max-width:389px){.top .iconbtn{width:34px;height:34px;min-height:34px}.top .seg.who button{min-width:34px;height:34px;min-height:34px}.top{gap:5px}}
   nav.tabs{overflow:visible}
-  nav.tabs .t-settings,nav.tabs .t-drives,nav.tabs .t-invoicing,nav.tabs .t-insights,.top .hdr-settings{display:none}
+  nav.tabs .t-settings,nav.tabs .t-drives,nav.tabs .t-costs,nav.tabs .t-invoicing,nav.tabs .t-insights,.top .hdr-settings{display:none}
   nav.tabs .t-team{order:1}nav.tabs .t-clients{order:2}nav.tabs .t-today{order:3}nav.tabs .t-schedule{order:4}
   nav.tabs .t-more{order:5;display:grid;position:relative}
   nav.tabs .t-more.on,nav.tabs .t-more.open{color:var(--fg)}
@@ -256,6 +256,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--fg)}
 .bar .lab{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar .track{height:8px;background:var(--raise);position:relative;display:flex;border-radius:4px;overflow:hidden}
 .bar .track i{display:block;height:100%}
+.bar .track .avg{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--fg);opacity:.45}
 .bar .val{font-variant-numeric:tabular-nums;color:var(--muted);min-width:64px;text-align:right}
 .goal{height:6px;background:var(--raise);position:relative;margin-top:10px;border-radius:3px;overflow:hidden}
 .goal i{position:absolute;inset:0 auto 0 0;background:var(--fg)}
@@ -623,7 +624,7 @@ const DEFAULT_CREW_TERMS='1. Confirmation. This booking is confirmed when you si
 const DEFAULT_TERMS='A pencil holds the dates for you without obligation on either side. Once you confirm, the dates are yours and we turn other work away for them.\n\nMoving or cancelling a confirmed booking: free with more than 7 days\u2019 notice (one move per booking). Within 7 days, 50% of the fee is payable. Within 48 hours, the full fee is payable.\n\nFees are ex VAT and exclude travel and expenses, which are agreed in advance and itemised on the invoice. Payment is due within 30 days of invoice.\n\nWeather, access or illness on our side: we will offer the next available dates at no charge.';
 const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availWeeks:12,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS,driveMinShield:500,driveMinT7:250};
 
-const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},enquiries:{},settings:{...DEF_SETTINGS},
+const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},enquiries:{},subs:{},settings:{...DEF_SETTINGS},
   view:'today',client:null,week:0,period:'month',draft:{},modal:null,live:false,writable:true,loaded:{},
   cal:{mode:matchMedia('(max-width:720px)').matches?'month':'week',cursor:Date.now(),sel:null}};
 try{const cm=localStorage.getItem('qm-calmode');if(cm)S.cal.mode=cm==='list'?'day':cm}catch(e){}
@@ -664,12 +665,12 @@ const SB_URL='https://jxfnzlwwsvfcrstxpgzr.supabase.co';
 const SB_KEY='sb_publishable_tQiBC9EehadDkCdVhsqzUQ__7FfYpEV';
 const SHEETS_HOST='https://sheets.quietmedia.co.uk';
 const ORG_SLUG='quiet-media';
-const COLS=['clients','crew','projects','entries','invoices','events','drives','settings','enquiries'];
+const COLS=['clients','crew','projects','entries','invoices','events','drives','settings','enquiries','subs'];
 const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=59;
+const APP_VERSION=60;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1244,10 +1245,10 @@ function gcalLink(ev){
 }
 
 /* ---------- views ---------- */
-const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['team','Team'],['drives','Drives'],['invoicing','To invoice'],['insights','Insights'],['settings','Settings']];
+const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['team','Team'],['drives','Drives'],['invoicing','To invoice'],['insights','Insights'],['costs','Costs'],['settings','Settings']];
 function renderChrome(){
   $('#personSeg').innerHTML=PEOPLE.map(p=>{const n=name(p.id);return '<button data-act="person" data-v="'+p.id+'" aria-pressed="'+(S.person===p.id)+'" aria-label="'+esc(n)+'" title="'+esc(n)+'"'+(S.peek&&S.peek.id===p.id&&S.peek.until>Date.now()?' class="peek"':'')+'>'+esc(n.slice(0,1))+'<span class="rest" aria-hidden="true">'+esc(n.slice(1))+'</span></button>'}).join('');
-  const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',drives:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 14h5"/><circle cx="16.5" cy="12" r=".6"/>',team:'<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
+  const IC={today:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',schedule:'<rect x="3" y="5" width="18" height="16"/><path d="M3 10h18M8 3v4M16 3v4"/>',clients:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M15 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/>',drives:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 14h5"/><circle cx="16.5" cy="12" r=".6"/>',team:'<circle cx="12" cy="7.5" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/>',invoicing:'<path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21z"/><path d="M8 8h8M8 12h8M8 16h5"/>',insights:'<path d="M3 20h18M6 17V10M11 17V5M16 17v-7M21 17V8"/>',costs:'<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 14.5h4"/>',settings:'<path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="10" cy="17" r="1.8"/>'};
   $('#tabs').innerHTML=TABS.map(([k,l])=>'<button class="t-'+k+(k==='drives'&&DRIVES.some(driveLow)?' alert':'')+'" data-act="nav" data-v="'+k+'" '+(S.view===k?'aria-current="page"':'')+'><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+l+'</button>').join('')+
     (()=>{const cur=MORE.find(k=>k===S.view);return '<button class="t-more'+(cur?' on':'')+(S.moreOpen?' open':'')+(DRIVES.some(driveLow)?' alert':'')+'" data-act="more" aria-expanded="'+!!S.moreOpen+'"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>More'+(cur?'<span class="pg">'+TABS.find(t=>t[0]===cur)[1]+'</span>':'')+'</button>'})();
   /* on the phone the bar keeps Team, Clients, Today, Schedule; the rest fan up from More */
@@ -1256,7 +1257,7 @@ function renderChrome(){
   mm.innerHTML=S.moreOpen?'<div class="mscrim" data-act="more"></div><div class="mlist">'+MORE.map(k=>'<button class="'+(S.view===k?'cur':'')+(k==='drives'&&DRIVES.some(driveLow)?' alert':'')+'" data-act="nav" data-v="'+k+'"><svg viewBox="0 0 24 24" aria-hidden="true">'+IC[k]+'</svg>'+TABS.find(t=>t[0]===k)[1]+'</button>').join('')+'</div>':'';
   document.body.classList.toggle('morepage',MORE.includes(S.view));
 }
-const MORE=['invoicing','insights','drives','settings'];
+const MORE=['invoicing','insights','costs','drives','settings'];
 let renderQueued=false;
 function render(){ if(renderQueued)return; renderQueued=true; requestAnimationFrame(()=>{renderQueued=false;doRender()}) }
 function doRender(){
@@ -1264,7 +1265,7 @@ function doRender(){
   document.body.classList.toggle('locked',!!S.locked);if(S.locked){$('#view').innerHTML=vLock();renderLive();return}
   const v=S.view;let h='';
   if(v==='today')h=vToday();else if(v==='schedule')h=vSchedule();else if(v==='clients')h=S.client&&client(S.client)?vClient(S.client):vClients();
-  else if(v==='team')h=vTeam();else if(v==='drives')h=vDrives();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else h=vSettings();
+  else if(v==='team')h=vTeam();else if(v==='drives')h=vDrives();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else if(v==='costs')h=vCosts();else h=vSettings();
   const view=$('#view');const key=v+'|'+(S.client||'')+'|'+(v==='clients'?S.sub||'':'');
   view.innerHTML=h; if(!view.dataset.key)view.dataset.key=key;  // no fade when the app opens, only when you change page
   if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
@@ -1325,7 +1326,7 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
-  filmingToday(d0)+ditPanel('today')+requestsPanel()+lowDrivesNudge()+
+  filmingToday(d0)+ditPanel('today')+requestsPanel()+lowDrivesNudge()+billsNudge()+
   '<div class="grid g2">'+cards+'</div>'+
   (()=>{const ex=[unassignedPanel(),allocatePanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
@@ -1503,9 +1504,10 @@ function yearTable(){
   const y=new Date(S.insAt||Date.now()).getFullYear();const t0=startOfMonth(Date.now());const ms=[];for(let m=0;m<12;m++)ms.push(monthStats(new Date(y,m,1).getTime()));
   const tot=ms.reduce((a,m)=>({shoot:a.shoot+m.shoot,edit:a.edit+m.edit,done:a.done+m.done,booked:a.booked+m.booked,gross:a.gross+m.gross,crew:a.crew+m.crew,net:a.net+m.net,invoiced:a.invoiced+m.invoiced}),{shoot:0,edit:0,done:0,booked:0,gross:0,crew:0,net:0,invoiced:0});const sel=S.period==='month'?startOfMonth(S.insAt||Date.now()):-1;
   const goal=+S.settings.monthlyGoal||0;
-  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>'+y+' by month</h3><span class="note">Retainer instalments, project fees spread over their days and day bookings, by the month the work falls in. Tap a month for its breakdown.'+(goal?' Goal '+gbp(goal)+' a month.':'')+'</span></div><div class="tbl"><table><thead><tr><th>Month</th><th class="r">Filming</th><th class="r">Edit</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th><th class="r">Crew</th><th class="r">Net</th><th class="r">Invoiced</th></tr></thead><tbody>'+
-  ms.map(m=>'<tr'+(m.m0===sel?' style="font-weight:400;background:var(--raise)"':m.m0===t0?' style="font-weight:400"':m.past?'':' style="color:var(--muted)"')+'><td><button class="link" style="color:inherit;text-decoration:none" data-act="insmonth" data-v="'+m.m0+'">'+new Date(m.m0).toLocaleDateString('en-GB',{month:'long'})+'</button></td><td class="r">'+(m.shoot?fmtDays(m.shoot):'—')+'</td><td class="r">'+(m.edit?fmtDays(m.edit):'—')+'</td><td class="r">'+(m.done?gbp(m.done):'—')+'</td><td class="r">'+(m.booked?gbp(m.booked):'—')+'</td><td class="r">'+(m.gross?gbp(m.gross):'—')+'</td><td class="r">'+(m.crew?gbp(m.crew):'—')+'</td><td class="r"'+(goal&&m.gross&&m.gross<goal?' style="color:var(--warn)"':'')+'>'+(m.gross?gbp(m.net):'—')+'</td><td class="r">'+(m.invoiced?gbp(m.invoiced):'—')+'</td></tr>').join('')+
-  '</tbody><tfoot><tr><td>Year</td><td class="r">'+fmtDays(tot.shoot)+'</td><td class="r">'+fmtDays(tot.edit)+'</td><td class="r">'+gbp(tot.done)+'</td><td class="r">'+gbp(tot.booked)+'</td><td class="r">'+gbp(tot.gross)+'</td><td class="r">'+gbp(tot.crew)+'</td><td class="r">'+gbp(tot.net)+'</td><td class="r">'+gbp(tot.invoiced)+'</td></tr></tfoot></table></div></section>';
+  const oc=(S.insWho||'all')==='all'&&Object.keys(S.subs).length>0;const oh=m=>overheads(m.m0,addMonths(m.m0,1));const ohY=oc?ms.reduce((t,m)=>t+oh(m),0):0;
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>'+y+' by month</h3><span class="note">Retainer instalments, project fees spread over their days and day bookings, by the month the work falls in. Tap a month for its breakdown.'+(goal?' Goal '+gbp(goal)+' a month.':'')+'</span></div><div class="tbl"><table><thead><tr><th>Month</th><th class="r">Filming</th><th class="r">Edit</th><th class="r">Done</th><th class="r">Booked</th><th class="r">Total</th><th class="r">Crew</th><th class="r">Net</th>'+(oc?'<th class="r">Costs</th><th class="r">Profit</th>':'')+'<th class="r">Invoiced</th></tr></thead><tbody>'+
+  ms.map(m=>'<tr'+(m.m0===sel?' style="font-weight:400;background:var(--raise)"':m.m0===t0?' style="font-weight:400"':m.past?'':' style="color:var(--muted)"')+'><td><button class="link" style="color:inherit;text-decoration:none" data-act="insmonth" data-v="'+m.m0+'">'+new Date(m.m0).toLocaleDateString('en-GB',{month:'long'})+'</button></td><td class="r">'+(m.shoot?fmtDays(m.shoot):'—')+'</td><td class="r">'+(m.edit?fmtDays(m.edit):'—')+'</td><td class="r">'+(m.done?gbp(m.done):'—')+'</td><td class="r">'+(m.booked?gbp(m.booked):'—')+'</td><td class="r">'+(m.gross?gbp(m.gross):'—')+'</td><td class="r">'+(m.crew?gbp(m.crew):'—')+'</td><td class="r"'+(goal&&m.gross&&m.gross<goal?' style="color:var(--warn)"':'')+'>'+(m.gross?gbp(m.net):'—')+'</td>'+(oc?(()=>{const o=oh(m),pr=m.net-o;return '<td class="r">'+(o?gbp(o):'—')+'</td><td class="r"'+((m.gross||o)&&pr<0?' style="color:var(--warn)"':'')+'>'+(m.gross||o?(pr<0?'−':'')+gbp(Math.abs(pr)):'—')+'</td>'})():'')+'<td class="r">'+(m.invoiced?gbp(m.invoiced):'—')+'</td></tr>').join('')+
+  '</tbody><tfoot><tr><td>Year</td><td class="r">'+fmtDays(tot.shoot)+'</td><td class="r">'+fmtDays(tot.edit)+'</td><td class="r">'+gbp(tot.done)+'</td><td class="r">'+gbp(tot.booked)+'</td><td class="r">'+gbp(tot.gross)+'</td><td class="r">'+gbp(tot.crew)+'</td><td class="r">'+gbp(tot.net)+'</td>'+(oc?'<td class="r">'+gbp(ohY)+'</td><td class="r">'+(tot.net-ohY<0?'−':'')+gbp(Math.abs(tot.net-ohY))+'</td>':'')+'<td class="r">'+gbp(tot.invoiced)+'</td></tr></tfoot></table></div></section>';
 }
 function vInsights(){
   const now=Date.now();const per=S.period;const who=S.insWho||'all';
@@ -1533,7 +1535,8 @@ function vInsights(){
   return '<div class="panel-head"><h1>Insights</h1><div class="row" style="flex:0 1 auto;align-items:center"><div class="seg">'+[['all','Both']].concat(PEOPLE.map(p=>[p.id,name(p.id)])).map(([k,l])=>'<button data-act="inswho" data-v="'+k+'" aria-pressed="'+(who===k)+'">'+esc(l)+'</button>').join('')+'</div><div class="seg">'+[['week','Week'],['month','Month'],['year','Year']].map(([k,l])=>'<button data-act="period" data-v="'+k+'" aria-pressed="'+(per===k)+'">'+l+'</button>').join('')+'</div></div></div>'+
   '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><div class="row" style="flex:0 1 auto;align-items:center;gap:6px;flex-wrap:nowrap"><button class="btn ghost small" data-act="insstep" data-v="-1" aria-label="Previous '+per+'">‹</button><h3 style="white-space:nowrap">'+esc(mName)+'</h3><button class="btn ghost small" data-act="insstep" data-v="1" aria-label="Next '+per+'">›</button>'+(isNow?'':'<button class="link" data-act="insstep" data-v="0">This '+per+'</button>')+'</div>'+(goal?'<span class="eyebrow num">Goal '+gbp(goal)+'</span>':'<button class="link" data-act="nav" data-v="settings">Set a monthly goal</button>')+'</div>'+
   '<div class="grid g3"><div class="stat"><span class="eyebrow">Work done</span><span class="v">'+gbp(L.done)+'</span><span class="s">'+(isNow?'So far this '+per:m0<now?'All of it':'Nothing yet')+'</span></div><div class="stat"><span class="eyebrow">Booked in, still to do</span><span class="v">'+gbp(L.booked)+'</span>'+(L.pencil?'<span class="s">plus '+gbp(L.pencil)+' pencilled, not counted</span>':'<span class="s">Confirmed work only</span>')+'</div><div class="stat"><span class="eyebrow">Total for the '+per+'</span><span class="v" style="font-weight:400">'+gbp(L.total)+'</span><span class="s">Done and booked</span></div></div>'+
-  '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Crew to pay</span><span class="v">'+gbp(L.crew)+'</span></div><div class="stat"><span class="eyebrow">Net to Quiet Media</span><span class="v" style="font-weight:400">'+gbp(L.total-L.crew)+'</span><span class="s">Before expenses</span></div><div class="stat"><span class="eyebrow">Invoiced '+(per==='week'?'this week':per==='year'?'in '+new Date(m0).getFullYear():'in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'short'})))+'</span><span class="v">'+gbp(invM)+'</span><span class="s">'+gbp(unb)+' done and waiting to be invoiced, all months</span></div></div>'+
+  '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Crew to pay</span><span class="v">'+gbp(L.crew)+'</span></div><div class="stat"><span class="eyebrow">Net to Quiet Media</span><span class="v" style="font-weight:400">'+gbp(L.total-L.crew)+'</span><span class="s">Before running costs</span></div><div class="stat"><span class="eyebrow">Invoiced '+(per==='week'?'this week':per==='year'?'in '+new Date(m0).getFullYear():'in '+esc(new Date(m0).toLocaleDateString('en-GB',{month:'short'})))+'</span><span class="v">'+gbp(invM)+'</span><span class="s">'+gbp(unb)+' done and waiting to be invoiced, all months</span></div></div>'+
+  (who==='all'&&Object.keys(S.subs).length?(()=>{const oh=overheads(m0,monthEnd);const pr=L.total-L.crew-oh;return '<div class="grid g3" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div class="stat"><span class="eyebrow">Running costs</span><span class="v">'+gbp(oh)+'</span><span class="s">Subscriptions, insurance and bills · <button class="link" data-act="nav" data-v="costs">Costs</button></span></div><div class="stat"><span class="eyebrow">Profit after costs</span><span class="v" style="font-weight:400'+(pr<0?';color:var(--warn)':'')+'">'+(pr<0?'−':'')+gbp(Math.abs(pr))+'</span><span class="s">Done and booked, less crew and running costs</span></div><div class="stat"><span class="eyebrow">Margin</span><span class="v">'+(L.total?Math.round(pr/L.total*100)+'%':'—')+'</span><span class="s">'+(L.total-L.crew>0?'Costs take '+Math.round(oh/(L.total-L.crew)*100)+'% of the net':'Nothing booked yet')+'</span></div></div>'})():'')+
   (goal?'<div class="goal" aria-label="Progress to goal"><u style="width:'+Math.min(100,L.total/goal*100)+'%"></u><i style="width:'+Math.min(100,L.done/goal*100)+'%"></i></div><p class="note" style="margin-top:8px">'+Math.round(L.done/goal*100)+'% of the goal done. With booked work, '+Math.round(L.total/goal*100)+'%.</p>':'')+bTable+(whoName?'<p class="note" style="margin-top:10px">'+esc(whoName)+'’s share: bookings '+esc(whoName)+' is on (split when you are both on one), retainers by who did the hours, plus crew on those jobs. Invoices are not split.</p>':'')+(()=>{const u=undatedProjects();const d=likelyDuplicates();return (d.length?'<div class="banner warn" style="margin:14px 0 0">'+d.map(([a,b])=>'Possible duplicate for '+esc(cname(a.clientId))+': <b>'+esc(a.title)+'</b> ('+projectPriceLabel(a)+', '+projectBookings(a.id).length+' booking'+(projectBookings(a.id).length===1?'':'s')+') and <b>'+esc(b.title)+'</b> ('+projectPriceLabel(b)+', '+projectBookings(b.id).length+' booking'+(projectBookings(b.id).length===1?'':'s')+'). <button class="link" data-act="merge" data-a="'+a.id+'" data-b="'+b.id+'">Merge</button>').join('<br>')+'</div>':'')+(u.length?'<p class="note" style="margin-top:12px">Not in any month yet, because nothing is booked and there is no deadline: '+u.map(p=>'<button class="link" data-act="editproject" data-v="'+p.id+'">'+esc(p.title)+'</button> '+gbp(p.fee)).join(', ')+'.</p>':'')})()+'<p class="note" style="margin-top:10px">Tap a row to see how it was worked out and change it. Retainer instalments count evenly through their month. Fixed-fee projects are spread across their booked days; planned days not yet booked count on the deadline.</p></section>'+
   yearTable()+
   '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Client value</h3><span class="note">Fees for bookings in the period against hours logged in it. A client taking a much bigger share of your time than of your fees is marked.</span></div>'+tbl+'</section>'+
@@ -1596,13 +1599,14 @@ function renderModal(){
 /* ===== global search: ⌘K / Ctrl+K, / or the search button. Type anything, jump straight to it. ===== */
 function searchIndex(){const out=[];const now=Date.now();
   const page=(t,sub,act,v,ic)=>out.push({g:'Go to',t,sub,act,v,k:t+' '+sub});
-  page('Today','Clock in, today’s work','nav','today');page('Schedule','Calendar','nav','schedule');page('Clients & projects','','nav','clients');page('Team','Crew, pencils and bookings','nav','team');page('To invoice','','nav','invoicing');page('Insights','Money and hours','nav','insights');page('Settings','','nav','settings');
+  page('Today','Clock in, today’s work','nav','today');page('Schedule','Calendar','nav','schedule');page('Clients & projects','','nav','clients');page('Team','Crew, pencils and bookings','nav','team');page('To invoice','','nav','invoicing');page('Insights','Money and hours','nav','insights');page('Costs','Subscriptions, insurance, bills','nav','costs');page('Settings','','nav','settings');
   out.push({g:'Do',t:'New booking',sub:'',act:'newevent',k:'new booking add job book day'},{g:'Do',t:'New project',sub:'',act:'newproject',k:'new project'},{g:'Do',t:'Add client',sub:'',act:'newclient',k:'new client add'},{g:'Do',t:'Add team member',sub:'',act:'newcrew',k:'new crew team add person freelancer'},{g:'Do',t:'Add time',sub:'',act:'manual',k:'add time hours log'});
   Object.values(S.clients).forEach(c=>out.push({g:'Clients',t:c.name,sub:(rateCard(c).billing==='retainer'?'Retainer':'Client')+(c.archived?' · archived':''),act:'openclient',v:c.id,c:c.colour,k:c.name+' '+(c.email||'')+' '+(c.notes||'')}));
   Object.values(S.projects).filter(p=>pstatus(p)!=='cancelled').forEach(p=>out.push({g:'Projects',t:p.title,sub:cname(p.clientId)+' · '+(pstatus(p)==='active'?'open':pstatus(p))+' · '+projectPriceLabel(p),act:'qproject',v:p.id,c:colour(p.clientId),k:p.title+' '+cname(p.clientId)+' '+projectGenre(p.id)+' '+(p.notes||'')}));
   const seen={};Object.values(S.events).filter(e=>e.status!=='cancelled').sort((a,b)=>Math.abs(a.start-now)-Math.abs(b.start-now)).forEach(e=>{const gk=e.groupId||e.id;if(seen[gk])return;seen[gk]=1;const g=groupOf(e);out.push({g:'Bookings',t:e.title||evTypeName(e),sub:fmtDate(g[0].start,{weekday:'short',day:'numeric',month:'short',year:'numeric'})+(g.length>1?' +'+(g.length-1)+' days':'')+' · '+evTypeName(e)+(e.clientId?' · '+cname(e.clientId):'')+(evStatus(e)==='pencil'?' · pencil':''),act:'qevent',v:e.id,c:colour(e.clientId),k:(e.title||'')+' '+cname(e.clientId)+' '+e.type+' '+(e.genre||'')+' '+(e.location||'')+' '+(e.notes||'')+' '+(e.crew||[]).map(x=>crewName(x.id)).join(' ')+' '+fmtDate(e.start,{day:'numeric',month:'long',year:'numeric'})+' '+fmtDate(e.start,{month:'short'}),when:e.start})});
   Object.values(S.crew).filter(c=>!c.archived).forEach(c=>out.push({g:'Team',t:c.name,sub:[c.role,c.phone,c.email].filter(Boolean).join(' · '),act:'qteam',v:c.id,k:c.name+' '+(c.role||'')+' '+(c.phone||'').replace(/\s/g,'')+' '+(c.email||'')}));
   Object.values(S.invoices).forEach(i=>out.push({g:'Invoices',t:i.number,sub:cname(i.clientId)+' · '+gbp2(i.total)+' · '+i.status,act:'openinvoice',v:i.id,c:colour(i.clientId),k:i.number+' '+cname(i.clientId)+' '+i.status}));
+  Object.values(S.subs).forEach(x=>out.push({g:'Costs',t:x.name,sub:subBilled(x)+' · '+gbp2(+x.amount||0)+(x.card?' · '+x.card:'')+(x.active===false?' · paused':''),act:'opensub',v:x.id,k:x.name+' '+(x.category||'')+' '+(x.card||'')+' '+(x.notes||'')+' subscription cost bill'}));
   return out}
 function searchRun(q){q=(q||'').trim().toLowerCase();const idx=searchIndex();if(!q)return idx.filter(x=>x.g==='Go to'||x.g==='Do').concat(idx.filter(x=>x.g==='Bookings'&&x.when>=startOfDay(Date.now())).slice(0,5));
   const toks=q.split(/\s+/);const sc=x=>{const t=x.t.toLowerCase(),k=(x.t+' '+x.sub+' '+x.k).toLowerCase();if(!toks.every(w=>k.includes(w)))return -1;return (t.startsWith(q)?100:0)+(t.includes(q)?40:0)+toks.filter(w=>t.includes(w)).length*10+({Clients:6,Projects:5,Team:5,'Go to':4,Bookings:3,Do:2,Invoices:1}[x.g]||0)};
@@ -1617,6 +1621,7 @@ function searchGo(i){const x=(S.qres||[])[i];if(!x)return;closeModal();
   else if(x.act==='qevent'){const e=S.events[x.v];S.view='schedule';S.cal.mode='day';S.cal.cursor=startOfDay(e.start);S.cal.sel=startOfDay(e.start);render();window.scrollTo(0,0);setTimeout(()=>openEventSheet(x.v),60)}
   else if(x.act==='qteam'){S.view='team';S.teamOpen=x.v;render();setTimeout(()=>{const el=document.getElementById('tm-'+x.v);if(el)el.scrollIntoView({block:'start',behavior:'smooth'})},80)}
   else if(x.act==='openinvoice')openInvoiceModal(x.v);
+  else if(x.act==='opensub'){S.view='costs';S.client=null;render();window.scrollTo(0,0);openSubModal(x.v)}
   else if(x.act==='newevent')openEventModal(null,dayKey(Date.now()));else if(x.act==='newproject')openProjectModal(null,'');else if(x.act==='newclient')openClientModal();else if(x.act==='newcrew')openCrewModal();else if(x.act==='manual')openEntryModal(null)}
 /* move the open panel out of the way and let it animate off, while the app state closes straight away */
 function animateOut(){const root=$('#modalRoot');const sc=root&&root.firstElementChild;if(!sc||sc.classList.contains('leaving'))return;
@@ -2021,6 +2026,179 @@ function driveCard(d){const r=driveRec(d.id);
   (fs.length?'<button class="link" style="margin-top:12px" data-act="drfolders" data-v="'+d.id+'">'+(open?'Hide folders':'Show all '+fs.length+' folders')+'</button>'+(open?'<div class="list">'+sorted.map(f=>folderRow(d,f)).join('')+'</div>':''):'<div class="empty" style="margin-top:12px">No folders on this drive.</div>')+
   '<p class="note" style="margin:14px 0 0"><button class="link" data-act="drforget" data-v="'+d.id+'">Wrong drive? Forget it</button>, and the Mac asks again next time it is plugged in.</p></section>';
 }
+
+/* ===== Costs: subscriptions, insurance and anything else that goes out regularly. One record each in `subs`.
+   A cost is an amount every N months from its next payment date. A monthly cost can have no date yet: it still counts once a month.
+   Spread evenly (amount ÷ months) it is a running cost, which Insights takes off the net; the cash views use the real dates. ===== */
+const SUB_EVERY=[[1,'Monthly'],[3,'Quarterly'],[6,'Every 6 months'],[12,'Yearly'],[24,'Every 2 years']];
+const SUB_CATS=['Software','Website & email','Insurance','Vehicle','Music & stock','Internet & phone','Other'];
+const subEvery=s=>+s.every||1;
+const subPM=s=>(+s.amount||0)/subEvery(s);
+const subBilled=s=>(SUB_EVERY.find(x=>x[0]===subEvery(s))||[0,'Every '+subEvery(s)+' months'])[1];
+/* counted between from and to: added before to, and if stopped, stopped after from */
+const subLive=(s,from,to)=>(s.since||0)<to&&(s.active!==false||(s.ended||0)>Math.max(from,s.since||0));
+const allSubs=()=>Object.values(S.subs).sort((a,b)=>subPM(b)-subPM(a)||String(a.name).localeCompare(b.name));
+const liveSubs=()=>allSubs().filter(s=>s.active!==false);
+const psum=ps=>ps.reduce((t,p)=>t+p.amount,0);
+function overheads(from,to){let t=0;for(let m=startOfMonth(from);m<to;m=addMonths(m,1)){const m1=addMonths(m,1);const f=(Math.min(m1,to)-Math.max(m,from))/(m1-m);if(f<=0)continue;Object.values(S.subs).forEach(s=>{if(subLive(s,m,m1))t+=subPM(s)*f})}return t}
+function shiftMonths(ms,n){const d=new Date(ms);const x=new Date(d.getFullYear(),d.getMonth()+n,1);x.setDate(Math.min(d.getDate(),new Date(x.getFullYear(),x.getMonth()+1,0).getDate()));return x.getTime()}
+/* each payment of one cost between from and to: {s,at,amount,noDay}. Nothing falls between today and the next payment date. */
+function subPayments(s,from,to){const out=[];const n=subEvery(s);const amount=+s.amount||0;
+  if(!s.next){if(n!==1)return out;for(let m=startOfMonth(from);m<to;m=addMonths(m,1)){const at=Math.max(m,from);if(subLive(s,m,addMonths(m,1)))out.push({s,at,amount,noDay:true})}return out}
+  const a=startOfDay(s.next),t0=startOfDay(Date.now());const d=new Date(a),f=new Date(from);
+  const ok=at=>at>=from&&at<to&&at>=startOfDay(s.since||0)&&!(at>=t0&&at<a)&&(s.active!==false||at<(s.ended||0));
+  let k=Math.floor(((f.getFullYear()-d.getFullYear())*12+f.getMonth()-d.getMonth())/n)-1;
+  for(let i=0;i<400;i++,k++){const at=shiftMonths(a,k*n);if(at>=to)break;if(ok(at))out.push({s,at,amount})}return out}
+const payments=(from,to)=>Object.values(S.subs).flatMap(s=>subPayments(s,from,to)).sort((a,b)=>a.at-b.at||b.amount-a.amount);
+const subNext=s=>{const t0=startOfDay(Date.now());return s.next?subPayments(s,t0,shiftMonths(Math.max(t0,startOfDay(s.next)),subEvery(s)+1))[0]:null};
+/* the month's cash against a usual month: heavier when yearly or quarterly bills land in it */
+function costMonth(m0){const m1=addMonths(m0,1);const ps=payments(m0,m1);const cash=psum(ps),usual=overheads(m0,m1);const big=ps.filter(p=>subEvery(p.s)>1);return {m0,ps,cash,usual,big,heavy:big.length>0&&cash>usual*1.15}}
+const payWhen=at=>{const d0=startOfDay(Date.now());return at===d0?'today':at===addDays(d0,1)?'tomorrow':fmtDate(at,{weekday:'short',day:'numeric',month:'short'})};
+
+/* Today: bills in the next week worth knowing about (anything not monthly, or £50 and over), and a heavier month.
+   Dismiss hides it on this device until something new comes into the week. */
+function billSnoozed(sig){try{return localStorage.getItem('qm-billsnooze')===sig}catch(e){return false}}
+function billsNudge(){if(!Object.keys(S.subs).length)return '';const d0=startOfDay(Date.now());
+  const due=payments(d0,addDays(d0,8)).filter(p=>!p.noDay&&(subEvery(p.s)>1||p.amount>=50));const M=costMonth(startOfMonth(d0));
+  const sig=due.map(p=>p.s.id+'@'+p.at).join(',')+(M.heavy?'|'+M.m0:'');if(!due.length&&!M.heavy||billSnoozed(sig))return '';
+  const mn=new Date(M.m0).toLocaleDateString('en-GB',{month:'long'});
+  const head=due.length===1?esc(due[0].s.name)+' '+gbp2(due[0].amount)+' comes out '+payWhen(due[0].at):due.length?due.length+' payments go out this week · '+gbp2(psum(due)):'A heavier month for costs';
+  const bits=[];if(due.length>1)bits.push(due.map(p=>esc(p.s.name)+' '+gbp2(p.amount)+' '+payWhen(p.at)).join(' · '));else if(due.length&&due[0].s.card)bits.push('From '+esc(due[0].s.card));
+  if(M.heavy)bits.push(gbp(M.cash)+' goes out in '+mn+', '+gbp(M.cash-M.usual)+' more than a usual month ('+M.big.map(p=>esc(p.s.name)+' '+gbp(p.amount)).join(', ')+')');
+  return '<div class="nudge"><span class="dot" style="background:var(--warn)"></span><div><b>'+head+'</b><div class="note">'+bits.join(' · ')+(bits.length?' · ':'')+'<button class="link" data-act="nav" data-v="costs">Costs</button> · <button class="link" data-act="billsnooze" data-v="'+esc(sig)+'">Dismiss</button></div></div></div>'}
+
+function vCosts(){
+  const subs=allSubs(),live=liveSubs(),off=subs.filter(s=>s.active===false);
+  const head='<div class="panel-head"><h1>Costs</h1><div style="display:flex;align-items:center;gap:16px;flex:none">'+(subs.length?'<button class="link" data-act="subexport" style="white-space:nowrap">Download spreadsheet</button>':'')+'<label class="link" style="cursor:pointer;white-space:nowrap">Import spreadsheet<input type="file" id="subfile" accept=".xlsx,.xls,.csv" hidden></label><button class="btn small" data-act="newsub">Add a cost</button></div></div>';
+  if(!subs.length)return head+'<section class="panel"><div class="empty"><b>No costs yet.</b> Add your subscriptions, insurance and other regular bills, or import them from a spreadsheet with a Name column and Monthly, Yearly, card and next payment columns. Once they are in, Insights shows profit after costs and Today warns you before the bigger bills go out.</div></section>';
+  const now=Date.now(),d0=startOfDay(now),m0=startOfMonth(now),m1=addMonths(m0,1);
+  const pm=live.reduce((t,s)=>t+subPM(s),0);const M=costMonth(m0);const left=psum(M.ps.filter(p=>p.at>=d0&&!p.noDay));
+  const L=ledger(m0,m1,'all');const after=L.total-L.crew-overheads(m0,m1);
+  const mn=new Date(m0).toLocaleDateString('en-GB',{month:'long'});
+  const noDay=live.filter(s=>!s.next&&subEvery(s)===1);
+  const stats='<section class="panel" style="margin-bottom:16px"><div class="grid g3"><div class="stat"><span class="eyebrow">Running costs</span><span class="v">'+gbp(pm)+'<span class="muted" style="font-size:16px">/month</span></span><span class="s">'+gbp(pm*12)+' a year · '+live.length+' cost'+(live.length===1?'':'s')+'</span></div>'+
+    '<div class="stat"><span class="eyebrow">Going out in '+esc(mn)+'</span><span class="v"'+(M.heavy?' style="color:var(--warn)"':'')+'>'+gbp(M.cash)+'</span><span class="s">'+(M.heavy?gbp(M.cash-M.usual)+' more than usual: '+M.big.map(p=>esc(p.s.name)).join(', '):'A usual month')+(left?' · '+gbp(left)+' still to come':'')+'</span></div>'+
+    '<div class="stat"><span class="eyebrow">'+esc(mn)+' after costs</span><span class="v" style="font-weight:400'+(after<0?';color:var(--warn)':'')+'">'+(after<0?'−':'')+gbp(Math.abs(after))+'</span><span class="s">Work done and booked, less crew and running costs · <button class="link" data-act="nav" data-v="insights">Insights</button></span></div></div>'+
+    (noDay.length?'<p class="note" style="margin:14px 0 0">'+noDay.length+' monthly cost'+(noDay.length===1?' has':'s have')+' no payment day yet ('+noDay.slice(0,4).map(s=>'<button class="link" data-act="editsub" data-v="'+s.id+'">'+esc(s.name)+'</button>').join(', ')+(noDay.length>4?' and '+(noDay.length-4)+' more':'')+'). They count in every month, but add the day and they show up in Coming up and on Today.</p>':'')+'</section>';
+  const up=payments(d0,addDays(d0,61)).filter(p=>!p.noDay);
+  const upl=up.length?'<div class="list">'+up.map(p=>'<div class="item" data-act="editsub" data-v="'+p.s.id+'" style="cursor:pointer"><span class="eyebrow num" style="min-width:74px">'+esc(payWhen(p.at))+'</span><div class="main"><div class="t">'+esc(p.s.name)+'</div><div class="meta">'+subBilled(p.s)+(p.s.card?' · '+esc(p.s.card):'')+'</div></div><span class="num"'+(subEvery(p.s)>1?' style="font-weight:400"':'')+'>'+gbp2(p.amount)+'</span></div>').join('')+'</div>':'<div class="empty">Nothing with a date in the next two months.</div>';
+  const yr=Array.from({length:12},(_,i)=>costMonth(addMonths(m0,i)));const maxC=Math.max(1,...yr.map(x=>x.cash));
+  const bars='<div class="bars">'+yr.map(x=>'<div class="bar"><span class="lab">'+new Date(x.m0).toLocaleDateString('en-GB',{month:'short'})+(new Date(x.m0).getMonth()===0||x.m0===m0?' '+new Date(x.m0).getFullYear():'')+'</span><span class="track"><i style="width:'+(x.cash/maxC*100)+'%;background:'+(x.heavy?'var(--warn)':'var(--sand)')+'"></i><b class="avg" style="left:'+(pm/maxC*100)+'%"></b></span><span class="val"'+(x.heavy?' title="'+esc(x.big.map(p=>p.s.name+' '+gbp(p.amount)).join(', '))+'"':'')+'>'+gbp(x.cash)+'</span></div>').join('')+'</div>';
+  const heavy=yr.filter(x=>x.heavy);
+  const group=k=>{const g={};live.forEach(s=>{const n=(s[k]||'').trim()||(k==='card'?'Not set':'Other');g[n]=(g[n]||0)+subPM(s)});const e=Object.entries(g).sort((a,b)=>b[1]-a[1]);const mx=Math.max(1,...e.map(x=>x[1]));
+    return '<div class="bars">'+e.map(([n,v])=>'<div class="bar"><span class="lab">'+esc(n)+'</span><span class="track"><i style="width:'+(v/mx*100)+'%;background:var(--sand)"></i></span><span class="val">'+gbp(v)+'/mo · '+Math.round(v/(pm||1)*100)+'%</span></div>').join('')+'</div>'};
+  const row=s=>{const nx=subNext(s);return '<tr data-act="editsub" data-v="'+s.id+'" style="cursor:pointer'+(s.active===false?';color:var(--muted)':'')+'"><td>'+esc(s.name)+'<div class="note">'+[s.category,s.card,s.active===false?'Paused, not counted':''].filter(Boolean).map(esc).join(' · ')+'</div></td><td>'+subBilled(s)+'</td><td class="r">'+(s.active===false?'—':nx?fmtDate(nx.at,{day:'numeric',month:'short',year:'2-digit'}):'Day not set')+'</td><td class="r">'+gbp2(+s.amount||0)+'</td><td class="r" style="font-weight:400">'+gbp2(subPM(s))+'</td></tr>'};
+  const tbl='<div class="tbl"><table><thead><tr><th>Cost</th><th>Billed</th><th class="r">Next</th><th class="r">Each time</th><th class="r">Per month</th></tr></thead><tbody>'+live.map(row).join('')+off.map(row).join('')+'</tbody><tfoot><tr><td>Running costs</td><td></td><td></td><td class="r">'+gbp2(pm*12)+'/yr</td><td class="r">'+gbp2(pm)+'</td></tr></tfoot></table></div>';
+  return head+stats+
+  '<div class="grid g2" style="margin-bottom:16px"><section class="panel"><div class="panel-head"><h3>Coming up</h3><span class="note">Next two months · '+gbp(psum(up.filter(p=>p.at<addDays(d0,30))))+' in the next 30 days</span></div>'+upl+'</section>'+
+  '<section class="panel"><div class="panel-head"><h3>Next 12 months</h3><span class="note">What actually goes out each month. The line is a usual month, '+gbp(pm)+'.</span></div>'+bars+(heavy.length?'<p class="note" style="margin-top:12px">Heavier months: '+heavy.map(x=>esc(new Date(x.m0).toLocaleDateString('en-GB',{month:'long'}))+' ('+x.big.map(p=>esc(p.s.name)+' '+gbp(p.amount)).join(', ')+')').join('; ')+'.</p>':'')+'</section></div>'+
+  '<div class="grid g2" style="margin-bottom:16px"><section class="panel"><h3 style="margin-bottom:16px">By type</h3>'+group('category')+'</section><section class="panel"><h3 style="margin-bottom:16px">By card or account</h3>'+group('card')+'</section></div>'+
+  '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>All costs</h3><span class="note">Tap one to change it, pause it or mark it cancelled.</span></div>'+tbl+'</section>'+
+  '<p class="note">Yearly and quarterly bills are spread evenly across the months for running costs and in Insights, so one big renewal doesn’t make a month look like a loss. Coming up, Next 12 months and Today use the real dates.</p>';
+}
+function openSubModal(id){
+  const s=id?{...S.subs[id]}:{name:'',amount:'',every:1,next:null,card:'',category:'',notes:'',active:true};
+  const cards=[...new Set(Object.values(S.subs).map(x=>(x.card||'').trim()).filter(Boolean))].sort();
+  S.modal={type:'sub',html:()=>'<h2>'+(id?'Edit cost':'New cost')+'</h2>'+
+    '<label class="f">Name<input type="text" id="u-name" value="'+esc(s.name)+'" placeholder="e.g. Adobe, van insurance"></label>'+
+    '<div class="row"><label class="f">Amount each time (£)<input type="number" id="u-amount" min="0" step="0.01" inputmode="decimal" value="'+(s.amount===''?'':+s.amount)+'"></label><label class="f">Billed<select id="u-every">'+SUB_EVERY.map(([n,l])=>'<option value="'+n+'" '+(subEvery(s)===n?'selected':'')+'>'+l+'</option>').join('')+'</select></label></div>'+
+    '<div class="row"><label class="f">Next payment<input type="date" id="u-next" value="'+(s.next?dayKey(s.next):'')+'"></label><label class="f">Paid with<input type="text" id="u-card" list="u-cards" value="'+esc(s.card||'')+'" placeholder="Amex - Samuel, Starling…"><datalist id="u-cards">'+cards.map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></label></div>'+
+    '<div class="row"><label class="f">Type<input type="text" id="u-cat" list="u-catl" value="'+esc(s.category||'')+'"><datalist id="u-catl">'+SUB_CATS.map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist></label><label class="f">Counted<select id="u-on"><option value="1" '+(s.active!==false?'selected':'')+'>Yes, still paying</option><option value="0" '+(s.active===false?'selected':'')+'>No, paused or cancelled</option></select></label></div>'+
+    '<label class="f">Notes<textarea id="u-notes" rows="2" placeholder="Policy number, login, when to review…">'+esc(s.notes||'')+'</textarea></label>'+
+    '<p class="note">Leave the date blank for a monthly cost if you don’t know the day yet. Pausing keeps it in past months but stops it counting from today.</p>'+
+    '<div class="acts">'+(id?'<button class="btn ghost small" data-act="delsub" data-v="'+id+'">Delete</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="savesub" data-v="'+(id||'')+'">Save</button></div>'};
+  renderModal()}
+function saveSubForm(id){const g=k=>document.getElementById(k).value;const nm=g('u-name').trim();if(!nm){document.getElementById('u-name').focus();return}
+  const old=id?S.subs[id]:null;const on=g('u-on')==='1';const nd=g('u-next');
+  const s={...(old?stripId(old):{}),name:nm,amount:Math.round((parseFloat(g('u-amount'))||0)*100)/100,every:+g('u-every')||1,next:nd?parseLocal(nd,'00:00'):null,card:g('u-card').trim(),category:g('u-cat').trim(),notes:g('u-notes'),active:on,since:old&&old.since||startOfMonth(Date.now())};
+  if(!on&&(!old||old.active!==false))s.ended=Date.now();if(on)delete s.ended;
+  if(!s.next&&s.every!==1){document.getElementById('u-next').focus();toast('Add the next payment date for a '+subBilled(s).toLowerCase()+' cost');return}
+  closeModal();put('subs',id||null,s);toast('Saved '+nm)}
+function guessSubCat(n){n=n.toLowerCase();return /insur|hiscox|aviva|protection/.test(n)?'Insurance':/van|road tax|fuel|car\b/.test(n)?'Vehicle':/wix|godaddy|domain|email|squarespace/.test(n)?'Website & email':/epidemic|storyblocks|spotify|suno|music|artlist|sound/.test(n)?'Music & stock':/starlink|broadband|phone|mobile|internet/.test(n)?'Internet & phone':'Software'}
+/* Import: reads the first sheet. QM_Costs.xlsx has Name, Type, Amount, Billed, Next payment, Paid with, Counted, Notes, and is read as is.
+   The older QM_Subscriptions.xlsx layout (Names, Monthly, Yearly, card, Next Payment) works too:
+   A real date in Next Payment means a yearly bill on that date; "Monthly" means monthly with no day yet. Ticks are ignored; a row with no amount comes in paused.
+   A name already in Studio is updated, not added twice. */
+function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.crossOrigin='anonymous';sc.onload=ok;sc.onerror=()=>no(new Error('Could not load the spreadsheet reader. Check the connection.'));document.head.appendChild(sc)})}
+async function importSubs(file){
+  try{toast('Reading '+file.name+'…');await loadXLSX();const wb=XLSX.read(await file.arrayBuffer(),{cellDates:true});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:null,raw:true});
+    const isName=c=>/^(names?|subscriptions?|costs?|services?)$/i.test(String(c??'').trim());
+    const hi=rows.findIndex(r=>r.some(isName)&&r.some(c=>/month|year|amount/i.test(String(c??''))));if(hi<0)throw new Error('No Name column found in '+file.name);
+    const H=rows[hi].map(c=>String(c??'').trim().toLowerCase());const col=re=>H.findIndex(h=>re.test(h));
+    const cN=H.findIndex(isName),cM=col(/month/),cY=col(/year|annual/),cA=col(/about|card|paid|account/),cD=col(/next|date|renew/),cC=col(/categ|type/),cAm=col(/^amount/),cB=col(/^(billed|frequency|how often|every)/),cNo=col(/^notes?$/),cOn=col(/^(counted|status|active)$/);
+    const byName={};Object.values(S.subs).forEach(s=>{byName[String(s.name).toLowerCase()]=s});
+    const y0=new Date(new Date().getFullYear(),0,1).getTime();let added=0,updated=0;userAt=Date.now();
+    for(const r of rows.slice(hi+1)){const nm=String(r[cN]??'').trim();if(!nm||/^total/i.test(nm))continue;
+      const num=i=>i<0?0:typeof r[i]==='number'?r[i]:parseFloat(String(r[i]??'').replace(/[£,\s]/g,''))||0;const m=num(cM),y=num(cY);const dv=cD<0?null:r[cD];
+      let every=1,amount=m||y/12,next=null;
+      if(cAm>=0&&cB>=0){amount=num(cAm);const bl=String(r[cB]??'').trim().toLowerCase();every=(SUB_EVERY.find(x=>x[1].toLowerCase()===bl)||[1])[0];if(dv instanceof Date)next=startOfDay(dv.getTime()+432e5)}
+      else if(dv instanceof Date){every=12;amount=y||m*12;next=startOfDay(dv.getTime()+432e5)}else if(/year|annual/i.test(String(dv??''))){every=12;amount=y||m*12}
+      amount=Math.round(amount*100)/100;
+      const ex=byName[nm.toLowerCase()];const since=ex&&ex.since||y0;const on=amount>0&&!(cOn>=0&&/^(no|n|false|paused|cancelled)$/i.test(String(r[cOn]??'').trim()));
+      const s={...(ex?stripId(ex):{}),name:nm,amount,every,next,card:cA<0?'':String(r[cA]??'').trim().replace(/^-$/,''),category:(cC>=0&&r[cC]?String(r[cC]).trim():'')||ex&&ex.category||guessSubCat(nm),notes:(cNo>=0&&r[cNo]?String(r[cNo]).trim():'')||ex&&ex.notes||'',active:on,since};
+      if(on)delete s.ended;else s.ended=ex&&ex.active===false&&ex.ended||since;
+      put('subs',ex?ex.id:null,s);if(ex)updated++;else added++}
+    toast((added?'Added '+added:'')+(added&&updated?', ':'')+(updated?'updated '+updated:'')+(added||updated?' from '+file.name:'Nothing to import in '+file.name),{undo:true})}
+  catch(e){toast(e.message||'Could not read that file')}}
+/* Download: every cost as QM_Costs.xlsx in the Studio look, the same layout Import reads back (with Counted, so paused costs stay paused),
+   plus a sheet of each payment in the next 12 months. ExcelJS loads only when you download. */
+function loadExcelJS(){return window.ExcelJS?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js';sc.crossOrigin='anonymous';sc.onload=ok;sc.onerror=()=>no(new Error('Could not load the spreadsheet writer. Check the connection.'));document.head.appendChild(sc)})}
+async function exportSubs(){
+  try{toast('Making the spreadsheet…');await loadExcelJS();
+    const C={bg:'FF0E0E0E',surf:'FF161716',surf2:'FF1C1C1B',fg:'FFFEFEFE',t2:'FFC9C7C4',mut:'FF9F9F9E',gold:'FFAD9A59',line:'FF2A2927'};const F='DM Sans';
+    const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});const font=(c,sz,b)=>({name:F,size:sz||11,color:{argb:c},bold:!!b});
+    const money='£#,##0.00;-£#,##0.00;"–"';const line={bottom:{style:'thin',color:{argb:C.line}}};
+    const wb=new ExcelJS.Workbook();wb.creator='Quiet Media Studio';wb.created=new Date();
+    const ws=wb.addWorksheet('Costs',{views:[{state:'frozen',xSplit:1,ySplit:6,showGridLines:false}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+    const L=wb.addWorksheet('Lists',{state:'hidden'});L.getCell('A1').value='Billed';L.getCell('B1').value='Months';L.getCell('D1').value='Type';
+    SUB_EVERY.forEach(([n,l],i)=>{L.getCell(i+2,1).value=l;L.getCell(i+2,2).value=n});SUB_CATS.forEach((t,i)=>{L.getCell(i+2,4).value=t});const nB=SUB_EVERY.length+1,nT=SUB_CATS.length+1;
+    const cols=[['Name',34],['Type',18],['Amount (£)',13],['Billed',16],['Next payment',15],['Paid with',17],['Per month (£)',14],['Per year (£)',14],['Counted',11],['Notes',58]];
+    cols.forEach(([,w],i)=>{ws.getColumn(i+1).width=w});ws.getColumn(11).width=3;ws.getColumn(5).width=17;
+    const subs=allSubs();const H=6,end=H+subs.length+10,T=end+1;
+    for(let r=1;r<=T+4;r++)for(let c=1;c<=11;c++)ws.getCell(r,c).fill=fill(C.bg);
+    ws.getCell('A1').value='quiet media';ws.getCell('A1').font=font(C.mut,11);
+    ws.getCell('A2').value='Costs';ws.getCell('A2').font=font(C.fg,28);ws.getRow(2).height=40;
+    ws.getCell('A3').value='Subscriptions, insurance and regular bills, from Studio on '+fmtDate(Date.now(),{day:'numeric',month:'long',year:'numeric'})+'. Per month and Per year work themselves out; costs marked No in Counted are left out.';
+    ws.getCell('A4').value='To load changes back into Studio: Costs, then Import spreadsheet, then pick this file. Costs with the same name are updated, not added twice.';
+    ['A3','A4'].forEach(a=>{ws.getCell(a).font=font(C.mut,10)});
+    const right=i=>i===2||i===6||i===7;
+    cols.forEach(([n],i)=>{const c=ws.getCell(H,i+1);c.value=n;c.font=font(C.mut,9,true);c.fill=fill(C.surf);c.alignment={horizontal:right(i)?'right':'left',vertical:'middle',indent:1}});ws.getRow(H).height=26;
+    const pmF=r=>({formula:'IF(C'+r+'="","",IF(I'+r+'="No",0,C'+r+'/INDEX(Lists!$B$2:$B$'+nB+',MATCH(D'+r+',Lists!$A$2:$A$'+nB+',0))))'});
+    for(let k=0;k<subs.length+10;k++){const r=H+1+k,s=subs[k];const nx=s&&s.active!==false?(subNext(s)||null):null;const on=s?s.active!==false:true;
+      const vals=s?[s.name,s.category||'',+s.amount||0,subBilled(s),nx&&!nx.noDay?new Date(nx.at):s.next?new Date(s.next):null,s.card||'',null,null,on?'Yes':'No',s.notes||'']:[null,null,null,null,null,null,null,null,null,null];
+      vals.forEach((v,i)=>{const c=ws.getCell(r,i+1);c.value=v;c.fill=fill(C.surf);c.border=line;c.font=font(i===9||!on?C.mut:i===6||i===7?C.t2:C.fg);c.alignment={vertical:'middle',horizontal:right(i)?'right':'left',indent:1,wrapText:i===9};if(right(i))c.numFmt=money;if(i===4)c.numFmt='d mmm yyyy'});
+      const pm=s&&on?subPM(s):0;ws.getCell(r,7).value={...pmF(r),result:s?pm:undefined};ws.getCell(r,8).value={formula:'IF(G'+r+'="","",G'+r+'*12)',result:s?pm*12:undefined};
+      ws.getCell(r,4).dataValidation={type:'list',allowBlank:true,formulae:['Lists!$A$2:$A$'+nB]};ws.getCell(r,2).dataValidation={type:'list',allowBlank:true,showErrorMessage:false,formulae:['Lists!$D$2:$D$'+nT]};ws.getCell(r,9).dataValidation={type:'list',allowBlank:true,formulae:['"Yes,No"']};
+      ws.getRow(r).height=s&&(s.notes||'').length>60?36:24}
+    const pm=liveSubs().reduce((t,s)=>t+subPM(s),0);
+    ws.getCell(T,1).value='Total';ws.getCell(T,2).value={formula:'COUNTIF(I'+(H+1)+':I'+end+',"Yes")&" costs counted"',result:liveSubs().length+' costs counted'};
+    ws.getCell(T,7).value={formula:'SUM(G'+(H+1)+':G'+end+')',result:pm};ws.getCell(T,8).value={formula:'SUM(H'+(H+1)+':H'+end+')',result:pm*12};
+    for(let i=1;i<=10;i++){const c=ws.getCell(T,i);c.fill=fill(C.surf2);c.font=font(i===7||i===8?C.gold:C.fg,12,i===7||i===8);c.alignment={vertical:'middle',indent:1,horizontal:i===7||i===8?'right':'left'};if(i===7||i===8)c.numFmt=money}
+    ws.getCell(T,2).font=font(C.mut,10);ws.getRow(T).height=30;
+    ws.getCell(H,7).note='Amount divided by the months in Billed. Yearly bills are spread over 12 months, the same way Studio counts them.';
+    /* the next 12 months, payment by payment: what an accountant or a cash-flow check wants */
+    const P=wb.addWorksheet('Next 12 months',{views:[{state:'frozen',ySplit:4,showGridLines:false}],pageSetup:{orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0}});
+    [['Date',22],['Cost',34],['Billed',16],['Paid with',17],['Amount (£)',13],['Month total (£)',16]].forEach(([,w],i)=>{P.getColumn(i+1).width=w});P.getColumn(7).width=3;
+    const d0=startOfDay(Date.now());const ps=payments(d0,addMonths(startOfMonth(d0),12)).filter(p=>!p.noDay);
+    const mon=liveSubs().filter(s=>!s.next&&subEvery(s)===1);
+    const PT=5+ps.length+(mon.length?mon.length+2:0)+2;
+    for(let r=1;r<=PT+2;r++)for(let c=1;c<=7;c++)P.getCell(r,c).fill=fill(C.bg);
+    P.getCell('A1').value='quiet media';P.getCell('A1').font=font(C.mut,11);P.getCell('A2').value='Next 12 months';P.getCell('A2').font=font(C.fg,24);P.getRow(2).height=34;
+    P.getCell('A3').value='Every dated payment from today. Monthly costs without a payment day are listed underneath, once a month.';P.getCell('A3').font=font(C.mut,10);
+    ['Date','Cost','Billed','Paid with','Amount (£)','Month total (£)'].forEach((n,i)=>{const c=P.getCell(4,i+1);c.value=n;c.font=font(C.mut,9,true);c.fill=fill(C.surf);c.alignment={horizontal:i>3?'right':'left',vertical:'middle',indent:1}});P.getRow(4).height=26;
+    const mTot={};ps.forEach(p=>{const k=startOfMonth(p.at);mTot[k]=(mTot[k]||0)+p.amount});
+    let r=5;ps.forEach((p,i)=>{const lastOfMonth=!ps[i+1]||startOfMonth(ps[i+1].at)!==startOfMonth(p.at);const big=subEvery(p.s)>1;
+      [new Date(p.at),p.s.name,subBilled(p.s),p.s.card||'',p.amount,lastOfMonth?mTot[startOfMonth(p.at)]:null].forEach((v,j)=>{const c=P.getCell(r,j+1);c.value=v;c.fill=fill(C.surf);c.border=line;c.font=font(j===5?C.t2:big&&j===4?C.gold:C.fg);c.alignment={vertical:'middle',indent:1,horizontal:j>3?'right':'left'};if(j===0)c.numFmt='ddd d mmm yyyy';if(j>3)c.numFmt=money});P.getRow(r).height=22;r++});
+    if(mon.length){r++;P.getCell(r,1).value='Monthly, day not set';P.getCell(r,1).font=font(C.mut,9,true);r++;
+      mon.forEach(s=>{['Every month',s.name,'Monthly',s.card||'',+s.amount||0,null].forEach((v,j)=>{const c=P.getCell(r,j+1);c.value=v;c.fill=fill(C.surf);c.border=line;c.font=font(j===0?C.mut:C.fg);c.alignment={vertical:'middle',indent:1,horizontal:j>3?'right':'left'};if(j>3)c.numFmt=money});P.getRow(r).height=22;r++})}
+    r++;const tot=psum(ps)+mon.reduce((t,s)=>t+(+s.amount||0),0)*12;
+    ['Next 12 months in all','','','',tot,null].forEach((v,j)=>{const c=P.getCell(r,j+1);c.value=v;c.fill=fill(C.surf2);c.font=font(j===4?C.gold:C.fg,12,j===4);c.alignment={vertical:'middle',indent:1,horizontal:j>3?'right':'left'};if(j===4)c.numFmt=money});P.getRow(r).height=30;
+    const blob=new Blob([await wb.xlsx.writeBuffer()],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='QM_Costs_'+dayKey(Date.now())+'.xlsx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    toast('Downloaded '+a.download)}
+  catch(e){toast(e.message||'Could not make the spreadsheet')}}
+document.addEventListener('change',ev=>{if(ev.target.id==='subfile'&&ev.target.files&&ev.target.files[0]){importSubs(ev.target.files[0]);ev.target.value=''}});
 
 function vDrives(){
   const seen=DRIVES.filter(d=>driveRec(d.id).spaceAt);const low=DRIVES.filter(driveLow);const now=DRIVES.filter(d=>driveNow(driveRec(d.id)));
@@ -2596,6 +2774,12 @@ document.addEventListener('click',async ev=>{
     case 'filmhide':filmHide(v);pushUndo(()=>filmUnhide(v));render();toast('Removed from Today',{undo:true});break;
     case 'undo':$('#toastRoot').innerHTML='';undo();break;
     case 'more':S.moreOpen=!S.moreOpen;renderChrome();break;
+    case 'billsnooze':try{localStorage.setItem('qm-billsnooze',v)}catch(e){}render();toast('Hidden until another bill comes into the week');break;
+    case 'newsub':openSubModal(null);break;
+    case 'subexport':exportSubs();break;
+    case 'editsub':openSubModal(v);break;
+    case 'savesub':saveSubForm(v||null);break;
+    case 'delsub':{const nm=S.subs[v]&&S.subs[v].name;closeModal();remove('subs',v);toast('Deleted '+(nm||'cost'),{undo:true});break}
     case 'drsnooze':drSnooze(v.split(','));render();toast('Hidden for 3 days, or until it gets fuller');break;
     case 'arch':{const w=b.dataset.k;const it=archItems()[v]||{};setArch(v,{[w]:it[w]?0:Date.now(),skip:false});break}
     case 'archmark':setArch(v,{marked:true,skip:false});toast('Added to Ready to archive');break;
