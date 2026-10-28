@@ -1253,7 +1253,8 @@ function doRender(){
   if(v==='today')h=vToday();else if(v==='schedule')h=vSchedule();else if(v==='clients')h=S.client&&client(S.client)?vClient(S.client):vClients();
   else if(v==='team')h=vTeam();else if(v==='drives')h=vDrives();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else h=vSettings();
   const view=$('#view');const key=v+'|'+(S.client||'')+'|'+(v==='clients'?S.sub||'':'');
-  view.innerHTML=h; if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
+  view.innerHTML=h; if(!view.dataset.key)view.dataset.key=key;  // no fade when the app opens, only when you change page
+  if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
   renderLive();
   if(S.cal.toToday){S.cal.toToday=false;requestAnimationFrame(()=>requestAnimationFrame(scrollWeekToToday))}
 }
