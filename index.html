@@ -2116,7 +2116,7 @@ function saveSubForm(id){const g=k=>document.getElementById(k).value;const nm=g(
   closeModal();put('subs',id||null,s);toast('Saved '+nm)}
 function guessSubCat(n){n=n.toLowerCase();return /insur|hiscox|aviva|protection/.test(n)?'Insurance':/van|road tax|fuel|car\b/.test(n)?'Vehicle':/wix|godaddy|domain|email|squarespace/.test(n)?'Website & email':/epidemic|storyblocks|spotify|suno|music|artlist|sound/.test(n)?'Music & stock':/starlink|broadband|phone|mobile|internet/.test(n)?'Internet & phone':'Software'}
 /* Import: reads the first sheet laid out like QM_Subscriptions.xlsx (a tick column, Names, Monthly, Yearly, card, Next Payment).
-   A real date in Next Payment means a yearly bill on that date; "Monthly" means monthly with no day yet. An unticked row comes in paused.
+   A real date in Next Payment means a yearly bill on that date; "Monthly" means monthly with no day yet. Ticks are ignored; a row with no amount comes in paused.
    A name already in Studio is updated, not added twice. */
 function loadXLSX(){return window.XLSX?Promise.resolve():new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.crossOrigin='anonymous';sc.onload=ok;sc.onerror=()=>no(new Error('Could not load the spreadsheet reader. Check the connection.'));document.head.appendChild(sc)})}
 async function importSubs(file){
@@ -2133,8 +2133,7 @@ async function importSubs(file){
       let every=1,amount=m||y/12,next=null;
       if(dv instanceof Date){every=12;amount=y||m*12;next=startOfDay(dv.getTime()+432e5)}else if(/year|annual/i.test(String(dv??''))){every=12;amount=y||m*12}
       amount=Math.round(amount*100)/100;
-      const ticked=!r.slice(0,cN).some(c=>c===false||/^(false|no|n)$/i.test(String(c??'').trim()));
-      const ex=byName[nm.toLowerCase()];const since=ex&&ex.since||y0;const on=ticked&&amount>0;
+      const ex=byName[nm.toLowerCase()];const since=ex&&ex.since||y0;const on=amount>0;
       const s={...(ex?stripId(ex):{}),name:nm,amount,every,next,card:cA<0?'':String(r[cA]??'').trim().replace(/^-$/,''),category:(cC>=0&&r[cC]?String(r[cC]).trim():'')||ex&&ex.category||guessSubCat(nm),active:on,since};
       if(on)delete s.ended;else s.ended=ex&&ex.active===false&&ex.ended||since;
       put('subs',ex?ex.id:null,s);if(ex)updated++;else added++}
