@@ -2,6 +2,8 @@
 // Shows the live timer from studio.quietmedia.co.uk in the menu bar, with clock in / pause / resume / clock out.
 // v5: project-aware (jobs), "booked today" nudge, QM.start(). Polls window.QM.live() every 5 s in a hidden WKWebView.
 // v6: drives. Reads each T7 when it is plugged in (free space, main folders, then folder sizes in the background) and hands it to QM.drive*.
+// v8: DIT. Reads the quiet media DIT app's progress on this Mac (127.0.0.1:8765/api/live) every 3 s and hands it to QM.dit,
+//     so card offloads show in Studio on any device.
 // Build: ./build.sh   (needs Xcode Command Line Tools)
 
 import Cocoa
@@ -305,7 +307,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
     let panel = Panel(frame: .zero)
     var live: Live? = nil
     var signedIn = false
-    var tick: Timer?, poll: Timer?
+    var tick: Timer?, poll: Timer?, ditPoll: Timer?
+    var ditWas = false
     var driveWatcher: DriveWatcher!   // started once the ring is up, so nothing runs before the app has finished launching
 
     func applicationDidFinishLaunching(_ n: Notification) {
@@ -335,7 +338,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
 
         poll = Timer.scheduledTimer(withTimeInterval: POLL, repeats: true) { [weak self] _ in self?.refresh() }
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.paint() }
-        RunLoop.main.add(poll!, forMode: .common); RunLoop.main.add(tick!, forMode: .common)
+        ditPoll = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.pollDIT() }
+        RunLoop.main.add(poll!, forMode: .common); RunLoop.main.add(tick!, forMode: .common); RunLoop.main.add(ditPoll!, forMode: .common)
         paint()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             guard let self = self else { return }
@@ -368,6 +372,21 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSPopove
     func call(_ fn: String, _ args: [Any], _ done: ((Any?) -> Void)? = nil) {
         guard let d = try? JSONSerialization.data(withJSONObject: args), let a = String(data: d, encoding: .utf8) else { return }
         js("(function(){try{var r=\(fn).apply(window.QM,\(a));return r!==null&&typeof r==='object'?JSON.stringify(r):r}catch(e){return null}})()", done)
+    }
+    // the DIT app's progress, from this Mac only (loopback), into Studio
+    func pollDIT() {
+        guard signedIn, let url = URL(string: "http://127.0.0.1:8765/api/live") else { return }
+        var req = URLRequest(url: url); req.timeoutInterval = 2; req.cachePolicy = .reloadIgnoringLocalCacheData
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            var obj: Any? = nil
+            if let d = data, (resp as? HTTPURLResponse)?.statusCode == 200,
+               let o = try? JSONSerialization.jsonObject(with: d) as? [String: Any], o["dit"] as? Bool == true { obj = o }
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let o = obj { self.ditWas = true; self.call("QM.dit", [o]) }
+                else if self.ditWas { self.ditWas = false; self.call("QM.dit", [NSNull()]) }   // the DIT app was closed
+            }
+        }.resume()
     }
     func refresh() {
         js("(function(){try{return window.QM?JSON.stringify(window.QM.live()):'nope'}catch(e){return 'nope'}})()") { [weak self] r in

@@ -565,6 +565,10 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 .nudge{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 12px;padding:12px 14px;border-radius:14px;background:var(--raise);box-shadow:inset 0 0 0 1px var(--line-strong)}.nudge>div{flex:1;min-width:160px;font-size:14px}.nudge .dot{width:10px;height:10px;flex:none}
 .nudge.has-x{position:relative;padding-right:46px}.nudge-x{position:absolute;top:6px;right:6px;width:36px;height:36px;border-radius:50%;background:transparent;border:0;color:var(--muted);display:grid;place-items:center;flex:none;opacity:.6}.nudge-x:hover{opacity:1;background:var(--line)}.nudge-x svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round}
 .dayopts{display:grid;gap:10px}.dayopts .btn{justify-content:space-between;text-align:left}.dayopts .btn small{opacity:.7;font-weight:300}
+.dit-now{display:flex;align-items:center;gap:18px;margin:4px 0 12px}
+.dit-pct{font-size:52px;font-weight:300;letter-spacing:-1.5px;line-height:1}.dit-pct span{font-size:22px;color:var(--muted);margin-left:2px}
+.dit-bar{height:6px;border-radius:6px;background:var(--raise2);overflow:hidden}.dit-bar i{display:block;height:100%;background:var(--fg);border-radius:6px;transition:width .6s var(--ease)}
+.dit.stale .dit-bar i{background:var(--warn)}
 </style>
 <style>[hidden]{display:none!important}html,body{height:100%}body{padding-top:env(safe-area-inset-top,0px)}</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
@@ -652,7 +656,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=54;
+const APP_VERSION=55;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1065,7 +1069,7 @@ async function startTimer(opt){
   S.draft.task='';render();toast((opt&&opt.resume?'Back on ':'Clocked in for ')+jobName(cid,pj));
 }
 /* small API for the Mac menu bar app: what is running, clock out, resume the last job */
-window.QM={live(){const r=running(S.person);const t=Object.values(S.entries).filter(e=>e.person===S.person&&e.start>=startOfDay(Date.now())).reduce((a,e)=>a+entryH(e),0);const bt=bookedToday(S.person);const pjn=e=>e.projectId&&S.projects[e.projectId]?S.projects[e.projectId].title:'';return {person:name(S.person),running:r?{since:r.start,client:cname(r.clientId),project:pjn(r),category:r.category,task:r.task||''}:null,paused:(j=>j?{client:cname(j.clientId),project:pjn(j),category:j.category,task:j.task||'',at:j.at}:null)(pausedJob(S.person)),todayHours:t,booked:bt.length?{client:cname(bt[0].clientId),project:pjn(bt[0]),title:bt[0].title,start:bt[0].start,end:bt[0].end,category:evCat(bt[0])}:null,nudge:!!(bt.length&&!r&&!t)}},
+window.QM={dit(st){return ditIn(st)},live(){const r=running(S.person);const t=Object.values(S.entries).filter(e=>e.person===S.person&&e.start>=startOfDay(Date.now())).reduce((a,e)=>a+entryH(e),0);const bt=bookedToday(S.person);const pjn=e=>e.projectId&&S.projects[e.projectId]?S.projects[e.projectId].title:'';return {person:name(S.person),running:r?{since:r.start,client:cname(r.clientId),project:pjn(r),category:r.category,task:r.task||''}:null,paused:(j=>j?{client:cname(j.clientId),project:pjn(j),category:j.category,task:j.task||'',at:j.at}:null)(pausedJob(S.person)),todayHours:t,booked:bt.length?{client:cname(bt[0].clientId),project:pjn(bt[0]),title:bt[0].title,start:bt[0].start,end:bt[0].end,category:evCat(bt[0])}:null,nudge:!!(bt.length&&!r&&!t)}},
   start(){const def=defaultJob(S.person);if(!def)return false;S.draft={job:def.job,category:def.category,task:''};return startTimer(),true},
   stop(){return stopTimer(S.person)},
   pause(){return pauseTimer(S.person)},
@@ -1279,12 +1283,39 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
-  filmingToday(d0)+lowDrivesNudge()+
+  filmingToday(d0)+ditPanel('today')+lowDrivesNudge()+
   '<div class="grid g2">'+cards+'</div>'+
   (()=>{const ex=[unassignedPanel(),allocatePanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
   '<section class="panel"><div class="panel-head"><h3>Coming up</h3><button class="link" data-act="nav" data-v="schedule">Schedule</button></div>'+upl+'</section></div>';
 }
+/* ===== DIT: card offload progress from the quiet media DIT app on the Mac, handed in by the Studio Menu Bar app
+   (QM.dit) every few seconds and kept in drives/dit, so it syncs to every device like everything else. ===== */
+function ditIn(st){const cur=S.drives.dit||{};const now=Date.now();
+  const write=d=>{const q=undoQuiet;undoQuiet=true;try{touch('drives','dit',d)}finally{undoQuiet=q}return true};
+  if(!st){if(cur.on)return write({...stripId(cur),on:false,offAt:now});return false}
+  const p=st.progress||{};const busy=!!st.busy;const pct=Math.max(0,Math.min(100,Math.round(+p.percent||0)));
+  const sig=[busy,!!st.paused,st.active||'',st.project||'',st.day||'',(st.done||[]).length,st.last?st.last.text:'',st.queued||0,p.status||''].join('|');
+  const due=!cur.on||sig!==cur.sig||(busy&&(Math.abs(pct-(cur.pct||0))>=2||now-(cur.at||0)>12000))||(!busy&&now-(cur.at||0)>5*6e4);
+  if(!due)return false;
+  return write({on:true,sig,at:now,busy,paused:!!st.paused,pct,project:st.project||'',day:st.day||'',active:st.active||'',status:p.status||'',
+    eta:p.etaSeconds==null?null:Math.round(+p.etaSeconds),speed:Math.round(+p.speedBytesPerSecond||0),filesDone:+p.filesDone||0,filesTotal:+p.filesTotal||0,
+    queued:+st.queued||0,last:st.last||null,done:(st.done||[]).slice(0,8),mac:st.mac||'',by:S.person});
+}
+function ditEta(s){if(s==null||!isFinite(s))return '';s=Math.max(0,s);if(s<60)return Math.max(1,Math.round(s))+'s';const m=Math.floor(s/60);return m>=60?Math.floor(m/60)+'h '+(m%60)+'m':m+'m'}
+function ditPanel(where){const d=S.drives.dit;if(!d||!d.on)return '';const now=Date.now();const age=now-(d.at||0);
+  const recent=d.busy||age<12*3.6e6;if(!recent)return '';
+  const stale=d.busy&&age>45000;const head=(t,sub)=>'<div class="panel-head"><h3>'+t+'</h3><span class="eyebrow num">'+sub+'</span></div>';
+  const doneList=(d.done||[]).length?'<div class="list" style="margin-top:6px">'+d.done.map(c=>'<div class="row" style="justify-content:space-between;padding:6px 0;border-top:1px solid var(--line);font-size:14px"><span>'+esc(c.name)+'</span><span class="muted num">'+fmtBytes(c.bytes)+' · '+esc(c.at)+'</span></div>').join('')+'</div>':'';
+  if(d.busy){const left=d.eta==null?null:d.eta-age/1000;
+    return '<section class="panel dit'+(stale?' stale':'')+'" style="margin-bottom:16px">'+head('DIT · '+(d.paused?'paused':d.status==='verifying'?'checking':'copying'),esc(d.project)+(d.day?' · '+esc(d.day):''))+
+      '<div class="dit-now"><div class="dit-pct num">'+d.pct+'<span>%</span></div><div><b>'+esc(d.active||'')+'</b><div class="muted num" style="font-size:14px">'+
+      (stale?'Last heard '+ditEta(age/1000)+' ago — the Mac may be asleep or the app closed':(left!=null&&left>0?ditEta(left)+' left · ':'')+(d.speed?fmtBytes(d.speed)+'/s · ':'')+d.filesDone+' / '+d.filesTotal+' files')+
+      (d.queued?' · '+d.queued+' more card'+(d.queued===1?'':'s')+' queued':'')+'</div></div></div>'+
+      '<div class="dit-bar"><i style="width:'+d.pct+'%"></i></div>'+doneList+'</section>'}
+  if(where==='today'&&!d.last&&!(d.done||[]).length)return '';
+  const l=d.last;return '<section class="panel dit" style="margin-bottom:16px">'+head('DIT',esc(d.project)+(d.day?' · '+esc(d.day):''))+
+    (l?'<div style="font-size:15px">'+(l.ok?'<span style="color:var(--ok)">✓</span> ':'<span style="color:var(--danger)">!</span> ')+esc(l.text)+'</div>':'<div class="muted">Nothing copying.</div>')+doneList+'</section>'}
 /* on a filming day, the call sheet is the document that matters: put it one tap away at the top of Today.
    The day before, the same card shows tomorrow's shoot so you know when to leave. */
 function filmingToday(d0){
@@ -1953,6 +1984,7 @@ function vDrives(){
   const free=seen.reduce((t,d)=>t+(driveRec(d.id).free||0),0);
   return '<div class="panel-head"><h1>Drives</h1><span class="eyebrow num">'+(low.length?'<span style="color:var(--danger)">'+low.length+' low on space</span> · ':'')+(now.length?now.length+' plugged in · ':'')+fmtBytes(free)+' free across '+seen.length+' of '+DRIVES.length+'</span></div>'+
   '<div class="row" style="align-items:center;margin-bottom:14px"><div class="qbox" style="flex:1;min-width:200px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="drq" type="search" placeholder="Where is… (client or folder)" value="'+esc(S.drQuery||'')+'" autocomplete="off" style="font-size:15px;padding:11px 0"></div></div>'+
+  ditPanel('drives')+
   '<div id="drfind">'+driveFindHtml()+'</div>'+
   (loose.length?'<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Needs sorting</h3><span class="note">'+loose.length+' folder'+(loose.length===1?'':'s')+' not linked to a client</span></div><p class="note" style="margin:0 0 4px">Pick the client once and it sticks. Or rename the folder on the drive to the client’s name in Studio and it links itself.</p><div class="list">'+loose.map(({d,f})=>folderRow(d,f,'on '+esc(d.name))).join('')+'</div></section>':'')+
   archPanel()+
