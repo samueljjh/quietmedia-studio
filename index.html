@@ -711,6 +711,7 @@ async function push(){
     chunk.forEach(r=>{if(DIRTY[r.col])delete DIRTY[r.col][r.id]})}
   cacheSave();
   if(rows.some(r=>r.col==='events'||r.col==='settings'))scheduleAvailability();
+  if(rows.some(r=>r.col==='events'||r.col==='projects'))scheduleClientCals();
 }
 async function syncAll(){setTimeout(()=>{if(!pushing)pullCrewResponses().catch(()=>{})},1500);
   if(!sb||!ORG||pushing)return;pushing=true;S.sync.state='syncing';renderSyncDot();
@@ -1031,6 +1032,10 @@ function projectRates(p){const c=client(p.clientId);const r=c?rateCard(c):{};con
 /* Base value of the project. Extra fees typed on individual bookings flow through eventValue() and are not included here. */
 /* one day of a per-day project: its own price if one is set on the booking, otherwise the project's rate × half/full */
 function dayValue(p,e){if(+e.fee>0)return +e.fee;return portion(e)*(projectRates(p)[planType(e.type)]||0)}
+/* the fee a booking should carry when it moves to another project (or out of one). Its day rate stays with it,
+   unless it joins a project with a quoted fee (then it is part of the quote) or a retainer. */
+function moveFee(e,pid){const from=e.projectId&&S.projects[e.projectId];const cur=from&&pricingOf(from)==='days'?dayValue(from,e):from?(+e.fee||0)||suggestFee(e):eventValue(e);
+  const to=pid&&S.projects[pid];if(!to)return cur>0?cur:null;const pr=pricingOf(to);if(pr==='retainer'||(pr==='fee'&&+to.fee>0))return 0;return cur>0?cur:0}
 function projectValue(p){const pr=pricingOf(p);if(pr==='retainer')return 0;if(pr==='days')return projectBookings(p.id).filter(e=>e.status!=='pencil').reduce((s,e)=>s+dayValue(p,e),0);return +p.fee||0}
 /* fees typed on bookings in a quoted or retainer project are extras on top; in a per-day project they are already the day price */
 function projectExtras(p){if(pricingOf(p)==='days')return 0;return projectBookings(p.id).reduce((s,e)=>s+(+e.fee||0),0)}
@@ -1047,7 +1052,7 @@ function projectGenre(pid){const c={};projectBookings(pid).forEach(e=>{if(e.genr
 function projectShort(p){const rem=planRemaining(p).filter(x=>x.remaining);return projectPriceLabel(p)+(rem.length?' · '+rem.map(x=>fmtDays(x.remaining)+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())).join(', ')+' to allocate':'')}
 /* Every booking belongs to a project. Retainer clients may also book general retainer work with no project. */
 function projectOptions(cid,sel){const c=client(cid);const isRet=!!(c&&rateCard(c).billing==='retainer');const ps=activeProjects(cid).filter(p=>pstatus(p)==='active'||p.id===sel);
-  return (isRet?'<option value="" '+(!sel?'selected':'')+'>General retainer work, no project</option>':'<option value="" disabled '+(!sel?'selected':'')+'>Choose a project…</option>')+ps.map(p=>'<option value="'+p.id+'" '+(p.id===sel?'selected':'')+'>'+esc(p.title)+' · '+projectShort(p)+'</option>').join('')+'<option value="__new" '+(sel==='__new'?'selected':'')+'>+ New project for '+esc(c?c.name:'this client')+'…</option>'}
+  return (isRet?'<option value="" '+(!sel?'selected':'')+'>General retainer work, no project</option>':'<option value="" '+(!sel?'selected':'')+'>No project yet · day rate</option>')+ps.map(p=>'<option value="'+p.id+'" '+(p.id===sel?'selected':'')+'>'+esc(p.title)+' · '+projectShort(p)+'</option>').join('')+'<option value="__new" '+(sel==='__new'?'selected':'')+'>+ New project for '+esc(c?c.name:'this client')+'…</option>'}
 function projectsToAllocate(){return activeProjects().filter(p=>pstatus(p)==='active').map(p=>({p,rem:planRemaining(p).filter(x=>x.remaining)})).filter(x=>x.rem.length)}
 function unbilled(cid){
   const c=client(cid);const li=lastInvoice(cid);const since=li?li.date:0;
@@ -1468,7 +1473,7 @@ function vClient(cid){
   const ents=u.entries.sort((a,b)=>b.start-a.start);
   const upcoming=Object.values(S.events).filter(e=>e.clientId===cid&&e.start>Date.now()&&e.status!=='cancelled').sort((a,b)=>a.start-b.start);
   return '<button class="link back" data-act="closeclient">← All clients</button>'+
-  '<div class="panel-head"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="dot" style="width:16px;height:16px;background:'+c.colour+'"></span><h1>'+esc(c.name)+'</h1></div><div class="row" style="flex:0 1 auto"><button class="btn ghost small" data-act="editclient" data-v="'+cid+'">Edit client &amp; rates</button><button class="btn ghost small" data-act="newproject" data-c="'+cid+'">New project</button><button class="btn ghost small" data-act="newevent" data-c="'+cid+'">Book a day</button><button class="btn small" data-act="invoice" data-v="'+cid+'" '+(u.lines.length?'':'disabled')+'>Create invoice</button></div></div>'+
+  '<div class="panel-head"><div style="display:flex;gap:12px;align-items:center;min-width:0"><span class="dot" style="width:16px;height:16px;background:'+c.colour+'"></span><h1>'+esc(c.name)+'</h1></div><div class="row" style="flex:0 1 auto"><button class="btn ghost small" data-act="editclient" data-v="'+cid+'">Edit client &amp; rates</button><button class="btn ghost small" data-act="calshare" data-v="'+cid+'">'+(c.cal&&c.cal.on?'Calendar link':'Share calendar')+'</button>'+(unassignedWork().evs.some(e=>e.clientId===cid)||unassignedWork().ents.some(e=>e.clientId===cid)?'<button class="btn ghost small" data-act="sortwork" data-c="'+cid+'">Sort into projects</button>':'')+'<button class="btn ghost small" data-act="newproject" data-c="'+cid+'">New project</button><button class="btn ghost small" data-act="newevent" data-c="'+cid+'">Book a day</button><button class="btn small" data-act="invoice" data-v="'+cid+'" '+(u.lines.length?'':'disabled')+'>Create invoice</button></div></div>'+
   (()=>{const ba=bookedAhead(cid);const av=annualValue(c);const cc=Object.values(S.events).filter(e=>e.clientId===cid&&e.status!=='cancelled'&&e.start>=y0).reduce((t,e)=>t+crewCost(e),0);
   return '<div class="grid g3" style="margin-bottom:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))"><div class="panel stat"><span class="eyebrow">To invoice</span><span class="v">'+gbp(u.total)+'</span><span class="s">'+u.lines.length+' line'+(u.lines.length===1?'':'s')+(c.vat===false?' · no VAT':' · + '+gbp(u.total*(+S.settings.vatRate||0)/100)+' VAT')+'</span></div>'+
   '<div class="panel stat"><span class="eyebrow">Booked ahead</span><span class="v">'+gbp(ba.total)+'</span><span class="s">'+ba.count+' booking'+(ba.count===1?'':'s')+(ba.projects?' · '+ba.projects+' open project'+(ba.projects===1?'':'s'):'')+(ba.pencil?' · '+gbp(ba.pencil)+' pencilled':'')+'</span></div>'+
@@ -1603,7 +1608,7 @@ function vSettings(){
   pushPanel()+
   '<section class="panel grid"><h3>Public availability page</h3><p class="note">Clients can see which days are free at this link. Only dates and a free, limited or busy flag are published.</p>'+
   '<div class="linkbox"><a href="'+AVAIL_URL+'" target="_blank" rel="noopener" style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:var(--sand)">'+AVAIL_URL.replace('https://','')+'</a><button class="btn ghost small" data-act="copyavail" style="flex:none">Copy link</button></div>'+
-  '<div class="row"><label class="f">Publish<select id="s-ap" data-set="availPublish"><option value="1" '+(s.availPublish!==false?'selected':'')+'>On</option><option value="0" '+(s.availPublish===false?'selected':'')+'>Off</option></select></label><label class="f">Weeks ahead<input type="number" id="s-aw" min="2" max="52" data-set="availWeeks" value="'+(s.availWeeks||12)+'"></label><label class="f">Weekends<select id="s-awe" data-set="availWeekends"><option value="0" '+(!s.availWeekends?'selected':'')+'>Not available</option><option value="1" '+(s.availWeekends?'selected':'')+'>Available</option></select></label></div>'+
+  '<div class="row"><label class="f">Publish<select id="s-ap" data-set="availPublish"><option value="1" '+(s.availPublish!==false?'selected':'')+'>On</option><option value="0" '+(s.availPublish===false?'selected':'')+'>Off</option></select></label><label class="f">Weeks ahead (39 ≈ 9 months)<input type="number" id="s-aw" min="2" max="52" data-set="availWeeks" value="'+(s.availWeeks||12)+'"></label><label class="f">Weekends<select id="s-awe" data-set="availWeekends"><option value="0" '+(!s.availWeekends?'selected':'')+'>Not available</option><option value="1" '+(s.availWeekends?'selected':'')+'>Available</option></select></label></div>'+
   '<div class="row" style="align-items:center"><span class="eyebrow" style="flex:0 0 auto">Shown on the page</span>'+PEOPLE.map(p=>'<label class="chip" style="flex:0 0 auto"><input type="checkbox" data-set="availPeople.'+p.id+'" '+(availShown(p.id)?'checked':'')+'> '+esc(name(p.id))+'</label>').join('')+'</div>'+
   '<div class="row"><label class="f">Enquiry email shown<input type="email" id="s-ae" data-set="availEmail" value="'+esc(s.availEmail||'')+'"></label><label class="f">A day counts as busy from (hrs)<input type="number" id="s-am" min="1" max="12" data-set="availMinHours" value="'+(s.availMinHours||3)+'"></label><label class="f">Editing days<select id="s-aef" data-set="availEditFlex"><option value="1" '+(s.availEditFlex!==false?'selected':'')+'>Shown as possible, could move</option><option value="0" '+(s.availEditFlex===false?'selected':'')+'>Shown as booked</option></select></label></div>'+
   '<p class="note">'+(S.avail==='ok'?'Last published '+fmtTime(S.availAt)+'.':S.avail==='noaccess'?'Not published: the GitHub token also needs Contents read and write on quietmedia-hours.':S.avail==='error'?'Not published yet; will retry after the next change.':'Publishes a few seconds after any booking changes.')+' <button class="link" data-act="pubavail">Publish now</button></p></section>'+
@@ -1673,14 +1678,16 @@ function openClientModal(cid){
     '<label class="f">What the fee buys<select id="m-rbasis"><option value="time" '+((c.retainerBasis||'time')==='time'?'selected':'')+'>Time: a set number of days each period, however long they take</option><option value="scope" '+(c.retainerBasis==='scope'?'selected':'')+'>Work: an agreed set of jobs, so fewer hours means more profit</option></select></label>'+
     ''+(()=>{const rc=rateCard(c);const per=c.retainerPeriod||'month';if(per==='month')return '';const pm={quarter:3,term:4,year:12}[per]||3;return '<div class="row"><label class="f">Invoiced in<select id="m-rsplit">'+[1,2,3,4,6,12].filter(n=>n<=12).map(n=>'<option value="'+n+'" '+(rc.retainerSplit===n?'selected':'')+'>'+(n===1?'One invoice':n+' monthly instalments')+'</option>').join('')+'</select></label><label class="f">First invoice<select id="m-rfrom">'+Array.from({length:pm},(_,i)=>'<option value="'+i+'" '+(rc.retainerSplitFrom===i?'selected':'')+'>'+(i===0?'First month of the '+per:'Month '+(i+1)+' of the '+per)+'</option>').join('')+'</select></label></div>'})()+(()=>{const k=monthKeyOf(c.retainerStart,c.created)||monthKey(Date.now());const [yy,mm]=k.split('-').map(Number);const y0=new Date().getFullYear();return '<div class="row"><label class="f">Retainer started<select id="m-rsm">'+MONTHS3.map((x,i)=>'<option value="'+(i+1)+'" '+(i+1===mm?'selected':'')+'>'+new Date(2000,i,1).toLocaleDateString('en-GB',{month:'long'})+'</option>').join('')+'</select></label><label class="f">Year<select id="m-rsy">'+[y0-2,y0-1,y0,y0+1].map(y=>'<option '+(y===yy?'selected':'')+'>'+y+'</option>').join('')+'</select></label></div>'})()+'<p class="note">Terms run Sep–Dec, Jan–Apr, May–Aug. The fee (or each instalment) becomes an invoice line automatically at the start of its month, and counts towards that month in Insights. Every clock-in for this client counts towards the period, with or without a project, and clocking out asks whether the day was a half or a full day. Bookings carry no fee unless you type one.</p>':'')+
     '<div class="row"><label class="f">Accounts email<input type="email" id="m-email" value="'+esc(c.email||'')+'"></label><label class="f">Charge VAT<select id="m-vat"><option value="1" '+(c.vat!==false?'selected':'')+'>Yes</option><option value="0" '+(c.vat===false?'selected':'')+'>No</option></select></label></div>'+
+    '<label class="f">Other contacts<textarea id="m-contacts" rows="2" placeholder="Dean Whitehead, dean@example.com">'+esc(contactsOf(c).map(x=>[x.name,x.email,x.phone].filter(Boolean).join(', ')).join('\n'))+'</textarea></label><p class="note" style="margin-top:-8px">One person per line: name, email. Booking requests from these emails come in under this client.</p>'+
     '<label class="f">Notes<textarea id="m-notes" rows="2">'+esc(c.notes||'')+'</textarea></label>'+
-    '<div class="acts">'+(cid?'<button class="btn ghost small" data-act="archive" data-v="'+cid+'">'+(c.archived?'Restore':'Archive')+'</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveclient" data-v="'+(cid||'')+'">Save client</button></div>'}};
+    '<div class="acts">'+(cid?'<button class="btn ghost small" data-act="archive" data-v="'+cid+'">'+(c.archived?'Restore':'Archive')+'</button><button class="btn ghost small" data-act="mergeclient" data-v="'+cid+'">Merge…</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveclient" data-v="'+(cid||'')+'">Save client</button></div>'}};
   renderModal();
 }
+function parseContacts(t){return String(t||'').split(/\n+/).map(l=>l.split(',').map(x=>x.trim()).filter(Boolean)).filter(a=>a.length).map(a=>{const email=a.find(x=>/@/.test(x))||'';const rest=a.filter(x=>x!==email);const phone=rest.find(x=>/^[+0-9 ()-]{7,}$/.test(x))||'';return {name:rest.filter(x=>x!==phone).join(', '),email,phone}})}
 function readClientForm(){const c=S.modal.c;const v=id=>{const el=document.getElementById(id);return el?el.value:undefined};
   c.name=v('m-name')??c.name;c.billing=v('m-billing')??c.billing;
   [['m-short','shortRate'],['m-half','halfDay'],['m-full','fullDay'],['m-edit','editDay'],['m-edith','editHours'],['m-hourly','hourlyRate'],['m-fee','monthlyFee']].forEach(([i,k])=>{const x=v(i);if(x!==undefined)c[k]=+x||0});
-  c.email=v('m-email')??c.email;c.notes=v('m-notes')??c.notes;const vt=v('m-vat');if(vt!==undefined)c.vat=vt==='1';
+  c.email=v('m-email')??c.email;c.notes=v('m-notes')??c.notes;const ct=v('m-contacts');if(ct!==undefined)c.contacts=parseContacts(ct);const vt=v('m-vat');if(vt!==undefined)c.vat=vt==='1';
   [['m-rhours','retainerDayHours']].forEach(([i,k])=>{const x=v(i);if(x!==undefined)c[k]=+x||0});if(v('m-rps')!==undefined){c.retainerPlan={Shoot:+v('m-rps')||0,Edit:+v('m-rpe')||0};c.retainerDays=c.retainerPlan.Shoot+c.retainerPlan.Edit}if(v('m-rbasis')!==undefined)c.retainerBasis=v('m-rbasis');if(v('m-rsplit')!==undefined){c.retainerSplit=+v('m-rsplit')||1;c.retainerSplitFrom=+v('m-rfrom')||0}if(v('m-rsm')!==undefined)c.retainerStart=v('m-rsy')+'-'+pad(+v('m-rsm'));const rp=v('m-rper');if(rp!==undefined)c.retainerPeriod=rp;
 }
 
@@ -2341,14 +2348,14 @@ function projectCard(p){
 }
 /* Work from before projects were required: bookings and time with a client but no project (retainer clients are fine without one). */
 function unassignedWork(){const ok=c=>c&&!c.archived&&rateCard(c).billing!=='retainer';const evs=Object.values(S.events).filter(e=>e.clientId&&!e.projectId&&e.status!=='cancelled'&&e.type!=='Unavailable'&&ok(client(e.clientId)));const ents=Object.values(S.entries).filter(e=>e.clientId&&!e.projectId&&e.end&&ok(client(e.clientId)));return {evs,ents}}
-function unassignedPanel(){const u=unassignedWork();const n=u.evs.length+u.ents.length;if(!n)return '';return '<section class="panel"><div class="panel-head"><h3>Not in a project yet</h3><span class="note">'+u.evs.length+' booking'+(u.evs.length===1?'':'s')+' · '+u.ents.length+' time entr'+(u.ents.length===1?'y':'ies')+'</span></div><p class="note" style="margin:0 0 12px">Work from before every booking belonged to a project. Put each into one so the project and client tallies are right.</p><button class="btn small" data-act="sortwork">Sort it out</button></section>'}
-function openSortModal(){const u=unassignedWork();const byC={};u.evs.forEach(e=>(byC[e.clientId]=byC[e.clientId]||{evs:[],ents:[]}).evs.push(e));u.ents.forEach(e=>(byC[e.clientId]=byC[e.clientId]||{evs:[],ents:[]}).ents.push(e));
-  S.modal={type:'sort',cls:'sheet',html:()=>'<h2>Not in a project yet</h2><p class="note" style="margin:-4px 0 6px">Pick a project for each item, or make a new one named after it. Leave anything to decide later.</p>'+Object.entries(byC).map(([cid,g])=>{const opts='<option value="">Leave for now</option>'+activeProjects(cid).filter(p=>pstatus(p)==='active').map(p=>'<option value="'+p.id+'">'+esc(p.title)+' · '+projectShort(p)+'</option>').join('')+'<option value="__new">New project named after this</option>';
+function unassignedPanel(){const u=unassignedWork();const n=u.evs.length+u.ents.length;if(!n)return '';return '<section class="panel"><div class="panel-head"><h3>Not in a project yet</h3><span class="note">'+u.evs.length+' booking'+(u.evs.length===1?'':'s')+' · '+u.ents.length+' time entr'+(u.ents.length===1?'y':'ies')+'</span></div><p class="note" style="margin:0 0 12px">Booked at the day rate with no project yet. Put them into a project when you know where they belong. They keep their day rate unless the project has a quoted fee.</p><button class="btn small" data-act="sortwork">Sort it out</button></section>'}
+function openSortModal(only){const u=unassignedWork();if(only){u.evs=u.evs.filter(e=>e.clientId===only);u.ents=u.ents.filter(e=>e.clientId===only)}const byC={};u.evs.forEach(e=>(byC[e.clientId]=byC[e.clientId]||{evs:[],ents:[]}).evs.push(e));u.ents.forEach(e=>(byC[e.clientId]=byC[e.clientId]||{evs:[],ents:[]}).ents.push(e));
+  S.modal={type:'sort',cls:'sheet',html:()=>'<h2>Not in a project yet</h2><p class="note" style="margin:-4px 0 6px">Pick a project for each item, or make a new one named after it. Leave anything to decide later. Days keep their day rate, unless the project has a quoted fee (then they are part of the quote).</p>'+Object.entries(byC).map(([cid,g])=>{const opts='<option value="">Leave for now</option>'+activeProjects(cid).filter(p=>pstatus(p)==='active').map(p=>'<option value="'+p.id+'">'+esc(p.title)+' · '+projectShort(p)+'</option>').join('')+'<option value="__new">New project named after this</option>';
     const row=(attr,id,t,meta)=>'<div class="row" style="flex-wrap:nowrap;align-items:center"><div style="flex:1;min-width:0;font-size:14px">'+t+'<div class="note">'+meta+'</div></div><select '+attr+'="'+id+'" style="flex:1;min-width:0">'+opts+'</select></div>';
     return '<div class="eyebrow" style="margin:14px 0 8px;display:flex;gap:8px;align-items:center"><span class="dot" style="background:'+colour(cid)+'"></span>'+esc(cname(cid))+'</div><div class="grid" style="gap:8px">'+g.evs.sort((a,b)=>a.start-b.start).map(e=>row('data-sortev',e.id,esc(e.title),fmtDate(e.start,{weekday:'short',day:'numeric',month:'short',year:'numeric'})+' · '+esc(e.type)+(eventValue(e)?' · '+gbp(eventValue(e)):''))).join('')+g.ents.sort((a,b)=>a.start-b.start).map(e=>row('data-sortent',e.id,esc(name(e.person))+' · '+esc(e.category)+(e.task?' · '+esc(e.task):''),fmtDate(e.start,{weekday:'short',day:'numeric',month:'short',year:'numeric'})+' · '+hrs(entryH(e)))).join('')+'</div>'}).join('')+'<div class="acts"><button class="btn ghost" data-act="closemodal">Later</button><button class="btn" data-act="sortsave">Save</button></div>'};renderModal()}
 async function sortSave(){const mk=(cid,title,fee)=>put('projects',null,{clientId:cid,title,fee:fee||0,pricing:'fee',plan:[],status:'active',created:Date.now()});
   const evSel=[...document.querySelectorAll('[data-sortev]')].map(el=>[el.dataset.sortev,el.value]).filter(x=>x[1]);const enSel=[...document.querySelectorAll('[data-sortent]')].map(el=>[el.dataset.sortent,el.value]).filter(x=>x[1]);closeModal();
-  for(const [id,v] of evSel){const e=S.events[id];if(!e)continue;const pid=v==='__new'?await mk(e.clientId,e.title,eventValue(e)):v;await patch('events',id,{projectId:pid,fee:0})}
+  for(const [id,v] of evSel){const e=S.events[id];if(!e)continue;const pid=v==='__new'?await mk(e.clientId,e.title,eventValue(e)):v;await patch('events',id,{projectId:pid,fee:v==='__new'?0:moveFee(e,pid)})}
   for(const [id,v] of enSel){const e=S.entries[id];if(!e)continue;const pid=v==='__new'?await mk(e.clientId,e.task||cname(e.clientId)+' work',0):v;await patch('entries',id,{projectId:pid})}
   const n=evSel.length+enSel.length;toast(n?'Sorted '+n+' item'+(n===1?'':'s'):'Nothing changed')}
 function allocatePanel(){
@@ -2454,7 +2461,6 @@ async function saveEventForm(evid){
   const crew=Object.values(m.crewSel);const feeRaw=g('v-fee');
   const rcl=client(clientId);const isRet=!!(rcl&&rateCard(rcl).billing==='retainer');
   const psel=document.getElementById('v-project');let projectId=(psel||{}).value||'';const gv=id=>{const el=document.getElementById(id);return el?el.value:''};
-  if(type!=='Unavailable'&&!isRet&&!projectId){toast('Pick a project for this booking.');if(psel)psel.focus();return}
   if(type==='Unavailable')projectId='';
   if(projectId==='__new'){const t=gv('v-npt').trim();if(!t){toast('Give the new project a title.');document.getElementById('v-npt').focus();return}
     const same=Object.values(S.projects).find(x=>x.clientId===clientId&&pstatus(x)==='active'&&x.title.trim().toLowerCase()===t.toLowerCase());if(same){toast(cname(clientId)+' already has '+same.title+'. Pick it from the list instead.');document.getElementById('v-project').value=same.id;feeNote();return}const pricing=gv('v-npp')||'fee';
@@ -2463,7 +2469,10 @@ async function saveEventForm(evid){
   const base={title:(g('v-title').trim())||(pj?pj.title:title),clientId,projectId,type,genre:(document.getElementById('v-genre')||{}).value||'',people,crew,portion:(document.getElementById('v-portion')||{}).value==='0.5'?0.5:1,callTime:g('v-call'),location:g('v-loc').trim(),notes:g('v-notes').trim(),status:g('v-status'),flex:!!(document.getElementById('v-flex')||{}).checked};
   const mk=(day)=>{let s=parseLocal(dayKey(day),g('v-start')),e=parseLocal(dayKey(day),g('v-end'));if(e<=s)e=s+3600e3;const d={...base,start:s,end:e};d.fee=projectId?(feeRaw===''?0:Math.max(0,+feeRaw||0)):(feeRaw===''?suggestFee(d):Math.max(0,+feeRaw||0));if(d.type==='Unavailable'){d.fee=0;d.clientId=''}return d};
   const docs=days.map(mk);closeModal();
-  if(evid){const old=S.events[evid];const d=docs[0];if(old&&old.invoiceId)d.invoiceId=old.invoiceId;if(old&&old.groupId)d.groupId=old.groupId;if(old&&old.sheetKey)d.sheetKey=old.sheetKey;if(old&&old.pencilSent)d.pencilSent=old.pencilSent;const before=new Set((old&&old.crew||[]).map(x=>x.id));const added=(d.crew||[]).filter(x=>!before.has(x.id));await patch('events',evid,d);
+  if(evid){const old=S.events[evid];const d=docs[0];if(old&&old.invoiceId)d.invoiceId=old.invoiceId;if(old&&old.groupId)d.groupId=old.groupId;if(old&&old.sheetKey)d.sheetKey=old.sheetKey;if(old&&old.pencilSent)d.pencilSent=old.pencilSent;const before=new Set((old&&old.crew||[]).map(x=>x.id));const added=(d.crew||[]).filter(x=>!before.has(x.id));
+    const moved=old&&(old.projectId||'')!==(d.projectId||'');if(moved&&feeRaw===String(old.fee!=null?old.fee:''))d.fee=moveFee(old,d.projectId);await patch('events',evid,d);
+    let movedN=0;if(moved){for(const e of groupOf(old)){if(e.id===evid||e.status==='cancelled'||(e.projectId||'')===(d.projectId||''))continue;await patch('events',e.id,{projectId:d.projectId||'',fee:moveFee(e,d.projectId)});movedN++}}
+    if(movedN)toast('Moved all '+(movedN+1)+' days to '+(d.projectId&&S.projects[d.projectId]?S.projects[d.projectId].title:'no project'));
     let spread=0;if(added.length){for(const e of jobDays(S.events[evid])){if(e.id===evid||e.status==='cancelled')continue;const cur=e.crew||[];const add=added.filter(x=>!cur.some(y=>y.id===x.id)).map(x=>({id:x.id,rate:x.rate,status:x.status||'pencil'}));if(add.length){await patch('events',e.id,{crew:cur.concat(add)});spread++}}}
     S.cal.cursor=d.start;S.cal.sel=startOfDay(d.start);toast(spread?'Booking saved. '+added.map(x=>crewName(x.id).split(' ')[0]).join(', ')+' also added to the other '+(spread===1?'day':spread+' days')+' of this job':'Booking saved');return}
   const groupId=days.length>1?uid():null;let firstId=null;
@@ -2509,6 +2518,49 @@ async function publishSheet(ev,kind,payload){
   await patch('events',ev.id,kind==='crew'?{sheetAt:Date.now()}:{pencilSent:ev.pencilSent||Date.now(),clientPageAt:Date.now()});
   return url;
 }
+/* ===== merge one client into another: as the same client, or as a project of it ===== */
+function openMergeModal(src){const c0=client(src);if(!c0)return;const others=Object.values(S.clients).filter(c=>c.id!==src&&!c.archived&&!c.mergedInto).sort((a,b)=>a.name.localeCompare(b.name));
+  const sug=others.find(c=>looseName(c.name)===looseName(c0.name))||others.find(c=>looseName(c0.name).startsWith(looseName(c.name).slice(0,3))&&looseName(c.name).length>2)||others[0];
+  S.modal={type:'merge',src,tgt:sug?sug.id:'',mode:'same',html:()=>{const m=S.modal;const n=k=>Object.values(S[k]||{}).filter(r=>r.clientId===src).length;const t=client(m.tgt);
+    const counts=[[n('events'),'booking'],[n('projects'),'project'],[n('entries'),'time entr','y','ies'],[n('invoices'),'invoice'],[n('enquiries'),'request']].filter(x=>x[0]).map(x=>x[0]+' '+x[1]+(x[2]?(x[0]===1?x[2]:x[3]):x[0]===1?'':'s')).join(', ');
+    return '<h2>Merge '+esc(c0.name)+'</h2><p class="note">'+(counts||'Nothing booked yet')+'.</p>'+
+      '<label class="f">Into<select id="mg-t">'+others.map(c=>'<option value="'+c.id+'" '+(c.id===m.tgt?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label>'+
+      '<div class="seg" style="margin:4px 0 10px"><button data-act="mgmode" data-v="same" aria-pressed="'+(m.mode==='same')+'">Same client</button><button data-act="mgmode" data-v="project" aria-pressed="'+(m.mode==='project')+'">Make it a project</button></div>'+
+      '<p class="note">'+(m.mode==='same'?'Everything moves to '+esc(t?t.name:'the other client')+': bookings, projects, time, invoices and requests. Work with no project stays with no project. '+esc(c0.name)+(c0.email?' ('+esc(c0.email)+')':'')+' is added as a contact, so their requests land in the right place.':'Becomes a project called “'+esc(c0.name)+'” under '+esc(t?t.name:'the other client')+'. Its bookings and time with no project go into it, keeping their day rates. Projects it already has move across as they are.')+'</p>'+
+      '<p class="note">Days keep the fee they have now. '+esc(c0.name)+' is archived afterwards, not deleted.</p>'+
+      '<div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="mgdo"'+(t?'':' disabled')+'>Merge</button></div>'}};renderModal()}
+async function mergeClients(src,tgt,mode){const c0=client(src),t=client(tgt);if(!c0||!t||src===tgt)return;
+  let pid=null;if(mode==='project')pid=await put('projects',null,{clientId:tgt,title:c0.name,pricing:'days',fee:0,plan:[],status:'active',created:c0.created||Date.now()});
+  let n=0;for(const col of COLS){if(col==='clients'||col==='settings'||!S[col])continue;
+    for(const r of Object.values(S[col])){if(!r||r.clientId!==src)continue;const upd={clientId:tgt};
+      if(col==='events'&&!r.projectId){upd.fee=eventValue(r);if(pid)upd.projectId=pid}
+      if(col==='entries'&&!r.projectId&&pid)upd.projectId=pid;
+      await patch(col,r.id,upd);n++}}
+  const seen=new Set([(t.email||'').trim().toLowerCase()]);const cs=[];
+  for(const x of [...contactsOf(t),...contactsOf(c0),c0.email?{name:mode==='same'?c0.name:'',email:c0.email}:null]){if(!x)continue;const k=(x.email||'').trim().toLowerCase();if(k&&seen.has(k))continue;if(k)seen.add(k);cs.push(x)}
+  await patch('clients',tgt,{contacts:cs});await patch('clients',src,{archived:true,mergedInto:tgt});
+  S.client=tgt;render();toast(c0.name+' merged into '+t.name+(pid?' as a project':'')+' · '+n+' item'+(n===1?'':'s')+' moved')}
+
+/* ===== a live calendar page for one client: their pencils and bookings, no fees. Republished when bookings change. ===== */
+const calUrl=(cid,key)=>SHEETS_HOST+'/calendar/#cal-'+cid+'.'+key;
+function calPayload(cid){const c=client(cid)||{};const s=S.settings;const from=startOfDay(Date.now())-60*DAYMS;
+  const days=Object.values(S.events).filter(e=>e.clientId===cid&&e.status!=='cancelled'&&e.type!=='Unavailable'&&e.end>=from).sort((a,b)=>a.start-b.start)
+    .map(e=>({date:e.start,end:e.end,start:fmtTime(e.start),finish:fmtTime(e.end),type:e.type,status:evStatus(e),half:portion(e)===0.5,title:e.title||'',project:(e.projectId&&S.projects[e.projectId]||{}).title||'',location:e.location||''}));
+  return {view:'calendar',v:1,kind:'calendar',title:c.name||'',client:c.name||'',from:s.senderName||'Quiet Media',replyEmail:s.replyEmail||s.availEmail||'',replyPhone:s.replyPhone||'',updated:Date.now(),days}}
+async function publishClientCal(cid){const c=client(cid);if(!c||!sb||!ORG)return null;const cal=c.cal||{};const key=cal.key||b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const {error}=await sb.from('sheets').upsert({id:'cal-'+cid,org_id:ORG,kind:'client',token:key,payload:calPayload(cid),version:1,published_at:new Date().toISOString(),revoked:false});
+  if(error)throw Object.assign(new Error(error.message),{code:'db'});
+  if(!cal.key||!cal.on)await patch('clients',cid,{cal:{key,on:true,since:cal.since||Date.now()}});S.calAt=S.calAt||{};S.calAt[cid]=Date.now();return calUrl(cid,key)}
+async function stopClientCal(cid){const c=client(cid);if(!c||!c.cal)return;try{await sb.from('sheets').update({revoked:true}).eq('id','cal-'+cid)}catch(e){}await patch('clients',cid,{cal:{...c.cal,on:false}})}
+let calTimer=null;function scheduleClientCals(){clearTimeout(calTimer);calTimer=setTimeout(()=>{Object.values(S.clients).filter(c=>c.cal&&c.cal.on&&!c.archived).forEach(c=>publishClientCal(c.id).catch(()=>{}))},5000)}
+function openCalModal(cid){S.modal={type:'cal',cid,busy:false,err:'',html:()=>{const c=client(cid);if(!c)return '';const m=S.modal;const on=c.cal&&c.cal.on;const url=on?calUrl(cid,c.cal.key):'';const s=S.settings;
+  const first=(contactsOf(c)[0]||{}).name||'';const to=[c.email,...contactsOf(c).map(x=>x.email)].filter(Boolean).join(',');
+  const body='Hi'+(first?' '+first.split(' ')[0]:'')+',\n\nHere is a live calendar of the days we have pencilled and booked for you. It updates by itself whenever anything changes, so you can keep the link:\n'+url+'\n\nBest,\n'+(s.senderName||'Samuel')+'\nQuiet Media';
+  return '<h2>Calendar for '+esc(c.name)+'</h2><p class="note">A private page showing their pencilled and booked days: dates, filming or edit, project, times and location. No fees. It updates by itself when you change their bookings.</p>'+
+    (on?'<div class="linkbox"><span>'+esc(url)+'</span><button class="link" data-act="copy" data-v="'+esc(url)+'">Copy</button></div>'+(S.calAt&&S.calAt[cid]?'<p class="note">Last updated '+fmtTime(S.calAt[cid])+' today.</p>':'')+
+      '<div class="acts"><button class="btn ghost small" data-act="calstop" data-v="'+cid+'">Stop sharing</button><button class="btn ghost" data-act="calpub" data-v="'+cid+'">Update now</button><a class="btn" href="'+mailLink(to,'Your calendar with Quiet Media',body)+'">Email the link</a></div>'
+      :(m.err?'<p class="note" style="color:var(--warn)">Could not create it: '+esc(m.err)+'</p>':'')+'<div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="calpub" data-v="'+cid+'"'+(m.busy?' disabled':'')+'>'+(m.busy?'Creating…':'Create link')+'</button></div>')}};renderModal()}
+
 /* ===== crew forms: a pencil hold and a signed booking, each a page on sheets.quietmedia.co.uk/crew/ ===== */
 const crewFormUrl=f=>SHEETS_HOST+'/crew/#'+f.sid+'.'+f.key;
 function waLink(phone,text){let d=(phone||'').replace(/[^0-9+]/g,'');if(d.startsWith('+'))d=d.slice(1);else if(d.startsWith('0'))d='44'+d.slice(1);return 'https://wa.me/'+d+'?text='+encodeURIComponent(text)}
@@ -2692,17 +2744,22 @@ function requestsPanel(){
     const ds=(q.dates||[]).map(x=>{const day=parseLocal(x.d,'00:00');const clash=busyOn(day);return '<span style="display:inline-flex;padding:4px 10px;border-radius:999px;font-size:13px;background:var(--raise);'+(day<startOfDay(now)?'opacity:.45;':'')+(clash.length?'box-shadow:inset 0 0 0 1px var(--warn);':'')+'">'+fmtDate(day,{weekday:'short',day:'numeric',month:'short'})+(x.maybe?'&nbsp;· possible':'')+(clash.length?'&nbsp;· <span style="color:var(--warn);margin-left:4px">'+esc(clash.map(e=>e.type==='Unavailable'?'unavailable':evTypeName(e).toLowerCase()).filter((v,i,a)=>a.indexOf(v)===i).join(', '))+'</span>':'')+'</span>'}).join('');
     const c=matchClient(q);const who=esc(q.name||'Someone')+(q.company?' <span class="muted">· '+esc(q.company)+'</span>':'');
     const meta=[q.project,q.location].filter(Boolean).map(esc).join(' · ');const ago=q.received?Math.floor((now-q.received)/DAYMS):null;
-    return '<div class="item" style="align-items:flex-start;flex-wrap:wrap"><div class="main" style="min-width:min(100%,260px)"><div class="t">'+who+'</div><div class="meta">'+(meta?meta+' · ':'')+(ago==null?'':ago===0?'today':ago===1?'yesterday':ago+' days ago')+(c?' · client: '+esc(c.name):' · new client')+'</div>'+
+    return '<div class="item" style="align-items:flex-start;flex-wrap:wrap"><div class="main" style="min-width:min(100%,260px)"><div class="t">'+who+'</div><div class="meta">'+(meta?meta+' · ':'')+(ago==null?'':ago===0?'today':ago===1?'yesterday':ago+' days ago')+(c?' · client: '+esc(c.name)+(contactOf(c,q.email)?' (contact)':''):' · new client')+'</div>'+
       (ds?'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'+ds+'</div>':'<div class="meta">No dates picked</div>')+
       (q.details?'<p class="note" style="margin:8px 0 0;white-space:pre-wrap">'+esc(q.details)+'</p>':'')+
       '<div class="meta" style="margin-top:6px"><a class="link" href="'+mailLink(q.email,'Your booking request','Hi '+(q.name||'').split(' ')[0]+',\n\n')+'">'+esc(q.email)+'</a>'+(q.phone?' · <a class="link" href="tel:'+esc(q.phone.replace(/[^0-9+]/g,''))+'">'+esc(q.phone)+'</a>':'')+'</div></div>'+
       '<div class="end" style="display:flex;gap:6px;margin-left:auto"><button class="btn ghost small" data-act="enqdecline" data-v="'+q.id+'">Set aside</button><button class="btn small" data-act="enqbook" data-v="'+q.id+'">Pencil in</button></div></div>'}).join('')+'</div></section>'}
-function matchClient(q){const em=(q.email||'').trim().toLowerCase();const nm=(q.company||'').trim().toLowerCase();const all=Object.values(S.clients);
-  return (em&&all.find(c=>(c.email||'').trim().toLowerCase()===em))||(nm&&all.find(c=>(c.name||'').trim().toLowerCase()===nm))||null}
+/* a request belongs to a client if the email is the client's or one of its contacts', or the company name matches ignoring spaces and dashes */
+const looseName=t=>String(t||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function contactsOf(c){return Array.isArray(c&&c.contacts)?c.contacts:[]}
+function matchClient(q){const em=(q.email||'').trim().toLowerCase();const nm=looseName(q.company);const all=Object.values(S.clients).filter(c=>!c.mergedInto);const live=all.filter(c=>!c.archived);
+  const byEmail=c=>(c.email||'').trim().toLowerCase()===em||contactsOf(c).some(x=>(x.email||'').trim().toLowerCase()===em);
+  return (em&&(live.find(byEmail)||all.find(byEmail)))||(nm&&(live.find(c=>looseName(c.name)===nm)||all.find(c=>looseName(c.name)===nm)))||null}
+function contactOf(c,email){const em=(email||'').trim().toLowerCase();return em?contactsOf(c).find(x=>(x.email||'').trim().toLowerCase()===em):null}
 async function enquiryBook(id){const q=S.enquiries[id];if(!q)return;let c=matchClient(q);const isNew=!c;
   if(!c){const cid=await put('clients',null,{...newClient(),name:(q.company||q.name||'New client').trim(),email:q.email||'',notes:[q.company&&q.name?'Contact: '+q.name:'',q.phone?'Phone: '+q.phone:''].filter(Boolean).join('\n'),created:Date.now()});c=S.clients[cid]}
   const t0=startOfDay(Date.now());const days=(q.dates||[]).map(x=>parseLocal(x.d,'00:00')).filter(d=>d>=t0);
-  openEventModal(null,dayKey(days[0]||t0),null,c.id,{enq:id,days,status:'pencil',project:q.project||'',location:q.location||'',notes:q.details||'',newProject:isNew||!activeProjects(c.id).some(p=>pstatus(p)==='active')});
+  openEventModal(null,dayKey(days[0]||t0),null,c.id,{enq:id,days,status:'pencil',project:q.project||'',location:q.location||'',notes:q.details||'',newProject:!!(q.project||'').trim()&&(isNew||!activeProjects(c.id).some(p=>pstatus(p)==='active'))});
   if(isNew)toast('Added '+c.name+' as a client')}
 function pencilsPanel(){
   const now=Date.now();const seen={};const list=Object.values(S.events).filter(e=>evStatus(e)==='pencil'&&e.start>=startOfDay(now)&&e.clientId).sort((a,b)=>a.start-b.start).filter(e=>{const k=e.groupId||e.id;if(seen[k])return false;seen[k]=1;return true});
@@ -2755,6 +2812,12 @@ document.addEventListener('click',async ev=>{
     case 'askdelentry':confirmBox('e-confirm','Remove this time entry? It will no longer count towards invoices or totals.','delentry',v);break;
     case 'delentry':closeModal();await remove('entries',v);toast('Time entry removed');break;
     case 'enqbook':{enquiryBook(v);break}
+    case 'mergeclient':{openMergeModal(v);break}
+    case 'mgmode':{S.modal.mode=v;renderModal();break}
+    case 'mgdo':{const m=S.modal;const t=document.getElementById('mg-t');const tg=t?t.value:m.tgt;closeModal();await mergeClients(m.src,tg,m.mode);break}
+    case 'calshare':{openCalModal(v);break}
+    case 'calpub':{if(S.modal&&S.modal.type==='cal'){S.modal.busy=true;S.modal.err='';renderModal()}try{const url=await publishClientCal(v);try{await navigator.clipboard.writeText(url)}catch(e){}toast('Calendar link ready and copied')}catch(e){if(S.modal)S.modal.err=e.message||'try again'}if(S.modal&&S.modal.type==='cal'){S.modal.busy=false;renderModal()}break}
+    case 'calstop':{await stopClientCal(v);toast('Calendar link switched off');renderModal();break}
     case 'pnsent':{setTimeout(()=>{if(S.modal&&S.modal.type==='pnotice')closeModal();toast('Email ready in your mail app')},300);break}
     case 'pushon':{pushOn();break}
     case 'pushoff':{pushOff();break}
@@ -2873,7 +2936,7 @@ document.addEventListener('click',async ev=>{
     case 'basave':await bookingAdjustSave();break;
     case 'startfix':openStartFix(v);break;
     case 'startfixsave':{const e2=S.entries[v];const t=(document.getElementById('sf-t')||{}).value;if(e2&&t){let st=parseLocal(dayKey(e2.start),t);if(st>Date.now())st-=DAYMS;closeModal();await patch('entries',v,{start:st});toast('Start time changed to '+fmtTime(st))}break}
-    case 'sortwork':openSortModal();break;
+    case 'sortwork':openSortModal(b.dataset.c||null);break;
     case 'sortsave':await sortSave();break;
     case 'invoice':await createInvoice(v);break;
     case 'openinvoice':openInvoiceModal(v);break;
@@ -2907,6 +2970,7 @@ document.addEventListener('click',async ev=>{
   }
 });
 document.addEventListener('change',ev=>{
+  if(ev.target.id==='mg-t'&&S.modal&&S.modal.type==='merge'){S.modal.tgt=ev.target.value;renderModal();return}
   const t=ev.target;
   if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}
   if(t.dataset.act==='billing'){readClientForm();renderModal()}
