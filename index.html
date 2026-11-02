@@ -2479,6 +2479,24 @@ async function saveEventForm(evid){
   for(const d of docs){if(groupId)d.groupId=groupId;const id=await put('events',null,d);firstId=firstId||id}
   if(m.enq&&S.enquiries[m.enq])await patch('enquiries',m.enq,{status:'booked',bookedAt:Date.now(),eventId:firstId,clientId});
   S.cal.cursor=days[0];S.cal.sel=days[0];toast(days.length>1?days.length+' days booked for '+title:'Booking saved');
+  if(m.enq&&S.enquiries[m.enq]&&base.status==='pencil'&&type!=='Unavailable')openPencilNotice(firstId,m.enq);
+}
+/* after pencilling a request from the availability page: publish their booking page, then one tap emails them from your own mail app */
+async function openPencilNotice(evid,enqId){
+  const ev=S.events[evid];const q=S.enquiries[enqId];if(!ev||!q)return;
+  S.modal={type:'pnotice',evid,url:null,err:'',html:()=>{const ev=S.events[evid];if(!ev)return '';const s=S.settings;const m=S.modal;
+    const grp=groupOf(ev).filter(e=>e.status!=='cancelled');const dates=grp.map(e=>fmtDate(e.start,{weekday:'long',day:'numeric',month:'long'}));
+    const to=q.email||(client(ev.clientId)||{}).email||'';const first=(q.name||'').trim().split(' ')[0];
+    const body='Hi'+(first?' '+first:'')+',\n\nThanks for your booking request. I have pencilled you in for:\n\n'+dates.map(d=>'- '+d).join('\n')+'\n\nA pencil holds the dates for you with no obligation on either side. When you are ready, confirm on your booking page, which has the details and terms:\n'+(m.url||'')+'\n\nAny questions, just reply to this email.\n\nBest,\n'+(s.senderName||'Samuel')+'\nQuiet Media';
+    const subj='Pencilled: '+(ev.title||'your booking')+' · '+grp.map(e=>fmtDate(e.start,{day:'numeric',month:'short'})).join(', ');
+    return '<h2>Let '+esc(first||'them')+' know</h2><p class="note">'+esc(ev.title)+' · '+esc(dates.join(', '))+'</p>'+
+      (m.url?'<div class="linkbox"><span>'+esc(m.url)+'</span><button class="link" data-act="copy" data-v="'+esc(m.url)+'">Copy</button></div><p class="note">Their booking page is live. The email opens in your mail app, written and addressed, so it goes from your own address and sits in your Sent folder. Just press Send.</p>':m.err?'<p class="note" style="color:var(--warn)">Could not publish the booking page ('+esc(m.err)+'). You can still email them, and publish the page later from Client booking.</p>':'<p class="note">Publishing their booking page…</p>')+
+      (to?'':'<p class="note" style="color:var(--warn)">No email on the request or the client.</p>')+
+      '<div class="acts"><button class="btn ghost" data-act="closemodal">Not now</button><a class="btn" data-act="pnsent" href="'+mailLink(to,subj,body)+'"'+(m.url||m.err?'':' aria-disabled="true" style="opacity:.5;pointer-events:none"')+'>Email '+esc(first||'them')+'</a></div>'}};
+  renderModal();
+  try{const url=await publishSheet(ev,'client');S.sheetUrls=S.sheetUrls||{};S.sheetUrls[evid+'k']=url;if(S.modal&&S.modal.type==='pnotice')S.modal.url=url}
+  catch(e){if(S.modal&&S.modal.type==='pnotice')S.modal.err=e.message||'try again'}
+  if(S.modal&&S.modal.type==='pnotice')renderModal();
 }
 
 /* ===== sending: call sheets for crew, pencils for clients ===== */
@@ -2800,6 +2818,7 @@ document.addEventListener('click',async ev=>{
     case 'calshare':{openCalModal(v);break}
     case 'calpub':{if(S.modal&&S.modal.type==='cal'){S.modal.busy=true;S.modal.err='';renderModal()}try{const url=await publishClientCal(v);try{await navigator.clipboard.writeText(url)}catch(e){}toast('Calendar link ready and copied')}catch(e){if(S.modal)S.modal.err=e.message||'try again'}if(S.modal&&S.modal.type==='cal'){S.modal.busy=false;renderModal()}break}
     case 'calstop':{await stopClientCal(v);toast('Calendar link switched off');renderModal();break}
+    case 'pnsent':{setTimeout(()=>{if(S.modal&&S.modal.type==='pnotice')closeModal();toast('Email ready in your mail app')},300);break}
     case 'pushon':{pushOn();break}
     case 'pushoff':{pushOff();break}
     case 'pushtest':{pushTest();break}
