@@ -943,6 +943,9 @@ function retainerDelivery(c,k){
 function retainerInstalments(c,upto){const r=rateCard(c);if(r.billing!=='retainer'||!r.monthlyFee)return [];const n=r.retainerSplit,off=r.retainerSplitFrom;const out=[];const lim=upto==null?Date.now():upto;
   retainerPeriods(c,lim).forEach(p=>{const base=Math.floor(r.monthlyFee/n*100)/100;for(let i=0;i<n;i++){const m=addMonths(p.start,off+i);if(m>lim)break;out.push({key:n===1?p.key:p.key+'#'+(i+1),periodKey:p.key,label:p.label+(n>1?', '+(i+1)+' of '+n:''),month:m,amount:i===n-1?Math.round((r.monthlyFee-base*(n-1))*100)/100:base})}});return out}
 const instInvoiced=(c,x)=>{const ri=c.retainerInvoiced||{};return !!(ri[x.key]||ri[x.periodKey])};
+/* Every instalment up to the end of the current period, including ones not due yet, so a single month can be invoiced (or marked as invoiced elsewhere) on its own. */
+function instSchedule(c){const ps=retainerPeriods(c,Date.now());if(!ps.length)return [];return retainerInstalments(c,ps[ps.length-1].end-1)}
+const instStatus=(c,x)=>{const ri=c.retainerInvoiced||{};const v=ri[x.key]||ri[x.periodKey];if(!v)return x.month>Date.now()?'upcoming':'due';return v==='manual'?'manual':'invoice'};
 /* ===== what work is worth, by date. One source for Insights, the year table and client value. =====
    Retainer instalments are earned evenly through their month. Fixed-fee projects are spread over their booked days
    (and over planned days not yet booked, which land on the deadline). Per-day projects and one-off bookings count on the day. */
@@ -1054,13 +1057,13 @@ function projectShort(p){const rem=planRemaining(p).filter(x=>x.remaining);retur
 function projectOptions(cid,sel){const c=client(cid);const isRet=!!(c&&rateCard(c).billing==='retainer');const ps=activeProjects(cid).filter(p=>pstatus(p)==='active'||p.id===sel);
   return (isRet?'<option value="" '+(!sel?'selected':'')+'>General retainer work, no project</option>':'<option value="" '+(!sel?'selected':'')+'>No project yet · day rate</option>')+ps.map(p=>'<option value="'+p.id+'" '+(p.id===sel?'selected':'')+'>'+esc(p.title)+' · '+projectShort(p)+'</option>').join('')+'<option value="__new" '+(sel==='__new'?'selected':'')+'>+ New project for '+esc(c?c.name:'this client')+'…</option>'}
 function projectsToAllocate(){return activeProjects().filter(p=>pstatus(p)==='active').map(p=>({p,rem:planRemaining(p).filter(x=>x.remaining)})).filter(x=>x.rem.length)}
-function unbilled(cid){
+function unbilled(cid,only){
   const c=client(cid);const li=lastInvoice(cid);const since=li?li.date:0;
-  const bookings=billableBookings(cid);
+  const bookings=only?[]:billableBookings(cid);
   const lines=bookings.map(bookingLine);
-  const r=rateCard(c);const retInst=retainerInstalments(c,Date.now()).filter(x=>!instInvoiced(c,x));const retMonths=retInst.map(x=>x.key);
+  const r=rateCard(c);const retInst=only?instSchedule(c).filter(x=>x.key===only&&!instInvoiced(c,x)):retainerInstalments(c,Date.now()).filter(x=>!instInvoiced(c,x));const retMonths=retInst.map(x=>x.key);
   retInst.forEach(x=>lines.push({desc:'Retainer, '+x.label,qty:1,unit:x.amount,month:x.key}));
-  const projs=billableProjects(cid);projs.forEach(p=>{const pr=pricingOf(p);const al=projectAllocated(p);const desc=p.title+(pr==='days'?' ('+Object.entries(al).filter(([k,v])=>v>0).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())+' day'+(v===1?'':'s')+' at '+gbp(projectRates(p)[k])).join(', ')+')':p.plan&&p.plan.length?' ('+p.plan.map(x=>x.days+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+' day'+(x.days==1?'':'s')).join(', ')+')':'');lines.push({desc,qty:1,unit:projectValue(p)+projectExtras(p),projectId:p.id})});
+  const projs=only?[]:billableProjects(cid);projs.forEach(p=>{const pr=pricingOf(p);const al=projectAllocated(p);const desc=p.title+(pr==='days'?' ('+Object.entries(al).filter(([k,v])=>v>0).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())+' day'+(v===1?'':'s')+' at '+gbp(projectRates(p)[k])).join(', ')+')':p.plan&&p.plan.length?' ('+p.plan.map(x=>x.days+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+' day'+(x.days==1?'':'s')).join(', ')+')':'');lines.push({desc,qty:1,unit:projectValue(p)+projectExtras(p),projectId:p.id})});
   const es=Object.values(S.entries).filter(e=>e.clientId===cid&&e.start>=since);
   const done=es.filter(e=>e.end);
   const hours=done.reduce((s,e)=>s+entryH(e),0);
@@ -1198,8 +1201,8 @@ async function bookingAdjustSave(){const m=S.modal;const ev=S.events[m.evid];if(
   closeModal();await patch('events',ev.id,d);const nv=S.events[ev.id];const after=p&&pricingOf(p)==='days'?dayValue(p,nv):p?(+nv.fee||0):eventValue(nv);
   toast('Booking updated'+(times?' to '+fmtTime(m.w.start)+'–'+fmtTime(m.w.end):'')+(Math.round(after)!==Math.round(m.cur)||ch!=='keep'?' · fee '+gbp(after):' · fee kept at '+gbp(after)))}
 
-async function createInvoice(cid){
-  const c=client(cid);const u=unbilled(cid);
+async function createInvoice(cid,only){
+  const c=client(cid);const u=unbilled(cid,only);
   if(!u.lines.length)return;
   const num=(S.settings.prefix||'')+(S.settings.nextInvoice||1001);
   const sub=u.total;const vat=c.vat===false?0:sub*(+S.settings.vatRate||0)/100;
@@ -1211,6 +1214,7 @@ async function createInvoice(cid){
   for(const p of (u.projs||[])){await patch('projects',p.id,{invoiceId:id})}
   toast('Invoice '+num+' created with '+u.lines.length+' line'+(u.lines.length===1?'':'s')+'.');
 }
+async function markInst(cid,key,on){const c=client(cid);const ri={...(c.retainerInvoiced||{})};if(on)ri[key]='manual';else if(ri[key]==='manual')delete ri[key];await patch('clients',cid,{retainerInvoiced:ri});toast(on?'Marked as invoiced. No invoice created here.':'Back to not invoiced.')}
 async function undoInvoice(iid){
   const inv=S.invoices[iid];if(!inv)return;
   for(const eid of (inv.eventIds||[])){if(S.events[eid])await patch('events',eid,{invoiceId:null})}
@@ -1461,6 +1465,14 @@ function retainerPanel(c){
   (months.length>1?'<hr class="s" style="margin:16px 0"><div class="tbl"><table><thead><tr><th>Period</th><th class="r">Promised</th><th class="r">Booked</th><th class="r">Delivered</th><th class="r">%</th><th class="r">£/hr</th></tr></thead><tbody>'+months.slice(1).map(k=>{const d=retainerDelivery(c,k);return '<tr><td>'+d.label+'</td><td class="r">'+fmtDays(d.promisedDays)+'</td><td class="r">'+fmtDays(d.booked)+'</td><td class="r">'+fmtDays(d.days)+' <span class="muted">('+hrs(d.hours)+')</span></td><td class="r"'+(d.promisedDays&&d.pct>110?' style="color:var(--warn)"':'')+'>'+(d.promisedDays?Math.round(d.pct)+'%':'—')+'</td><td class="r">'+(d.hours?gbp(d.fee/d.hours):'—')+'</td></tr>'}).join('')+'</tbody></table></div>':'')+
   '</section>';
 }
+/* Month-by-month retainer invoicing: each instalment of the current and last period, with its own invoice button. */
+function instPanel(c){const r=rateCard(c);if(r.retainerSplit<2)return '';const all=instSchedule(c);if(!all.length)return '';const keep=[...new Set(all.map(x=>x.periodKey))].slice(-2);const xs=all.filter(x=>keep.includes(x.periodKey)).reverse();
+  const invNum=x=>{const ri=c.retainerInvoiced||{};const id=ri[x.key]||ri[x.periodKey];const i=S.invoices[id];return i?i:null};
+  const row=x=>{const st=instStatus(c,x);const i=st==='invoice'?invNum(x):null;const mon=new Date(x.month).toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+    const status=st==='invoice'?(i?'<button class="link" data-act="openinvoice" data-v="'+i.id+'">Invoice '+esc(i.number)+'</button> · '+esc(i.status):'Invoiced'):st==='manual'?'Invoiced outside the app · <button class="link" data-act="unmarkinst" data-v="'+c.id+'" data-k="'+x.key+'">Undo</button>':st==='due'?'<b>Not invoiced</b>':'Not due yet';
+    const acts=st==='due'||st==='upcoming'?'<div class="row" style="flex:0 0 auto;gap:6px;flex-wrap:nowrap;justify-content:flex-end"><button class="btn small'+(st==='due'?'':' ghost')+'" data-act="invinst" data-v="'+c.id+'" data-k="'+x.key+'">'+(st==='due'?'Invoice this month':'Invoice early')+'</button><button class="btn ghost small" data-act="markinst" data-v="'+c.id+'" data-k="'+x.key+'">Already invoiced</button></div>':'';
+    return '<tr><td>'+esc(mon)+'<div class="note">'+esc(x.label)+' · '+status+'</div></td><td class="r">'+gbp2(x.amount)+'</td><td class="r">'+acts+'</td></tr>'};
+  return '<section class="panel"><div class="panel-head"><h3>Retainer, month by month</h3><span class="note">Invoice one month at a time. “Already invoiced” records a month you invoiced elsewhere, without creating an invoice.</span></div><div class="tbl"><table><thead><tr><th>Month</th><th class="r">Fee</th><th class="r"></th></tr></thead><tbody>'+xs.map(row).join('')+'</tbody></table></div></section>'}
 function vClient(cid){
   const c=client(cid);const u=unbilled(cid);const r=rateCard(c);
   const invs=Object.values(S.invoices).filter(i=>i.clientId===cid).sort((a,b)=>b.date-a.date);
@@ -1479,7 +1491,7 @@ function vClient(cid){
   '<div class="panel stat"><span class="eyebrow">Booked ahead</span><span class="v">'+gbp(ba.total)+'</span><span class="s">'+ba.count+' booking'+(ba.count===1?'':'s')+(ba.projects?' · '+ba.projects+' open project'+(ba.projects===1?'':'s'):'')+(ba.pencil?' · '+gbp(ba.pencil)+' pencilled':'')+'</span></div>'+
   '<div class="panel stat"><span class="eyebrow">'+(av?'Annual value':'Value this year')+'</span><span class="v">'+gbp(av?av+ba.total:cv.fees)+'</span><span class="s">'+(av?gbp(r.monthlyFee)+' per '+(r.retainerPeriod||'month')+(ba.total?' + '+gbp(ba.total)+' booked extras':''):gbp(cv.fees)+' in fees'+(cc?', '+gbp(cc)+' crew, '+gbp(cv.fees-cc)+' net':''))+'</span></div>'+
   '<div class="panel stat"><span class="eyebrow">Time since '+(li?esc(li.number)+', '+fmtDate(li.date):'the start')+'</span><span class="v">'+hrs(u.hours)+'</span><span class="s">'+(cv.hours?gbp(cv.rate)+'/hr this year · ':'')+hrs(u.hours-u.billH)+' admin, meetings, travel</span></div></div>'})()+
-  '<div class="split"><div class="grid" style="align-content:start">'+(r.billing==='retainer'?retainerPanel(c):'')+'<section class="panel"><div class="panel-head"><h3>Ready to invoice</h3><span class="note">Fees are fixed when the work is booked.</span></div>'+lines+'</section>'+
+  '<div class="split"><div class="grid" style="align-content:start">'+(r.billing==='retainer'?retainerPanel(c)+instPanel(c):'')+'<section class="panel"><div class="panel-head"><h3>Ready to invoice</h3><span class="note">Fees are fixed when the work is booked.</span></div>'+lines+'</section>'+
   (()=>{const ps=activeProjects(cid).filter(p=>pstatus(p)!=='invoiced');return ps.length?'<section class="panel"><div class="panel-head"><h3>Projects</h3><span class="note num">'+gbp(ps.reduce((s,p)=>s+projectValue(p),0))+' · '+gbp(ps.reduce((s,p)=>s+projectValue(p)-projectCost(p),0))+' net</span></div><div class="grid" style="gap:12px">'+ps.map(projectCard).join('')+'</div></section>':''})()+
   (upcoming.length?'<section class="panel"><div class="panel-head"><h3>Booked, not yet done</h3><span class="note num">'+gbp(upcoming.reduce((s,e)=>s+eventValue(e),0))+' coming</span></div><div class="cards">'+upcoming.slice(0,6).map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div></section>':'')+
   '<section class="panel"><div class="panel-head"><h3>Time logged'+(li?' since '+esc(li.number):'')+'</h3><button class="link" data-act="manual" data-v="'+cid+'">Add time</button></div><div class="list">'+(ents.length?ents.slice(0,30).map(entryRow).join(''):'<div class="empty">No time logged yet.</div>')+'</div></section></div>'+
@@ -2939,6 +2951,9 @@ document.addEventListener('click',async ev=>{
     case 'sortwork':openSortModal(b.dataset.c||null);break;
     case 'sortsave':await sortSave();break;
     case 'invoice':await createInvoice(v);break;
+    case 'invinst':await createInvoice(v,b.dataset.k);break;
+    case 'markinst':await markInst(v,b.dataset.k,true);break;
+    case 'unmarkinst':await markInst(v,b.dataset.k,false);break;
     case 'openinvoice':openInvoiceModal(v);break;
     case 'invstatus':{const d={status:v};if(v==='paid')d.paidAt=Date.now();await patch('invoices',b.dataset.i,d);renderModal();break}
     case 'askundoinv':confirmBox('i-confirm','Remove this invoice? Its hours go back to "to invoice". Do this only if it was never sent.','undoinv',v);break;
