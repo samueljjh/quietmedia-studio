@@ -221,6 +221,7 @@ input[type=checkbox],input[type=radio]{accent-color:var(--fg)}
 .pill.draft{color:var(--muted)}
 .pill.sent{color:var(--warn);background:transparent;box-shadow:inset 0 0 0 1px var(--warn)}
 .pill.paid{color:var(--ok);background:transparent;box-shadow:inset 0 0 0 1px var(--ok)}
+.pill.void{color:var(--muted);background:transparent;text-decoration:line-through}
 .pill.live{color:var(--bg);background:var(--live)}
 .empty{padding:18px 16px;color:var(--muted);font-size:14px;border:1px dashed var(--line-strong);border-radius:var(--r)}
 .empty b{color:var(--fg);font-weight:400}
@@ -923,10 +924,16 @@ function retainerPeriods(c,upto){
   const r=rateCard(c);if(r.billing!=='retainer')return [];
   const kind=r.retainerPeriod||'month';
   const sk=monthKeyOf(r.retainerStart,c.created);const startMs=sk?monthRange(sk)[0]:(c.created||Date.now());
-  let p=periodOf(kind,startMs);const endMs=upto||Date.now();const out=[];let guard=0;
-  while(p.start<=endMs&&guard++<200){out.push(p);p=periodOf(kind,p.end)}
+  let p=periodOf(kind,startMs);const endMs=upto||Date.now();const out=[];let guard=0;const stop=c.retainerEnd||'';
+  while(p.start<=endMs&&guard++<200){if(stop&&monthKey(p.start)>stop)break;const ms=[];for(let m=p.start;m<p.end;m=addMonths(m,1))ms.push(m);p.paused=ms.every(m=>monthOff(c,m));const ov=(c.retainerOverrides||{})[p.key];p.fee=p.paused?0:ov&&ov.fee!=null&&ov.fee!==''?+ov.fee:r.monthlyFee;p.note=ov&&ov.note||'';out.push(p);p=periodOf(kind,p.end)}
   return out;
 }
+/* Pause and stop. Pauses are month ranges ({from,to}, to '' = until resumed); retainerEnd is the last month billed. A paused or ended month has no fee and no invoice line. */
+const retPaused=(c,ms)=>{const k=monthKey(ms);return (c.retainerPauses||[]).some(x=>k>=x.from&&(!x.to||k<=x.to))};
+const retEnded=(c,ms)=>!!c.retainerEnd&&monthKey(ms)>c.retainerEnd;
+const monthOff=(c,ms)=>retPaused(c,ms)||retEnded(c,ms);
+function retState(c){const now=Date.now();if(retEnded(c,now))return {k:'ended',txt:'Ended after '+monthLabel(c.retainerEnd)};const op=(c.retainerPauses||[]).find(x=>monthKey(now)>=x.from&&(!x.to||monthKey(now)<=x.to));if(op)return {k:'paused',txt:'Paused '+(op.to?'until the end of '+monthLabel(op.to):'until you resume it')};
+  const nx=(c.retainerPauses||[]).filter(x=>x.from>monthKey(now)).sort((a,b)=>a.from<b.from?-1:1)[0];if(nx)return {k:'pausing',txt:'Pauses from '+monthLabel(nx.from)+(nx.to?' to '+monthLabel(nx.to):'')+(c.retainerEnd?'. Ends after '+monthLabel(c.retainerEnd):'')};if(c.retainerEnd)return {k:'ending',txt:'Ends after '+monthLabel(c.retainerEnd)};return {k:'on',txt:''}}
 const retainerMonths=(c,upto)=>retainerPeriods(c,upto).map(p=>p.key);
 const periodByKey=(c,k)=>retainerPeriods(c,Date.now()+366*DAYMS).find(p=>p.key===k)||periodOf(rateCard(c).retainerPeriod||'month',Date.now());
 function retainerDelivery(c,k){
@@ -937,11 +944,12 @@ function retainerDelivery(c,k){
   const days=clockDays(es);const bevs=Object.values(S.events).filter(e=>e.clientId===c.id&&e.status!=='cancelled'&&BUSY_TYPES[e.type]&&e.start>=a&&e.start<b);const booked=bevs.reduce((t,e)=>t+portion(e),0);
   const bookedBy={Shoot:0,Edit:0};bevs.forEach(e=>{bookedBy[e.type==='Shoot'?'Shoot':'Edit']+=portion(e)});
   const daysBy={Shoot:clockDays(es.filter(e=>e.category==='Filming')),Edit:clockDays(es.filter(e=>e.category!=='Filming'))};
-  return {key:k,label:pr.label,start:a,end:b,hours,promised,promisedDays:r.retainerDays,days,booked,bookedBy,daysBy,pct:r.retainerDays?days/r.retainerDays*100:0,byPerson,byCat,fee:r.monthlyFee,targetRate:promised?r.monthlyFee/promised:0};
+  const fee=pr.fee!=null?pr.fee:r.monthlyFee;const pd=pr.paused?0:r.retainerDays;
+  return {key:k,label:pr.label,start:a,end:b,hours,promised:pr.paused?0:promised,promisedDays:pd,days,booked,bookedBy,daysBy,pct:pd?days/pd*100:0,byPerson,byCat,fee,note:pr.note||'',paused:!!pr.paused,changed:!pr.paused&&fee!==r.monthlyFee,targetRate:promised&&!pr.paused?fee/promised:0};
 }
 /* A retainer fee per period can be invoiced in monthly instalments (Marlborough: the term fee over three months). Each instalment is an invoice line and is what counts towards that month. */
 function retainerInstalments(c,upto){const r=rateCard(c);if(r.billing!=='retainer'||!r.monthlyFee)return [];const n=r.retainerSplit,off=r.retainerSplitFrom;const out=[];const lim=upto==null?Date.now():upto;
-  retainerPeriods(c,lim).forEach(p=>{const base=Math.floor(r.monthlyFee/n*100)/100;for(let i=0;i<n;i++){const m=addMonths(p.start,off+i);if(m>lim)break;out.push({key:n===1?p.key:p.key+'#'+(i+1),periodKey:p.key,label:p.label+(n>1?', '+(i+1)+' of '+n:''),month:m,amount:i===n-1?Math.round((r.monthlyFee-base*(n-1))*100)/100:base})}});return out}
+  retainerPeriods(c,lim).forEach(p=>{const fee=p.fee;if(!(fee>0))return;const base=Math.floor(fee/n*100)/100;for(let i=0;i<n;i++){const m=addMonths(p.start,off+i);if(m>lim)break;if(monthOff(c,m))continue;out.push({key:n===1?p.key:p.key+'#'+(i+1),periodKey:p.key,label:p.label+(n>1?', '+(i+1)+' of '+n:''),month:m,amount:i===n-1?Math.round((fee-base*(n-1))*100)/100:base})}});return out}
 const instInvoiced=(c,x)=>{const ri=c.retainerInvoiced||{};return !!(ri[x.key]||ri[x.periodKey])};
 /* Every instalment up to the end of the current period, including ones not due yet, so a single month can be invoiced (or marked as invoiced elsewhere) on its own. */
 function instSchedule(c){const ps=retainerPeriods(c,Date.now());if(!ps.length)return [];return retainerInstalments(c,ps[ps.length-1].end-1)}
@@ -1015,7 +1023,7 @@ function ledger(from,to,who){const items=valueItems(from,to).map(x=>{const w=sha
   const rows=Object.values(by).filter(g=>g.done+g.booked+g.pencil+g.crew>0.004);const sum=k=>rows.reduce((t,g)=>t+g[k],0);
   const dayT=t=>items.filter(x=>x.type===t&&!x.pencil).reduce((a,x)=>a+(x.days||0),0);
   return {rows,done:sum('done'),booked:sum('booked'),total:sum('done')+sum('booked'),pencil:sum('pencil'),crew:sum('crew'),shoot:dayT('Shoot'),edit:dayT('Edit')}}
-function annualValue(c){const r=rateCard(c);return r.billing==='retainer'?r.monthlyFee*(PERIODS_PER_YEAR[r.retainerPeriod||'month']||12):0}
+function annualValue(c){const r=rateCard(c);return r.billing==='retainer'&&!retEnded(c,Date.now())?r.monthlyFee*(PERIODS_PER_YEAR[r.retainerPeriod||'month']||12):0}
 function bookedAhead(cid){const now=Date.now();const evs=Object.values(S.events).filter(e=>e.clientId===cid&&e.start>now&&e.status!=='cancelled');const ps=activeProjects(cid).filter(p=>pstatus(p)==='active');return {count:evs.length,projects:ps.length,total:evs.reduce((s,e)=>s+eventValue(e),0)+ps.reduce((s,p)=>s+projectValue(p),0),pencil:evs.filter(e=>evStatus(e)==='pencil').reduce((s,e)=>s+eventValue(e),0)}}
 /* ===== projects: the thing a client buys. Fee on the project; bookings are allocated days. ===== */
 const PLAN_TYPES=['Shoot','Edit','Web design','Software design','Meeting','Other'];
@@ -1450,21 +1458,60 @@ const DAYMS=864e5;
 function addMonths(ms,n){const d=new Date(ms);d.setDate(1);d.setMonth(d.getMonth()+n);return d.getTime()}
 function clashes(ev,all){return all.some(o=>o.id!==ev.id&&o.start<ev.end&&o.end>ev.start&&(o.people||[]).some(p=>(ev.people||[]).includes(p)))}
 function retainerPanel(c){
-  const r=rateCard(c);const months=retainerMonths(c).slice(-6).reverse();if(!months.length)return '';const per=r.retainerPeriod||'month';const perWord={month:'month',quarter:'quarter',term:'term',year:'year'}[per];
-  const cur=retainerDelivery(c,months[0]);const maxP=Math.max(1,...Object.values(cur.byPerson));
+  const r=rateCard(c);const months=retainerMonths(c).slice(-13).reverse();if(!months.length)return '';const per=r.retainerPeriod||'month';const perWord={month:'month',quarter:'quarter',term:'term',year:'year'}[per];
+  const sel=(S.retSel||{})[c.id];const selK=months.includes(sel)?sel:months[0];const isCur=selK===months[0];
+  const cur=retainerDelivery(c,selK);const st=retState(c);const maxP=Math.max(1,...Object.values(cur.byPerson));
   const bar=(d)=>{const over=d.days>d.promisedDays&&d.promisedDays;const w=d.promisedDays?Math.min(100,d.days/d.promisedDays*100):0;return '<div class="rbar"><i style="width:'+w+'%;background:'+(over?'var(--warn)':c.colour)+'"></i></div>'};
-  const status=!cur.promisedDays?'Set promised days in the client\'s rates to track delivery.':cur.pct<60?'Under-delivering so far this '+perWord+'. Room to add value.':cur.pct<=110?'On track.':'Over-delivering. Worth a conversation if it keeps happening.';
-  return '<section class="panel"><div class="panel-head"><h3>Retainer, '+cur.label+'</h3><span class="eyebrow num">'+gbp(r.monthlyFee)+' / '+perWord+' · '+gbp(annualValue(c))+' a year</span></div>'+
+  const status=cur.paused?'Paused this '+perWord+'.':!cur.promisedDays?'Set promised days in the client\'s rates to track delivery.':cur.pct<60?'Under-delivering so far this '+perWord+'. Room to add value.':cur.pct<=110?'On track.':'Over-delivering. Worth a conversation if it keeps happening.';
+  const feeTxt=cur.paused?'Paused, no fee':cur.changed?(cur.fee?gbp(cur.fee)+' this '+perWord+' (normally '+gbp(r.monthlyFee)+')':'Not charged this '+perWord):gbp(r.monthlyFee)+' / '+perWord+' · '+gbp(annualValue(c))+' a year';
+  const ctl='<div class="row" style="flex:0 1 auto;gap:6px;margin:6px 0 14px">'+(!isCur?'<button class="btn ghost small" data-act="retsel" data-v="'+c.id+'" data-k="">← Back to '+esc(retainerDelivery(c,months[0]).label)+'</button>':'')+'<button class="btn ghost small" data-act="retedit" data-v="'+c.id+'" data-k="'+selK+'">Edit this '+perWord+'</button>'+
+    (st.k==='ended'?'<button class="btn ghost small" data-act="retrestart" data-v="'+c.id+'">Restart retainer</button>':(st.k==='paused'?'<button class="btn ghost small" data-act="retresume" data-v="'+c.id+'">Resume</button>':'<button class="btn ghost small" data-act="retpause" data-v="'+c.id+'">Pause</button>')+'<button class="btn ghost small" data-act="retstop" data-v="'+c.id+'">'+(c.retainerEnd?'Change end':'Stop')+'</button>')+'</div>';
+  return '<section class="panel"><div class="panel-head"><h3>Retainer, '+cur.label+'</h3><span class="eyebrow num">'+feeTxt+'</span></div>'+
+  (st.txt?'<div class="banner'+(st.k==='ended'||st.k==='paused'?' warn':'')+'" style="margin:0 0 10px">'+esc(st.txt)+'.'+((c.retainerPauses||[]).length?' <button class="link" data-act="retpause" data-v="'+c.id+'">Pauses</button>':'')+'</div>':'')+
+  (cur.note?'<p class="note" style="margin:0 0 6px">'+esc(cur.note)+'</p>':'')+ctl+
   (()=>{const plan=r.retainerPlan;const byType=['Shoot','Edit'].filter(t=>plan[t]||cur.bookedBy[t]||cur.daysBy[t]).map(t=>fmtDays(cur.daysBy[t]||0)+'/'+fmtDays(plan[t]||0)+' '+(t==='Shoot'?'filming':'edit')).join(' · ');const bookedTxt=fmtDays(cur.booked)+' booked in the calendar';
-  const eff='<div class="stat"><span class="eyebrow">Effective rate</span><span class="v">'+(cur.hours?gbp(r.monthlyFee/cur.hours):'—')+'<span class="muted" style="font-size:16px">/hr</span></span><span class="s">'+(cur.targetRate?gbp(cur.targetRate)+'/hr if it takes the promised hours':'')+'</span></div>';
+  const eff='<div class="stat"><span class="eyebrow">Effective rate</span><span class="v">'+(cur.hours?gbp(cur.fee/cur.hours):'—')+'<span class="muted" style="font-size:16px">/hr</span></span><span class="s">'+(cur.targetRate?gbp(cur.targetRate)+'/hr if it takes the promised hours':'')+'</span></div>';
   if(r.retainerBasis==='scope')return '<div class="grid g3" style="margin-bottom:14px"><div class="stat"><span class="eyebrow">Hours spent</span><span class="v">'+hrs(cur.hours)+'</span><span class="s">'+(cur.promised?Math.round(cur.hours/cur.promised*100)+'% of the '+hrs(cur.promised)+' the fee assumes':'set promised days to compare')+'</span></div>'+eff+'<div class="stat"><span class="eyebrow">Work delivered</span><span class="v">'+fmtDays(cur.days)+'<span class="muted" style="font-size:16px"> of '+fmtDays(r.retainerDays)+'</span></span><span class="s">'+(byType||bookedTxt)+'</span></div></div>';
   return '<div class="grid g3" style="margin-bottom:14px"><div class="stat"><span class="eyebrow">Delivered</span><span class="v">'+fmtDays(cur.days)+'<span class="muted" style="font-size:16px"> of '+fmtDays(r.retainerDays)+' days</span></span><span class="s">'+(byType?byType+' · ':'')+bookedTxt+'</span></div><div class="stat"><span class="eyebrow">Hours those days took</span><span class="v">'+hrs(cur.hours)+'</span><span class="s">'+(cur.days?hrs(cur.hours/cur.days)+' per delivered day · ':'')+'5h+ is a full day</span></div>'+eff+'</div>'})()+
   bar(cur)+'<p class="note" style="margin:8px 0 14px">'+status+'</p>'+
   '<div class="bars">'+PEOPLE.map(p=>{const h=cur.byPerson[p.id]||0;return '<div class="bar"><span class="lab">'+esc(name(p.id))+'</span><span class="track"><i style="width:'+(h/maxP*100)+'%;background:'+c.colour+'"></i></span><span class="val">'+hrs(h)+'</span></div>'}).join('')+'</div>'+
   (Object.keys(cur.byCat).length?'<dl class="kv" style="margin-top:12px">'+Object.entries(cur.byCat).sort((a,b)=>b[1]-a[1]).map(([k,h])=>'<dt>'+esc(k)+'</dt><dd>'+hrs(h)+'</dd>').join('')+'</dl>':'')+
-  (months.length>1?'<hr class="s" style="margin:16px 0"><div class="tbl"><table><thead><tr><th>Period</th><th class="r">Promised</th><th class="r">Booked</th><th class="r">Delivered</th><th class="r">%</th><th class="r">£/hr</th></tr></thead><tbody>'+months.slice(1).map(k=>{const d=retainerDelivery(c,k);return '<tr><td>'+d.label+'</td><td class="r">'+fmtDays(d.promisedDays)+'</td><td class="r">'+fmtDays(d.booked)+'</td><td class="r">'+fmtDays(d.days)+' <span class="muted">('+hrs(d.hours)+')</span></td><td class="r"'+(d.promisedDays&&d.pct>110?' style="color:var(--warn)"':'')+'>'+(d.promisedDays?Math.round(d.pct)+'%':'—')+'</td><td class="r">'+(d.hours?gbp(d.fee/d.hours):'—')+'</td></tr>'}).join('')+'</tbody></table></div>':'')+
+  (months.length>1?'<hr class="s" style="margin:16px 0"><div class="eyebrow" style="margin-bottom:6px">Other '+perWord+'s · tap one to open it</div><div class="tbl"><table><thead><tr><th>Period</th><th class="r">Fee</th><th class="r">Promised</th><th class="r">Booked</th><th class="r">Delivered</th><th class="r">%</th><th class="r">£/hr</th></tr></thead><tbody>'+months.filter(k=>k!==selK).map(k=>{const d=retainerDelivery(c,k);return '<tr class="wk" style="cursor:pointer" data-act="retsel" data-v="'+c.id+'" data-k="'+k+'"><td>'+d.label+(d.note?'<div class="note">'+esc(d.note)+'</div>':'')+'</td><td class="r">'+(d.paused?'Paused':d.fee?gbp(d.fee):'Not charged')+'</td><td class="r">'+fmtDays(d.promisedDays)+'</td><td class="r">'+fmtDays(d.booked)+'</td><td class="r">'+fmtDays(d.days)+' <span class="muted">('+hrs(d.hours)+')</span></td><td class="r"'+(d.promisedDays&&d.pct>110?' style="color:var(--warn)"':'')+'>'+(d.promisedDays?Math.round(d.pct)+'%':'—')+'</td><td class="r">'+(d.hours?gbp(d.fee/d.hours):'—')+'</td></tr>'}).join('')+'</tbody></table></div>':'')+
   '</section>';
 }
+/* Retainer controls: pause, stop/restart, and per-period edits (fee for that period, e.g. not charged, and a note). */
+function monthOpts(sel,from,n){const out=[];let m=from;for(let i=0;i<n;i++){const k=monthKey(m);out.push('<option value="'+k+'" '+(k===sel?'selected':'')+'>'+monthLabel(k)+'</option>');m=addMonths(m,1)}return out.join('')}
+const prevMonthKey=k=>monthKey(addMonths(monthRange(k)[0],-1));
+function retStartMs(c){const k=monthKeyOf(rateCard(c).retainerStart,c.created);return k?monthRange(k)[0]:startOfMonth(Date.now())}
+function openRetPause(cid){const c=client(cid);const nowK=monthKey(Date.now());const nx=monthKey(addMonths(Date.now(),1));
+  S.modal={type:'retpause',cls:'sheet',html:()=>{const c=client(cid);const ps=c.retainerPauses||[];return '<h2>Pause the retainer</h2><p class="note" style="margin:-4px 0 14px">'+esc(c.name)+'. Paused months have no fee, no invoice line and no promised days.</p>'+
+    (ps.length?'<div class="list" style="margin-bottom:14px">'+ps.map((x,i)=>'<div class="item"><div class="main"><div class="t">'+monthLabel(x.from)+' to '+(x.to?monthLabel(x.to):'until resumed')+'</div></div><div class="end"><button class="link" data-act="retunpause" data-v="'+cid+'" data-k="'+i+'">Remove</button></div></div>').join('')+'</div>':'')+
+    '<div class="row"><label class="f">Pause from<select id="rp-from">'+monthOpts(nx,addMonths(Date.now(),-6),24)+'</select></label><label class="f">Until the end of<select id="rp-to"><option value="">Until I resume it</option>'+monthOpts('',addMonths(Date.now(),-6),30)+'</select></label></div>'+
+    '<div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="retpausesave" data-v="'+cid+'">Add pause</button></div>'}};renderModal()}
+async function retPauseSave(cid){const c=client(cid);const f=document.getElementById('rp-from').value,t=document.getElementById('rp-to').value;if(t&&t<f){toast('The end month is before the start month.');return}
+  const ps=[...(c.retainerPauses||[]),{from:f,to:t}];await patch('clients',cid,{retainerPauses:ps});toast('Retainer paused from '+monthLabel(f)+(t?' to '+monthLabel(t):'')+'.');renderModal()}
+async function retUnpause(cid,i){const c=client(cid);const ps=[...(c.retainerPauses||[])];ps.splice(+i,1);await patch('clients',cid,{retainerPauses:ps});renderModal()}
+function openRetResume(cid){const c=client(cid);const nowK=monthKey(Date.now());
+  S.modal={type:'retresume',cls:'sheet',html:()=>'<h2>Resume the retainer</h2><p class="note" style="margin:-4px 0 14px">'+esc(c.name)+'. Billing starts again from the month you choose.</p><div class="row"><label class="f">Start billing again in<select id="rr-m">'+monthOpts(nowK,addMonths(Date.now(),-3),18)+'</select></label></div><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="retresumesave" data-v="'+cid+'">Resume</button></div>'};renderModal()}
+async function retResumeSave(cid){const c=client(cid);const k=document.getElementById('rr-m').value;const last=prevMonthKey(k);
+  const ps=(c.retainerPauses||[]).map(x=>{const covers=k>=x.from&&(!x.to||k<=x.to);if(!covers)return x;return x.from<k?{...x,to:last}:null}).filter(Boolean);
+  await patch('clients',cid,{retainerPauses:ps});closeModal();toast('Retainer resumes in '+monthLabel(k)+'.')}
+function openRetStop(cid){const c=client(cid);const def=c.retainerEnd||monthKey(Date.now());
+  S.modal={type:'retstop',cls:'sheet',html:()=>'<h2>Stop the retainer</h2><p class="note" style="margin:-4px 0 14px">'+esc(c.name)+'. Pick the last month you bill. Nothing after it is invoiced or counted, and its history stays. You can restart it later.</p><div class="row"><label class="f">Last month billed<select id="rs-m">'+monthOpts(def,retStartMs(c),Math.max(24,Math.round((Date.now()-retStartMs(c))/(30*DAYMS))+18))+'</select></label></div><div class="acts">'+(c.retainerEnd?'<button class="btn ghost" data-act="retstopclear" data-v="'+cid+'">No end date</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="retstopsave" data-v="'+cid+'">Stop after this month</button></div>'};renderModal()}
+async function retStopSave(cid,clear){const k=clear?'':document.getElementById('rs-m').value;await patch('clients',cid,{retainerEnd:k});closeModal();toast(k?'Retainer ends after '+monthLabel(k)+'.':'End date removed.')}
+function openRetRestart(cid){const c=client(cid);const nowK=monthKey(Date.now());
+  S.modal={type:'retrestart',cls:'sheet',html:()=>'<h2>Restart the retainer</h2><p class="note" style="margin:-4px 0 14px">'+esc(c.name)+' ended after '+monthLabel(c.retainerEnd)+'. The months in between are kept as a pause. Change the fee in Edit client &amp; rates if it is different now.</p><div class="row"><label class="f">Start billing again in<select id="rt-m">'+monthOpts(nowK,addMonths(monthRange(c.retainerEnd)[0],1),24)+'</select></label></div><div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="retrestartsave" data-v="'+cid+'">Restart</button></div>'};renderModal()}
+async function retRestartSave(cid){const c=client(cid);const k=document.getElementById('rt-m').value;const gapFrom=monthKey(addMonths(monthRange(c.retainerEnd)[0],1));const ps=[...(c.retainerPauses||[])];if(gapFrom<k)ps.push({from:gapFrom,to:prevMonthKey(k)});
+  await patch('clients',cid,{retainerEnd:'',retainerPauses:ps});closeModal();toast('Retainer restarts in '+monthLabel(k)+'.')}
+function openRetEdit(cid,k){const c=client(cid);const r=rateCard(c);const d=retainerDelivery(c,k);const ov=(c.retainerOverrides||{})[k]||{};const inv=instSchedule(c).concat(retainerInstalments(c,d.end-1)).some(x=>x.periodKey===k&&instInvoiced(c,x))||!!(c.retainerInvoiced||{})[k];
+  S.modal={type:'retedit',cls:'sheet',html:()=>'<h2>'+esc(d.label)+'</h2><p class="note" style="margin:-4px 0 14px">'+esc(c.name)+' · normally '+gbp2(r.monthlyFee)+'. '+fmtDays(d.days)+' of '+fmtDays(d.promisedDays)+' days delivered, '+hrs(d.hours)+'.</p>'+
+    (d.paused?'<div class="banner warn" style="margin:0 0 12px">This period is paused, so it has no fee. Remove the pause to charge it.</div>':'')+
+    '<div class="row"><label class="f">Fee for this period (£)<input type="number" id="re-fee" min="0" step="0.01" value="'+(ov.fee!=null&&ov.fee!==''?ov.fee:r.monthlyFee)+'"></label><label class="f" style="flex:0 0 auto;align-self:end"><span style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="re-free" '+(ov.fee===0?'checked':'')+' onchange="document.getElementById(\'re-fee\').value=this.checked?0:'+r.monthlyFee+'"> Not charged</span></label></div>'+
+    '<label class="f">Note<input type="text" id="re-note" placeholder="e.g. Not charged, buying a sofa from them" value="'+esc(ov.note||'')+'"></label>'+
+    (inv?'<p class="note">Part of this period is already invoiced. Changing the fee does not change that invoice. Remove or void it on the invoice itself.</p>':'')+
+    '<div class="acts">'+(ov.fee!=null||ov.note?'<button class="btn ghost" data-act="reteditreset" data-v="'+cid+'" data-k="'+k+'">Back to normal fee</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="reteditsave" data-v="'+cid+'" data-k="'+k+'">Save</button></div>'};renderModal()}
+async function retEditSave(cid,k,reset){const c=client(cid);const r=rateCard(c);const o={...(c.retainerOverrides||{})};if(reset)delete o[k];else{const f=document.getElementById('re-free').checked?0:+document.getElementById('re-fee').value;const note=document.getElementById('re-note').value.trim();o[k]={fee:f===r.monthlyFee?null:Math.max(0,f||0),note}}
+  await patch('clients',cid,{retainerOverrides:o});closeModal();toast('Saved.')}
 /* Month-by-month retainer invoicing: each instalment of the current and last period, with its own invoice button. */
 function instPanel(c){const r=rateCard(c);if(r.retainerSplit<2)return '';const all=instSchedule(c);if(!all.length)return '';const keep=[...new Set(all.map(x=>x.periodKey))].slice(-2);const xs=all.filter(x=>keep.includes(x.periodKey)).reverse();
   const invNum=x=>{const ri=c.retainerInvoiced||{};const id=ri[x.key]||ri[x.periodKey];const i=S.invoices[id];return i?i:null};
@@ -1535,7 +1582,7 @@ function vInsights(){
   const maxP=Math.max(1,...Object.values(byP));
   const m0=from,monthEnd=to;const isNow=now>=m0&&now<monthEnd;const mName=insLabel(per,m0,monthEnd);const whoName=who==='all'?'':name(who);
   const L=ledger(m0,monthEnd,who);
-  const invM=who!=='all'?0:Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<monthEnd).reduce((s,i)=>s+i.subtotal,0);
+  const invM=who!=='all'?0:Object.values(S.invoices).filter(i=>i.status!=='void'&&i.date>=m0&&i.date<monthEnd).reduce((s,i)=>s+i.subtotal,0);
   const unb=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);
   const goal=who!=='all'?0:(+S.settings.monthlyGoal||0)*(per==='year'?12:per==='week'?12/52:1);
   const kindName={retainer:'Retainer',project:'Project',booking:'Bookings'};
@@ -1765,7 +1812,7 @@ function monthStats(m0){
   const L=ledger(m0,m1,S.insWho||'all');const crew=L.crew,pencil=L.pencil;const sumK=k=>L.rows.filter(r=>r.kind===k).reduce((t,r)=>t+r.done+r.booked,0);
   const fees=sumK('booking'),projects=sumK('project'),retainers=sumK('retainer');
   const hours=Object.values(S.entries).filter(e=>e.start>=m0&&e.start<m1&&(S.cal.who&&S.cal.who!=='all'?e.person===S.cal.who:true)).reduce((s,e)=>s+entryH(e),0);
-  const invoiced=Object.values(S.invoices).filter(i=>i.date>=m0&&i.date<m1).reduce((s,i)=>s+i.subtotal,0);
+  const invoiced=Object.values(S.invoices).filter(i=>i.status!=='void'&&i.date>=m0&&i.date<m1).reduce((s,i)=>s+i.subtotal,0);
   const gross=L.total;
   return {m0,m1,evs,L,done:L.done,booked:L.booked,bookings:evs.length,shoot:days('Shoot'),edit:days('Edit'),off:days('Unavailable'),fees,projects,retainers,gross,crew,net:gross-crew,pencil,hours,invoiced,past:m1<=now};
 }
@@ -1934,7 +1981,7 @@ function clientsListHtml(){const q=clQ();const shut=S.clShut||{};
   const cs=activeClients().filter(c=>!q||c.name.toLowerCase().includes(q)||Object.values(S.projects).some(p=>p.clientId===c.id&&pstatus(p)!=='cancelled'&&projMatch(p,q)));
   if(!cs.length)return '<div class="panel empty">'+(q?'Nothing matches “'+esc(S.clQuery)+'”.':'<b>No clients yet.</b> Add a client, then its projects live underneath it.')+'</div>';
   return cs.map(c=>{const nameHit=!q||c.name.toLowerCase().includes(q);const all=Object.values(S.projects).filter(p=>p.clientId===c.id&&pstatus(p)!=='cancelled').filter(p=>nameHit||projMatch(p,q));const open=all.filter(p=>pstatus(p)==='active'),closed=all.filter(p=>pstatus(p)!=='active');const isShut=!q&&shut[c.id];const u=unbilled(c.id);const r=rateCard(c);
-    return '<section class="cgroup'+(isShut?' shut':'')+'"><div class="cg-head" style="--c:'+c.colour+'"><button class="cg-tog" data-act="cltog" data-v="'+c.id+'" aria-expanded="'+!isShut+'" aria-label="'+(isShut?'Show':'Hide')+' projects"><svg viewBox="0 0 16 16"><path d="M5 6l3 3 3-3"/></svg></button><button class="cg-name" data-act="openclient" data-v="'+c.id+'"><span class="dot" style="background:'+c.colour+'"></span><b>'+esc(c.name)+'</b>'+(r.billing==='retainer'?'<span class="pill">Retainer</span>':'')+'</button><span class="cg-meta">'+open.length+' open'+(u.total?' · <b>'+gbp(u.total)+'</b> to invoice':'')+'</span></div>'+
+    return '<section class="cgroup'+(isShut?' shut':'')+'"><div class="cg-head" style="--c:'+c.colour+'"><button class="cg-tog" data-act="cltog" data-v="'+c.id+'" aria-expanded="'+!isShut+'" aria-label="'+(isShut?'Show':'Hide')+' projects"><svg viewBox="0 0 16 16"><path d="M5 6l3 3 3-3"/></svg></button><button class="cg-name" data-act="openclient" data-v="'+c.id+'"><span class="dot" style="background:'+c.colour+'"></span><b>'+esc(c.name)+'</b>'+(r.billing==='retainer'?'<span class="pill">'+({paused:'Retainer paused',ended:'Retainer ended'}[retState(c).k]||'Retainer')+'</span>':'')+'</button><span class="cg-meta">'+open.length+' open'+(u.total?' · <b>'+gbp(u.total)+'</b> to invoice':'')+'</span></div>'+
       (isShut?'':'<div class="cg-body">'+(open.length?open.map(prow).join(''):'<p class="note" style="padding:8px 4px">No open projects.</p>')+(closed.length?'<details class="wdet"'+(q?' open':'')+'><summary>'+closed.length+' closed or invoiced</summary>'+closed.map(prow).join('')+'</details>':'')+'<div class="cg-links"><button class="link" data-act="newproject" data-c="'+c.id+'">New project</button><button class="link" data-act="newevent" data-c="'+c.id+'">Book a day</button><button class="link" data-act="openclient" data-v="'+c.id+'">Client page</button></div></div>')+'</section>'}).join('')}
 function vClients(){
   if(S.sub==='crew'){S.view='team';return vTeam()}
@@ -2784,8 +2831,8 @@ function openInvoiceModal(iid){
   S.modal={type:'invoice',html:()=>{const i=S.invoices[iid];if(!i)return '';return '<div class="eyebrow">'+esc(c.name)+'</div><h2>Invoice '+esc(i.number)+'</h2>'+
     '<p class="note">'+fmtDate(i.date,{day:'numeric',month:'long',year:'numeric'})+' · work from '+fmtDate(i.from)+' to '+fmtDate(i.to)+' · '+hrs(i.hours)+'</p>'+
     '<div class="tbl"><table><thead><tr><th>Line</th><th class="r">Qty</th><th class="r">Amount</th></tr></thead><tbody>'+(i.lines||[]).map(l=>'<tr><td>'+esc(l.desc)+'</td><td class="r">'+l.qty+'</td><td class="r">'+gbp2(l.qty*l.unit)+'</td></tr>').join('')+'</tbody><tfoot><tr><td colspan="2">Subtotal</td><td class="r">'+gbp2(i.subtotal)+'</td></tr><tr><td colspan="2">VAT</td><td class="r">'+gbp2(i.vat)+'</td></tr><tr><td colspan="2">Total</td><td class="r">'+gbp2(i.total)+'</td></tr></tfoot></table></div>'+
-    '<div><div class="eyebrow" style="margin-bottom:8px">Status</div><div class="seg">'+['draft','sent','paid'].map(s=>'<button data-act="invstatus" data-v="'+s+'" data-i="'+iid+'" aria-pressed="'+(i.status===s)+'">'+s+'</button>').join('')+'</div></div>'+
-    '<div id="i-confirm"></div>'+
+    '<div><div class="eyebrow" style="margin-bottom:8px">Status</div><div class="seg">'+['draft','sent','paid','void'].map(s=>'<button data-act="invstatus" data-v="'+s+'" data-i="'+iid+'" aria-pressed="'+(i.status===s)+'">'+s+'</button>').join('')+'</div></div>'+
+    (i.status==='void'?'<p class="note" style="margin-top:8px">Void: kept for your records but not counted as invoiced. Its work stays marked as invoiced. To put the work back in To invoice, use Remove invoice instead.</p>':'')+'<div id="i-confirm"></div>'+
     '<div class="acts"><button class="btn ghost small" data-act="askundoinv" data-v="'+iid+'">Remove invoice</button><button class="btn ghost small" data-act="xeroone" data-v="'+iid+'">Export for Xero</button><button class="btn" data-act="closemodal">Done</button></div>'}};
   renderModal();
 }
@@ -2952,6 +2999,20 @@ document.addEventListener('click',async ev=>{
     case 'sortsave':await sortSave();break;
     case 'invoice':await createInvoice(v);break;
     case 'invinst':await createInvoice(v,b.dataset.k);break;
+    case 'retsel':S.retSel={...(S.retSel||{}),[v]:b.dataset.k||''};render();break;
+    case 'retedit':openRetEdit(v,b.dataset.k);break;
+    case 'reteditsave':await retEditSave(v,b.dataset.k);break;
+    case 'reteditreset':await retEditSave(v,b.dataset.k,true);break;
+    case 'retpause':openRetPause(v);break;
+    case 'retpausesave':await retPauseSave(v);break;
+    case 'retunpause':await retUnpause(v,b.dataset.k);break;
+    case 'retresume':openRetResume(v);break;
+    case 'retresumesave':await retResumeSave(v);break;
+    case 'retstop':openRetStop(v);break;
+    case 'retstopsave':await retStopSave(v);break;
+    case 'retstopclear':await retStopSave(v,true);break;
+    case 'retrestart':openRetRestart(v);break;
+    case 'retrestartsave':await retRestartSave(v);break;
     case 'markinst':await markInst(v,b.dataset.k,true);break;
     case 'unmarkinst':await markInst(v,b.dataset.k,false);break;
     case 'openinvoice':openInvoiceModal(v);break;
