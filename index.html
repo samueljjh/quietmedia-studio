@@ -1057,7 +1057,10 @@ function workLog(pid,cid){const es=Object.values(S.entries).filter(e=>pid?e.proj
 function workLogHtml(log,limit,pid){if(!log.length)return '';const rows=log.slice(0,limit||40);return '<div class="wlog">'+rows.map(d=>'<div class="wl'+(pid?' wlk':'')+'"'+(pid?' role="button" tabindex="0" data-act="pday" data-v="'+pid+'" data-k="'+d.day+'" title="Open this day"':'')+'><span>'+fmtDate(d.day,{weekday:'short',day:'numeric',month:'short'})+'</span><span class="muted">'+Object.entries(d.people).map(([p,h])=>esc(name(p))+' '+hrs(h)).join(' · ')+'</span><b class="num">'+hrs(d.hours)+(d.hours>=5?' · full':' · half')+'</b></div>').join('')+(log.length>rows.length?'<div class="note">and '+(log.length-rows.length)+' more days'+(pid?' · <button class="link" data-act="pdays" data-v="'+pid+'">show all</button>':'')+'</div>':'')+'</div>'+(pid?'<p class="note" style="margin-top:6px">Tap a day to open it, edit the hours or move it to another project.</p>':'')}
 function projectAnchor(p){const b=projectBookings(p.id);return p.completedAt||(b.length?b[b.length-1].start:p.created||Date.now())}
 function activeProjects(cid){return Object.values(S.projects).filter(p=>(!cid||p.clientId===cid)&&pstatus(p)!=='cancelled').sort((a,b)=>(a.created||0)-(b.created||0))}
-function billableProjects(cid){return activeProjects(cid).filter(p=>pstatus(p)==='complete'&&projectValue(p)+projectExtras(p)>0)}
+/* What is still to invoice on a project. Per-day projects: the days not already invoiced on their own. Quoted fee: the fee plus extras. */
+const projDaysOpen=p=>projectBookings(p.id).filter(e=>e.status!=='pencil'&&!e.invoiceId&&dayValue(p,e)>0);
+function projectBillable(p){return pricingOf(p)==='days'?projDaysOpen(p).reduce((s,e)=>s+dayValue(p,e),0):projectValue(p)+projectExtras(p)}
+function billableProjects(cid){return activeProjects(cid).filter(p=>pstatus(p)==='complete'&&projectBillable(p)>0)}
 /* a project's kinds of job, from its bookings */
 function projectGenre(pid){const c={};projectBookings(pid).forEach(e=>{if(e.genre)c[e.genre]=(c[e.genre]||0)+1});return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||''}
 function projectShort(p){const rem=planRemaining(p).filter(x=>x.remaining);return projectPriceLabel(p)+(rem.length?' · '+rem.map(x=>fmtDays(x.remaining)+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())).join(', ')+' to allocate':'')}
@@ -1071,7 +1074,7 @@ function unbilled(cid,only){
   const lines=bookings.map(bookingLine);
   const r=rateCard(c);const retInst=only?instSchedule(c).filter(x=>x.key===only&&!instInvoiced(c,x)):retainerInstalments(c,Date.now()).filter(x=>!instInvoiced(c,x));const retMonths=retInst.map(x=>x.key);
   retInst.forEach(x=>lines.push({desc:'Retainer, '+x.label,qty:1,unit:x.amount,month:x.key}));
-  const projs=only?[]:billableProjects(cid);projs.forEach(p=>{const pr=pricingOf(p);const al=projectAllocated(p);const desc=p.title+(pr==='days'?' ('+Object.entries(al).filter(([k,v])=>v>0).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())+' day'+(v===1?'':'s')+' at '+gbp(projectRates(p)[k])).join(', ')+')':p.plan&&p.plan.length?' ('+p.plan.map(x=>x.days+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+' day'+(x.days==1?'':'s')).join(', ')+')':'');lines.push({desc,qty:1,unit:projectValue(p)+projectExtras(p),projectId:p.id})});
+  const projs=only?[]:billableProjects(cid);projs.forEach(p=>lines.push({desc:projectLineDesc(p),qty:1,unit:projectBillable(p),projectId:p.id}));
   const es=Object.values(S.entries).filter(e=>e.clientId===cid&&e.start>=since);
   const done=es.filter(e=>e.end);
   const hours=done.reduce((s,e)=>s+entryH(e),0);
@@ -1216,19 +1219,58 @@ async function bookingAdjustSave(){const m=S.modal;const ev=S.events[m.evid];if(
   closeModal();await patch('events',ev.id,d);const nv=S.events[ev.id];const after=p&&pricingOf(p)==='days'?dayValue(p,nv):p?(+nv.fee||0):eventValue(nv);
   toast('Booking updated'+(times?' to '+fmtTime(m.w.start)+'–'+fmtTime(m.w.end):'')+(Math.round(after)!==Math.round(m.cur)||ch!=='keep'?' · fee '+gbp(after):' · fee kept at '+gbp(after)))}
 
-async function createInvoice(cid,only){
-  const c=client(cid);const u=unbilled(cid,only);
-  if(!u.lines.length)return;
+async function createInvoice(cid,only){const u=unbilled(cid,only);if(!u.lines.length)return;
+  return createInvoiceFrom(cid,{events:u.bookings.map(e=>e.id),inst:u.retInst.map(x=>x.key),projects:(u.projs||[]).map(p=>p.id),days:[]})}
+/* Build an invoice from a chosen set: standalone bookings, retainer instalments, whole projects, and single days of projects. */
+async function createInvoiceFrom(cid,sel){
+  const c=client(cid);const lines=[];const evIds=[],retMonths=[],projIds=[];const starts=[],ends=[];
+  (sel.events||[]).forEach(id=>{const e=S.events[id];if(!e||e.invoiceId)return;lines.push(bookingLine(e));evIds.push(id);starts.push(e.start);ends.push(e.end)});
+  const insts=instSchedule(c).concat(retainerInstalments(c,Date.now()));(sel.inst||[]).forEach(k=>{const x=insts.find(y=>y.key===k);if(!x||instInvoiced(c,x)||retMonths.includes(k))return;lines.push({desc:'Retainer, '+x.label,qty:1,unit:x.amount,month:x.key});retMonths.push(k);starts.push(x.month);ends.push(addMonths(x.month,1)-1)});
+  (sel.projects||[]).forEach(pid=>{const p=S.projects[pid];if(!p||p.invoiceId)return;const v=projectBillable(p);if(!(v>0))return;lines.push({desc:projectLineDesc(p),qty:1,unit:v,projectId:pid});projIds.push(pid);projDaysOpen(p).forEach(e=>{starts.push(e.start);ends.push(e.end)});if(!projDaysOpen(p).length){starts.push(projectAnchor(p));ends.push(projectAnchor(p))}});
+  const dayEv=(sel.days||[]).map(id=>S.events[id]).filter(e=>e&&!e.invoiceId&&e.projectId&&!projIds.includes(e.projectId)).sort((a,b)=>a.start-b.start);
+  dayEv.forEach(e=>{const p=S.projects[e.projectId];lines.push({desc:p.title+', '+fmtDate(e.start,{day:'numeric',month:'short'})+' ('+(portion(e)===0.5?'half ':'')+(e.type==='Shoot'?'filming':e.type.toLowerCase())+' day)',qty:1,unit:dayValue(p,e),eventId:e.id});evIds.push(e.id);starts.push(e.start);ends.push(e.end)});
+  if(!lines.length){toast('Nothing chosen to invoice.');return}
   const num=(S.settings.prefix||'')+(S.settings.nextInvoice||1001);
-  const sub=u.total;const vat=c.vat===false?0:sub*(+S.settings.vatRate||0)/100;
-  const starts=u.bookings.map(e=>e.start).concat(u.retInst.map(x=>x.month));const ends=u.bookings.map(e=>e.end).concat(u.retInst.map(x=>addMonths(x.month,1)-1));if(!starts.length){starts.push(Date.now());ends.push(Date.now())}const from=Math.min(...starts);const to=Math.max(...ends);
-  const id=await put('invoices',null,{clientId:cid,number:num,date:Date.now(),from,to,lines:u.lines,subtotal:sub,vat,total:sub+vat,hours:u.hours,status:'draft',eventIds:u.bookings.map(e=>e.id),retMonths:u.retMonths,projectIds:(u.projs||[]).map(p=>p.id)});
+  const sub=linesTotal(lines);const vat=c.vat===false?0:sub*(+S.settings.vatRate||0)/100;
+  if(!starts.length){starts.push(Date.now());ends.push(Date.now())}const from=Math.min(...starts);const to=Math.max(...ends);
+  const hours=Object.values(S.entries).filter(x=>x.end&&(projIds.includes(x.projectId)||evIds.some(id=>x.eventId===id))).reduce((t,x)=>t+entryH(x),0);
+  const id=await put('invoices',null,{clientId:cid,number:num,date:Date.now(),from,to,lines,subtotal:sub,vat,total:sub+vat,hours,status:'draft',eventIds:evIds,retMonths,projectIds:projIds});
   await saveSettings({nextInvoice:(+S.settings.nextInvoice||1001)+1});
-  for(const e of u.bookings){await patch('events',e.id,{invoiceId:id})}
-  if(u.retMonths.length){const ri={...(c.retainerInvoiced||{})};u.retMonths.forEach(k=>ri[k]=id);await patch('clients',cid,{retainerInvoiced:ri})}
-  for(const p of (u.projs||[])){await patch('projects',p.id,{invoiceId:id})}
-  toast('Invoice '+num+' created with '+u.lines.length+' line'+(u.lines.length===1?'':'s')+'.');
+  for(const eid of evIds){await patch('events',eid,{invoiceId:id})}
+  if(retMonths.length){const ri={...(client(cid).retainerInvoiced||{})};retMonths.forEach(k=>ri[k]=id);await patch('clients',cid,{retainerInvoiced:ri})}
+  for(const pid of projIds){await patch('projects',pid,{invoiceId:id})}
+  /* a closed per-day project whose last days were invoiced one by one is done */
+  for(const pid of [...new Set(dayEv.map(e=>e.projectId))]){const p=S.projects[pid];if(p&&pstatus(p)==='complete'&&!projDaysOpen(p).length){await patch('projects',pid,{invoiceId:id});const inv=S.invoices[id];await patch('invoices',id,{projectIds:[...(inv.projectIds||[]),pid]})}}
+  toast('Invoice '+num+' created with '+lines.length+' line'+(lines.length===1?'':'s')+'.');return id;
 }
+/* Choose what goes on an invoice. focus 'p:<id>' starts with only that project ticked. */
+function invoiceCandidates(cid){const c=client(cid);const u=unbilled(cid);const now=Date.now();
+  const projs=activeProjects(cid).filter(p=>!p.invoiceId&&pstatus(p)!=='cancelled'&&pricingOf(p)!=='retainer').map(p=>{const closed=pstatus(p)==='complete';const days=pricingOf(p)==='days'?projDaysOpen(p).filter(e=>e.start<=now||closed):[];return {p,closed,days,whole:closed&&projectBillable(p)>0}}).filter(x=>x.whole||x.days.length);
+  return {bookings:u.bookings,inst:u.retInst,projs}}
+function openInvoiceBuilder(cid,focus){const cand=invoiceCandidates(cid);
+  const on=k=>!focus||focus===k;
+  const st={ev:{},inst:{},proj:{},day:{},mode:{}};
+  cand.bookings.forEach(e=>st.ev[e.id]=on('all'));cand.inst.forEach(x=>st.inst[x.key]=on('all'));
+  cand.projs.forEach(({p,closed,days,whole})=>{const f=focus?focus==='p:'+p.id:closed;st.mode[p.id]=whole?'whole':'days';st.proj[p.id]=whole&&f;days.forEach(e=>st.day[e.id]=!whole&&f)});
+  S.modal={type:'invbuild',cid,st,html:()=>{const m=S.modal;const st=m.st;const c=client(cid);const cand=invoiceCandidates(cid);
+    const box=(grp,k,checked,label,amt,extra)=>'<label class="chip" style="font-size:13px;display:flex;align-items:flex-start;gap:8px;width:100%"><input type="checkbox" data-ib="'+grp+'" data-k="'+k+'" '+(checked?'checked':'')+'><span style="flex:1;min-width:0">'+label+(extra?'<div class="note">'+extra+'</div>':'')+'</span><b class="num" style="font-weight:400">'+gbp2(amt)+'</b></label>';
+    let total=0;
+    const projHtml=cand.projs.map(({p,closed,days,whole})=>{const mode=st.mode[p.id];const pr=pricingOf(p);
+      const head='<div class="eyebrow" style="margin:14px 0 6px">'+esc(p.title)+' · '+(closed?'closed':'open')+' · '+(pr==='days'?'per day':'quoted fee')+'</div>';
+      const seg=whole&&days.length?'<div class="seg" style="margin-bottom:8px"><button data-act="ibmode" data-v="'+p.id+'" data-k="whole" aria-pressed="'+(mode==='whole')+'">Whole project</button><button data-act="ibmode" data-v="'+p.id+'" data-k="days" aria-pressed="'+(mode==='days')+'">Choose days</button></div>':'';
+      if(mode==='whole'){const v=projectBillable(p);if(st.proj[p.id])total+=v;return head+seg+box('proj',p.id,st.proj[p.id],esc(projectLineDesc(p)),v,(pr==='days'?fmtDays(days.reduce((t,e)=>t+portion(e),0))+' days not yet invoiced':'Quoted fee'+(projectExtras(p)?' + extras':'')))}
+      return head+seg+'<div class="grid" style="gap:6px">'+days.map(e=>{const v=dayValue(p,e);if(st.day[e.id])total+=v;return box('day',e.id,st.day[e.id],fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · '+(portion(e)===0.5?'half ':'')+(e.type==='Shoot'?'filming':esc(e.type.toLowerCase()))+' day',v,esc((e.people||[]).map(name).join(' & ')))}).join('')+'</div>'+(!closed?'<p class="note" style="margin-top:6px">Project is still open. Days you invoice now are left out when you invoice the rest.</p>':'')}).join('');
+    const bHtml=cand.bookings.length?'<div class="eyebrow" style="margin:14px 0 6px">Bookings with no project</div><div class="grid" style="gap:6px">'+cand.bookings.map(e=>{const v=eventValue(e);if(st.ev[e.id])total+=v;return box('ev',e.id,st.ev[e.id],esc(e.title)+' · '+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'}),v,esc(e.type))}).join('')+'</div>':'';
+    const iHtml=cand.inst.length?'<div class="eyebrow" style="margin:14px 0 6px">Retainer</div><div class="grid" style="gap:6px">'+cand.inst.map(x=>{if(st.inst[x.key])total+=x.amount;return box('inst',x.key,st.inst[x.key],'Retainer, '+esc(x.label),x.amount)}).join('')+'</div>':'';
+    const any=projHtml||bHtml||iHtml;
+    return '<div class="eyebrow">'+esc(c.name)+'</div><h2>New invoice</h2><p class="note" style="margin:-4px 0 6px">Tick what goes on this invoice. Anything left unticked stays in To invoice.</p>'+
+      (any?projHtml+iHtml+bHtml:'<div class="empty">Nothing waiting to be invoiced.</div>')+
+      '<div class="row" style="justify-content:space-between;align-items:center;margin-top:14px"><span class="note">'+(focus?'<button class="link" data-act="iball" data-v="'+cid+'">Show everything for '+esc(c.name)+'</button>':'<button class="link" data-act="ibnone">Untick all</button>')+'</span><b class="num">'+gbp2(total)+' ex VAT</b></div>'+
+      '<div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="ibcreate" data-v="'+cid+'" '+(total>0?'':'disabled')+'>Create invoice</button></div>'}};
+  S.modal.focus=focus;renderModal()}
+async function invoiceBuilderCreate(cid){const st=S.modal.st;const pick=o=>Object.keys(o).filter(k=>o[k]);
+  const projects=pick(st.proj).filter(pid=>st.mode[pid]==='whole');const days=pick(st.day).filter(id=>{const e=S.events[id];return e&&st.mode[e.projectId]!=='whole'});
+  closeModal();await createInvoiceFrom(cid,{events:pick(st.ev),inst:pick(st.inst),projects,days})}
 async function markInst(cid,key,on){const c=client(cid);const ri={...(c.retainerInvoiced||{})};if(on)ri[key]='manual';else if(ri[key]==='manual')delete ri[key];await patch('clients',cid,{retainerInvoiced:ri});toast(on?'Marked as invoiced. No invoice created here.':'Back to not invoiced.')}
 /* Editing a draft invoice: change a line's text or amount, or remove a line (its booking, project or retainer month goes back to To invoice). */
 function invRecalc(i,lines){const c=client(i.clientId)||{};const sub=linesTotal(lines);const rate=i.subtotal?i.vat/i.subtotal:(c.vat===false?0:(+S.settings.vatRate||0)/100);const vat=Math.round(sub*rate*100)/100;return {lines,subtotal:sub,vat,total:sub+vat}}
@@ -1241,8 +1283,8 @@ async function invLineRemove(iid,n,quiet){const i=S.invoices[iid];if(!i)return;c
   if(l.eventId){d.eventIds=(i.eventIds||[]).filter(x=>x!==l.eventId);if(S.events[l.eventId])await patch('events',l.eventId,{invoiceId:null})}
   if(l.projectId){d.projectIds=(i.projectIds||[]).filter(x=>x!==l.projectId);if(S.projects[l.projectId])await patch('projects',l.projectId,{invoiceId:null})}
   await patch('invoices',iid,d);renderModal();if(!quiet)toast('Line removed. It is back in To invoice.')}
-function projectLineDesc(p){const pr=pricingOf(p);const al=projectAllocated(p);return p.title+(pr==='days'?' ('+Object.entries(al).filter(([k,v])=>v>0).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())+' day'+(v===1?'':'s')+' at '+gbp(projectRates(p)[k])).join(', ')+')':p.plan&&p.plan.length?' ('+p.plan.map(x=>x.days+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+' day'+(x.days==1?'':'s')).join(', ')+')':'')}
-async function invProjSync(iid,n){const i=S.invoices[iid];if(!i)return;const lines=(i.lines||[]).map(l=>({...l}));const l=lines[n];const q=l&&S.projects[l.projectId];if(!q)return;l.unit=projectValue(q)+projectExtras(q);l.desc=projectLineDesc(q);await patch('invoices',iid,invRecalc(i,lines));renderModal();toast('Invoice line updated to '+gbp2(l.unit)+'.')}
+function projectLineDesc(p){const pr=pricingOf(p);const al={};projDaysOpen(p).forEach(e=>{const k=planType(e.type);al[k]=(al[k]||0)+portion(e)});return p.title+(pr==='days'?' ('+Object.entries(al).filter(([k,v])=>v>0).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())+' day'+(v===1?'':'s')+' at '+gbp(projectRates(p)[k])).join(', ')+')':p.plan&&p.plan.length?' ('+p.plan.map(x=>x.days+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+' day'+(x.days==1?'':'s')).join(', ')+')':'')}
+async function invProjSync(iid,n){const i=S.invoices[iid];if(!i)return;const lines=(i.lines||[]).map(l=>({...l}));const l=lines[n];const q=l&&S.projects[l.projectId];if(!q)return;l.unit=projectBillable(q);l.desc=projectLineDesc(q);await patch('invoices',iid,invRecalc(i,lines));renderModal();toast('Invoice line updated to '+gbp2(l.unit)+'.')}
 async function undoInvoice(iid){
   const inv=S.invoices[iid];if(!inv)return;
   for(const eid of (inv.eventIds||[])){if(S.events[eid])await patch('events',eid,{invoiceId:null})}
@@ -2450,7 +2492,7 @@ function projectCard(p){
   '<div class="pc-figs">'+(pr==='retainer'?'<div><b>In retainer</b><span>Priced as</span></div>':'<div><b>'+gbp(val)+'</b><span>'+(pr==='days'?'So far · per day':'Fee')+'</span></div>')+(cost?'<div><b>'+gbp(cost)+'</b><span>Crew</span></div>':'')+(pr!=='retainer'?'<div><b>'+gbp(val-cost)+'</b><span>Net</span></div>':'')+'<div><b>'+fmtDays(bookedDays)+'</b><span>Days booked</span></div><div><b>'+(h?fmtDays(projectWorkedDays(p)):'—')+'</b><span>Days worked</span></div><div><b>'+(h?hrs(h):'—')+'</b><span>Hours</span></div>'+(pr!=='retainer'&&h?'<div><b>'+gbp((val-cost)/h)+'</b><span>Net £/hr</span></div>':'')+'</div>'+
   (h?'<details class="wdet"><summary>Hours by day</summary>'+workLogHtml(workLog(p.id),10,p.id)+'</details>':'')+
   '<div class="plan">'+(pr==='days'&&!rem.length?'<span class="chip"><i class="dot" style="background:'+(c?c.colour:'var(--muted)')+'"></i>'+Object.entries(al).map(([k,v])=>fmtDays(v)+' '+(k==='Shoot'?'filming':k.toLowerCase())).join(', ')+(bookedDays?'':'no days yet')+' · rolling</span>':'')+rem.map(x=>'<span class="chip'+(x.remaining?' todo':'')+'"><i class="dot" style="background:'+(c?c.colour:'var(--muted)')+(x.remaining?';opacity:.3':'')+'"></i>'+fmtDays(x.allocated)+'/'+fmtDays(x.planned)+' '+(x.type==='Shoot'?'filming':x.type.toLowerCase())+(x.remaining?' · '+fmtDays(x.remaining)+' to allocate':'')+'</span>').join('')+'</div>'+
-  '<div class="row" style="gap:14px;margin-top:8px">'+(st==='active'&&rem.some(x=>x.remaining)?'<button class="btn small" data-act="allocate" data-v="'+p.id+'">Allocate days</button>':'')+(st==='active'&&(pr==='days'||!rem.some(x=>x.remaining))&&b.every(e=>e.end<Date.now())?'<button class="btn small" data-act="projcomplete" data-v="'+p.id+'">'+(pr==='retainer'?'Close project':'Close & invoice')+'</button>':'')+'<button class="link" data-act="editproject" data-v="'+p.id+'">Edit</button>'+(b.length?'<button class="link" data-act="gotoday" data-v="'+startOfDay(b[0].start)+'">Open in schedule</button>':'')+'</div></div>';
+  '<div class="row" style="gap:14px;margin-top:8px">'+(st==='active'&&rem.some(x=>x.remaining)?'<button class="btn small" data-act="allocate" data-v="'+p.id+'">Allocate days</button>':'')+(st==='active'&&(pr==='days'||!rem.some(x=>x.remaining))&&b.every(e=>e.end<Date.now())?'<button class="btn small" data-act="projcomplete" data-v="'+p.id+'">'+(pr==='retainer'?'Close project':'Close & invoice')+'</button>':'')+(!p.invoiceId&&pr!=='retainer'&&(st==='complete'?projectBillable(p)>0:pr==='days'&&projDaysOpen(p).some(e=>e.start<=Date.now()))?'<button class="btn small'+(st==='complete'?'':' ghost')+'" data-act="invproj" data-v="'+p.id+'">'+(st==='complete'?'Invoice this project':'Invoice days done')+'</button>':'')+'<button class="link" data-act="editproject" data-v="'+p.id+'">Edit</button>'+(b.length?'<button class="link" data-act="gotoday" data-v="'+startOfDay(b[0].start)+'">Open in schedule</button>':'')+'</div></div>';
 }
 /* Work from before projects were required: bookings and time with a client but no project (retainer clients are fine without one). */
 function unassignedWork(){const ok=c=>c&&!c.archived&&rateCard(c).billing!=='retainer';const evs=Object.values(S.events).filter(e=>e.clientId&&!e.projectId&&e.status!=='cancelled'&&e.type!=='Unavailable'&&ok(client(e.clientId)));const ents=Object.values(S.entries).filter(e=>e.clientId&&!e.projectId&&e.end&&ok(client(e.clientId)));return {evs,ents}}
@@ -2888,7 +2930,7 @@ function openInvoiceModal(iid){
   S.modal={type:'invoice',html:()=>{const i=S.invoices[iid];if(!i)return '';return '<div class="eyebrow">'+esc(c.name)+'</div><h2>Invoice '+esc(i.number)+'</h2>'+
     '<p class="note">'+fmtDate(i.date,{day:'numeric',month:'long',year:'numeric'})+' · work from '+fmtDate(i.from)+' to '+fmtDate(i.to)+' · '+hrs(i.hours)+'</p>'+
     '<div class="tbl"><table><thead><tr><th>Line</th><th class="r">Qty</th><th class="r">Amount</th>'+(i.status==='draft'?'<th></th>':'')+'</tr></thead><tbody>'+(i.lines||[]).map((l,n)=>i.status==='draft'?'<tr><td><input type="text" data-ild="'+n+'" value="'+esc(l.desc)+'" style="width:100%"></td><td class="r">'+l.qty+'</td><td class="r"><input type="number" step="0.01" data-ilu="'+n+'" value="'+l.unit+'" style="width:110px;text-align:right"></td><td class="r"><button class="link" data-act="invlinedel" data-v="'+iid+'" data-k="'+n+'">Remove</button></td></tr>':'<tr><td>'+esc(l.desc)+'</td><td class="r">'+l.qty+'</td><td class="r">'+gbp2(l.qty*l.unit)+'</td></tr>').join('')+'</tbody><tfoot><tr><td colspan="2">Subtotal</td><td class="r">'+gbp2(i.subtotal)+'</td>'+(i.status==='draft'?'<td></td>':'')+'</tr><tr><td colspan="2">VAT</td><td class="r">'+gbp2(i.vat)+'</td>'+(i.status==='draft'?'<td></td>':'')+'</tr><tr><td colspan="2">Total</td><td class="r">'+gbp2(i.total)+'</td>'+(i.status==='draft'?'<td></td>':'')+'</tr></tfoot></table></div>'+
-    (i.status==='draft'?(()=>{const st=(i.lines||[]).map((l,n)=>[l,n]).filter(([l])=>l.projectId&&S.projects[l.projectId]&&Math.abs(projectValue(S.projects[l.projectId])+projectExtras(S.projects[l.projectId])-l.unit)>0.005);return st.map(([l,n])=>{const q=S.projects[l.projectId];return '<div class="banner warn" style="margin:0 0 8px">'+esc(q.title)+' has changed since this invoice was made: its days now come to '+gbp2(projectValue(q)+projectExtras(q))+', the line says '+gbp2(l.unit)+'. <button class="link" data-act="invprojsync" data-v="'+iid+'" data-k="'+n+'">Update to current days</button></div>'}).join('')})():'')+
+    (i.status==='draft'?(()=>{const st=(i.lines||[]).map((l,n)=>[l,n]).filter(([l])=>l.projectId&&S.projects[l.projectId]&&Math.abs(projectBillable(S.projects[l.projectId])-l.unit)>0.005);return st.map(([l,n])=>{const q=S.projects[l.projectId];return '<div class="banner warn" style="margin:0 0 8px">'+esc(q.title)+' has changed since this invoice was made: its days now come to '+gbp2(projectBillable(q))+', the line says '+gbp2(l.unit)+'. <button class="link" data-act="invprojsync" data-v="'+iid+'" data-k="'+n+'">Update to current days</button></div>'}).join('')})():'')+
     (i.status==='draft'?'<div class="row" style="justify-content:space-between;align-items:center;margin:-4px 0 6px"><span class="note">Draft, so you can change it. Removing a line puts it back in To invoice.</span><button class="btn ghost small" data-act="invlinesave" data-v="'+iid+'">Save changes</button></div>':'<p class="note" style="margin:-4px 0 6px">Only drafts can be edited. Set it back to draft to change it.</p>')+
     '<div><div class="eyebrow" style="margin-bottom:8px">Status</div><div class="seg">'+['draft','sent','paid','void'].map(s=>'<button data-act="invstatus" data-v="'+s+'" data-i="'+iid+'" aria-pressed="'+(i.status===s)+'">'+s+'</button>').join('')+'</div></div>'+
     (i.status==='void'?'<p class="note" style="margin-top:8px">Void: kept for your records but not counted as invoiced. Its work stays marked as invoiced. To put the work back in To invoice, use Remove invoice instead.</p>':'')+'<div id="i-confirm"></div>'+
@@ -2966,7 +3008,7 @@ document.addEventListener('click',async ev=>{
       toast('Project created from '+grp.length+' booking'+(grp.length===1?'':'s')+'. Fee '+gbp(fee)+' moved to the project.');openProjectModal(pid);break}
     case 'planadd':readProjectModal();S.modal.p.plan.push({type:'Edit',days:1});renderModal();break;
     case 'planrm':readProjectModal();S.modal.p.plan.splice(Number(v),1);if(!S.modal.p.plan.length)S.modal.p.plan.push({type:'Edit',days:1});renderModal();break;
-    case 'projcomplete':{const p=S.projects[v];await patch('projects',v,{status:'complete',completedAt:Date.now()});toast(pricingOf(p)==='retainer'?'Project closed.':'Project closed. '+gbp(projectValue(p)+projectExtras(p))+' is ready to invoice.');break}
+    case 'projcomplete':{const p=S.projects[v];await patch('projects',v,{status:'complete',completedAt:Date.now()});if(pricingOf(p)==='retainer'){toast('Project closed.');break}if(projectBillable(S.projects[v])>0)openInvoiceBuilder(p.clientId,'p:'+v);else toast('Project closed.');break}
     case 'allocate':{const p=S.projects[v];if(S.modal&&S.modal.type==='project'){readProjectModal();const pp={...S.modal.p};if(pp.title&&pp.clientId){if(!pp.created)pp.created=Date.now();await put('projects',v,stripId(pp))}}closeModal();S.presetProject=v;openEventModal(null,null,null,p.clientId);const rem=planRemaining(p).filter(x=>x.remaining);if(rem.length){const t=document.getElementById('v-type');if(t)t.value=rem[0].type}S.presetProject=null;feeNote();break}
     case 'newcrew':openCrewModal();break;
     case 'editcrew':openCrewModal(v);break;
@@ -3066,7 +3108,12 @@ document.addEventListener('click',async ev=>{
     case 'startfixsave':{const e2=S.entries[v];const t=(document.getElementById('sf-t')||{}).value;if(e2&&t){let st=parseLocal(dayKey(e2.start),t);if(st>Date.now())st-=DAYMS;closeModal();await patch('entries',v,{start:st});toast('Start time changed to '+fmtTime(st))}break}
     case 'sortwork':openSortModal(b.dataset.c||null);break;
     case 'sortsave':await sortSave();break;
-    case 'invoice':await createInvoice(v);break;
+    case 'invoice':openInvoiceBuilder(v);break;
+    case 'invproj':{const p=S.projects[v];if(p)openInvoiceBuilder(p.clientId,'p:'+v);break}
+    case 'ibmode':S.modal.st.mode[v]=b.dataset.k;renderModal();break;
+    case 'ibnone':{const st=S.modal.st;['ev','inst','proj','day'].forEach(g=>Object.keys(st[g]).forEach(k=>st[g][k]=false));renderModal();break}
+    case 'iball':openInvoiceBuilder(v);break;
+    case 'ibcreate':await invoiceBuilderCreate(v);break;
     case 'invinst':await createInvoice(v,b.dataset.k);break;
     case 'retsel':S.retSel={...(S.retSel||{}),[v]:b.dataset.k||''};render();break;
     case 'retedit':openRetEdit(v,b.dataset.k);break;
@@ -3190,6 +3237,7 @@ function busyOn(day,person){const min=(+S.settings.availMinHours||3)*3.6e6;retur
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'&&S.modal)closeModal();if(ev.key==='Escape'&&S.moreOpen){S.moreOpen=false;renderChrome()}if(S.view==='schedule'&&!S.modal&&!ev.target.matches('input,select,textarea')){if(ev.key==='ArrowLeft')calMove(-1);if(ev.key==='ArrowRight')calMove(1);if(ev.key==='ArrowUp'){ev.preventDefault();calZoom(-1)}if(ev.key==='ArrowDown'){ev.preventDefault();calZoom(1)}if(ev.key.toLowerCase()==='t'){S.cal.cursor=Date.now();S.cal.sel=startOfDay(Date.now());S.calAnim='zo';render()}if(ev.key.toLowerCase()==='n'){ev.preventDefault();openEventModal(null,S.cal.sel?dayKey(S.cal.sel):null)}}});
 function syncThemeColor(){const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':!matchMedia('(prefers-color-scheme: light)').matches;const m=document.querySelector('meta[name="theme-color"]');if(m)m.content=dark?'#0A0A0A':'#F5F4F2'}
 $('#themeBtn').addEventListener('click',()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':!matchMedia('(prefers-color-scheme: light)').matches;r.dataset.theme=dark?'light':'dark';try{localStorage.setItem('qm-theme',r.dataset.theme)}catch(e){}syncThemeColor()});
+document.addEventListener('change',ev=>{const t=ev.target;if(!t.dataset||!t.dataset.ib||!S.modal||S.modal.type!=='invbuild')return;S.modal.st[t.dataset.ib][t.dataset.k]=t.checked;renderModal()});
 matchMedia('(prefers-color-scheme: light)').addEventListener('change',syncThemeColor);
 try{const th=localStorage.getItem('qm-theme');if(th)document.documentElement.dataset.theme=th}catch(e){}syncThemeColor();
 
