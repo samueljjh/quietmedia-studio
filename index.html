@@ -227,7 +227,10 @@ input[type=checkbox],input[type=radio]{accent-color:var(--fg)}
 .empty b{color:var(--fg);font-weight:400}
 
 /* clock cards */
-.clock{display:grid;gap:16px}
+.clock{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+.clock>.chip{display:block;white-space:normal;line-height:1.35;min-width:0;overflow-wrap:anywhere}.clock>.chip .dot{display:inline-block;margin-right:7px;vertical-align:1px}
+.clock .row>.btn{flex:1 1 0}.clock .row>.note{flex:1 0 100%}
+.clock.running .btn.ghost{background:var(--surface)}
 .clock .who{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .clock .big{font-size:clamp(40px,6vw,58px);letter-spacing:-1.2px;line-height:1;font-variant-numeric:tabular-nums}
 .clock.running{background:var(--raise)}
