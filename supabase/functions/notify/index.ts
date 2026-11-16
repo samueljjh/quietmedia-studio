@@ -2,6 +2,7 @@
 // (the database calls it with its own secret; Studio calls it signed in, and both are checked below).
 //   kind 'enquiry'  a booking request arrived       (database trigger on records)
 //   kind 'reply'    crew replied to a form          (database trigger on sheet_responses)
+//   kind 'agreement' a client signed an agreement   (database trigger on agreements, see agreements.sql)
 //   kind 'morning'  what's on today, sent at 8am    (pg_cron, runs 07:00 and 08:00 UTC, sends at 8 London time)
 //   kind 'key'/'test'  from Studio: the public key to subscribe with, and a test to your own devices
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
@@ -66,6 +67,9 @@ export function replyMsg(r: any, sheet: any, crewName: string) {
   if (r.kind === 'callack' && d.what === 'confirmed') return { title: 'Call sheet confirmed', body: who + ' confirmed the timings for ' + job, tag: 'rep-' + r.id };
   return null;
 }
+export function agreementMsg(rec: any) {
+  return { title: 'Agreement signed', body: (rec.name || 'The client') + (rec.company ? ' (' + rec.company + ')' : '') + ' signed the ' + (rec.title || 'agreement') + '. It is now in effect.', tag: 'agr-' + rec.id };
+}
 /* the same things Today shows: today's bookings, requests waiting, pencils to send or chase */
 export function morningMsg(rows: any[], now: number) {
   const of = (c: string) => rows.filter(r => r.col === c).map(r => ({ ...r.data, id: r.id }));
@@ -128,6 +132,7 @@ async function handle(req: Request) {
 
   if (req.headers.get('x-notify-secret') === cfg.secret) {
     if (body.kind === 'enquiry') return toOrg(body.record.org_id, enquiryMsg(body.record));
+    if (body.kind === 'agreement') return toOrg(body.record.org_id, agreementMsg(body.record));
     if (body.kind === 'reply') {
       const r = body.record; const { data: sheet } = await db.from('sheets').select('org_id,payload').eq('id', r.sheet_id).maybeSingle(); if (!sheet) return json({ skipped: true });
       let name = '';
