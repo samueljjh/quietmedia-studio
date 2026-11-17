@@ -1,5 +1,5 @@
 -- Agreements clients sign by private link (sheets.quietmedia.co.uk/agreement/).
--- Run once in the Supabase SQL editor. Safe to run again.
+-- Run in the Supabase SQL editor. Safe to run again: after an update to this file, run the whole file again.
 --
 -- How it is kept safe:
 --   * Studio members (the same people who can read `records`) can create agreements and see them. Nobody else can read the table.
@@ -8,6 +8,7 @@
 --   * The text is fingerprinted (SHA-256) when Quiet Media signs. The client's page checks the fingerprint, and signing is
 --     refused if the text they were shown isn't the text that was signed.
 --   * Once the client has signed, nothing about the agreement can be changed or deleted, not even from Studio.
+--     The one exception is the link: Studio can switch it off and on (link_off). The agreement itself stays.
 --   * Each signature records the name, the drawn signature, the time, the IP address and the device.
 
 create extension if not exists pgcrypto with schema extensions;
@@ -32,6 +33,7 @@ create table if not exists public.agreements (
   created_at      timestamptz not null default now(),
   created_by      uuid
 );
+alter table public.agreements add column if not exists link_off boolean not null default false;
 create index if not exists agreements_client on public.agreements (org_id, client_id);
 
 alter table public.agreements enable row level security;
@@ -88,23 +90,25 @@ begin
       'signed_at', to_jsonb(now()),
       'user_id',   auth.uid(),
       'doc_hash',  new.doc_hash);
-    new.client_sig := null; new.signed_at := null; new.revoked := false;
+    new.client_sig := null; new.signed_at := null; new.revoked := false; new.link_off := false;
     new.first_opened_at := null; new.last_opened_at := null; new.open_count := 0;
     new.created_at := now(); new.created_by := auth.uid();
     return new;
   end if;
 
-  -- UPDATE. From Studio, the only change allowed is cancelling the link of an agreement the client hasn't signed.
+  -- UPDATE. From Studio, the only changes allowed are: cancelling the link of an agreement the client hasn't signed,
+  -- and switching the link of a signed agreement off or on.
   -- (get_agreement and sign_agreement below run as the database owner, so they can record opens and the signature.)
   if current_user in ('anon', 'authenticated') then
-    if old.signed_at is not null then raise exception 'a signed agreement cannot be changed'; end if;
-    if old.revoked and not new.revoked then raise exception 'a cancelled link cannot be reopened'; end if;
-    if (new.id, new.org_id, new.client_id, new.kind, new.title, new.doc_html, new.doc_hash, new.token_hash, new.provider,
-        new.counterparty, new.client_sig, new.signed_at, new.first_opened_at, new.last_opened_at, new.open_count, new.created_at, new.created_by)
-       is distinct from
-       (old.id, old.org_id, old.client_id, old.kind, old.title, old.doc_html, old.doc_hash, old.token_hash, old.provider,
-        old.counterparty, old.client_sig, old.signed_at, old.first_opened_at, old.last_opened_at, old.open_count, old.created_at, old.created_by)
-    then raise exception 'only cancelling the link is allowed'; end if;
+    if (to_jsonb(new) - 'revoked' - 'link_off') is distinct from (to_jsonb(old) - 'revoked' - 'link_off') then
+      raise exception '%', case when old.signed_at is not null then 'a signed agreement cannot be changed' else 'only cancelling the link is allowed' end;
+    end if;
+    if old.signed_at is not null then
+      if new.revoked is distinct from old.revoked then raise exception 'a signed agreement cannot be cancelled'; end if;
+    else
+      if new.link_off is distinct from old.link_off then raise exception 'cancel the link instead'; end if;
+      if old.revoked and not new.revoked then raise exception 'a cancelled link cannot be reopened'; end if;
+    end if;
   elsif old.signed_at is not null and (new.client_sig is distinct from old.client_sig or new.signed_at is distinct from old.signed_at
         or new.doc_html is distinct from old.doc_html or new.doc_hash is distinct from old.doc_hash or new.provider is distinct from old.provider) then
     raise exception 'a signed agreement cannot be changed';
@@ -130,6 +134,7 @@ begin
   select * into r from public.agreements
    where id = p_id and token_hash = encode(digest(convert_to(p_token, 'UTF8'), 'sha256'), 'hex');
   if not found or (r.revoked and r.signed_at is null) then return null; end if;
+  if r.link_off then return jsonb_build_object('off', true, 'title', r.title); end if;
 
   if p_count then
     update public.agreements set open_count = open_count + 1, last_opened_at = now(), first_opened_at = coalesce(first_opened_at, now())
