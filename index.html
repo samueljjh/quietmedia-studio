@@ -675,7 +675,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=62;
+const APP_VERSION=63;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -2725,16 +2725,18 @@ function openCalModal(cid){S.modal={type:'cal',cid,busy:false,err:'',html:()=>{c
       :(m.err?'<p class="note" style="color:var(--warn)">Could not create it: '+esc(m.err)+'</p>':'')+'<div class="acts"><button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="calpub" data-v="'+cid+'"'+(m.busy?' disabled':'')+'>'+(m.busy?'Creating…':'Create link')+'</button></div>')}};renderModal()}
 
 /* ===== agreements: Samuel signs here, the client signs by private link on sheets.quietmedia.co.uk/agreement/ =====
-   The text lives in agreements.js. Rows live in the `agreements` table (supabase/agreements.sql): members only, and frozen once signed.
-   The link key is kept on the client record (agreements.{kind}.key) so the link can be copied again; the database only holds its fingerprint. */
+   The text lives in agreements.js. Rows live in the `agreements` table (supabase/agreements.sql): members only, and frozen once signed,
+   apart from switching the link of a signed agreement off and on. The link key is kept on the client record (agreements.{kind}.key)
+   so the link can be copied again; the database only holds its fingerprint. Studio shows signed copies straight from the table. */
 const agrUrl=(id,key,own)=>SHEETS_HOST+'/agreement/'+(own?'?own=1':'')+'#'+id+'.'+key;
 const sha256hex=async t=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const agrDate=t=>t?fmtDate(Date.parse(t),{day:'numeric',month:'short',year:'numeric'}):'';
+const agrWhen=t=>{if(!t)return '';const d=new Date(t);return d.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})+' at '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZoneName:'short'})};
 S.agr={};
 async function loadAgreements(cid){if(!sb||!ORG)return;const st=S.agr[cid]=S.agr[cid]||{};if(st.loading)return;st.loading=true;
-  try{const {data,error}=await sb.from('agreements').select('id,kind,title,signed_at,revoked,first_opened_at,last_opened_at,open_count,created_at,client_name:client_sig->>name').eq('client_id',cid).order('created_at',{ascending:false});
+  try{const {data,error}=await sb.from('agreements').select('id,kind,title,signed_at,revoked,link_off,first_opened_at,last_opened_at,open_count,created_at,client_name:client_sig->>name').eq('client_id',cid).order('created_at',{ascending:false});
     if(error)throw error;st.rows=data||[];st.err=''}
-  catch(e){st.err=/agreements/.test(e.message||'')&&/exist|schema cache/i.test(e.message||'')?'not set up yet: run supabase/agreements.sql in Supabase':(e.message||'could not load')}
+  catch(e){st.err=/agreements/.test(e.message||'')&&/exist|schema cache/i.test(e.message||'')?'not set up yet: run the latest supabase/agreements.sql in Supabase':(e.message||'could not load')}
   st.loading=false;st.at=Date.now();if(S.view==='clients'&&S.client===cid)render();if(S.modal&&S.modal.type==='agrlink')renderModal()}
 const agrLive=(cid,kind)=>((S.agr[cid]||{}).rows||[]).find(r=>r.kind===kind&&!r.revoked);
 function agreementsPanel(cid){const Q=window.QMAgreements;const c=client(cid);if(!Q||!c)return '';const mine=c.agreements||{};
@@ -2743,21 +2745,42 @@ function agreementsPanel(cid){const Q=window.QMAgreements;const c=client(cid);if
   const items=Object.values(Q.DOCS).map(d=>{const r=agrLive(cid,d.kind);let line,acts;
     if(!st||!st.rows){line=st&&st.err?'<span style="color:var(--warn)">Agreements are '+esc(st.err)+'</span>':'Checking…';acts=''}
     else if(!r){line='Not sent yet';acts='<button class="btn small" data-act="agrsign" data-v="'+cid+'" data-k="'+d.kind+'">Sign &amp; create link</button>'}
-    else if(r.signed_at){line='<span style="color:var(--ok,inherit)">Signed by both</span> · in effect from '+agrDate(r.signed_at)+(r.client_name?' · '+esc(r.client_name):'');acts='<button class="btn ghost small" data-act="agrlink" data-v="'+cid+'" data-k="'+d.kind+'">View signed copy</button>'}
+    else if(r.signed_at){line='Signed by both · in effect from '+agrDate(r.signed_at)+(r.client_name?' · '+esc(r.client_name):'')+(r.link_off?' · <b style="font-weight:500">link off</b>':'');acts='<button class="btn ghost small" data-act="agrview" data-v="'+r.id+'" data-c="'+cid+'">View signed copy</button>'}
     else{line='You signed '+agrDate(r.created_at)+' · waiting for '+esc(Q.COUNTER.name.split(' ')[0])+' · '+(r.open_count?'opened '+r.open_count+'×, last '+agrDate(r.last_opened_at):'not opened yet');acts='<button class="btn ghost small" data-act="agrlink" data-v="'+cid+'" data-k="'+d.kind+'">Link</button>'}
     return '<div class="item"><div class="main"><div class="t">'+esc(d.title)+'</div><div class="meta">'+line+'</div></div><div class="end">'+acts+'</div></div>'}).join('');
   return '<section class="panel"><div class="panel-head"><h3>Agreements</h3><span class="note">Signed by private link</span></div><div class="list">'+items+'</div></section>'}
 
+/* the full-screen agreement view: paper colours whatever the theme, clear of the iPhone status bar, and printable (only the agreement prints) */
+function agrStyle(){return '<style>'+window.QMAgreements.CSS+
+  '.agr-w{height:100%;overflow:auto;background:#FBFAF8;color:#111;-webkit-overflow-scrolling:touch}.agr-in{max-width:760px;margin:0 auto;padding:22px 20px calc(60px + env(safe-area-inset-bottom,0px))}'+
+  '.agr-bar{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;background:rgba(251,250,248,.94);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid rgba(0,0,0,.06);color:#111}'+
+  '.agr-bar b{font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.agr-btns{display:flex;flex-direction:row;flex-wrap:nowrap;gap:8px;flex:none;margin:0}'+
+  '.agr-sign,.agr-box{background:#F1EFEC;border-radius:18px;padding:20px}.agr-sign{margin-top:36px}.agr-sign label{display:grid;gap:6px;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#6E655E;margin-top:12px}'+
+  '.agr-sign input[type=text]{font:inherit;font-size:16px;color:#111;background:#fff;border:0;border-radius:12px;padding:12px 13px;text-transform:none;letter-spacing:0}'+
+  '.agr-pad{position:relative;background:#fff;border-radius:14px;height:160px;touch-action:none;overflow:hidden}.agr-pad canvas{position:absolute;inset:0;width:100%;height:100%}.agr-pad i{position:absolute;left:14px;right:14px;bottom:38px;border-top:1px dashed rgba(0,0,0,.25)}'+
+  '.agr-ok{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px;color:#111}.agr-ok input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:#111}'+
+  '.agr-w .btn{background:#111;color:#fff}.agr-w .btn.ghost{background:#E6E3DF;color:#111}.agr-w .btn[disabled]{opacity:.35}.agr-w .note{color:#6E655E}'+
+  '.agr-sigs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px;margin-top:36px}.agr-sigs .agr-box{break-inside:avoid}'+
+  '.agr-lab{display:block;font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#6E655E;margin-bottom:6px}'+
+  '.agr-sigs img{display:block;width:100%;height:84px;object-fit:contain;object-position:left center;margin:10px 0 8px;border-bottom:1px solid rgba(0,0,0,.1)}.agr-sigs .when{font-size:13px;color:#6E655E}'+
+  '.agr-status{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#F1EFEC;border-radius:16px;padding:14px 18px;margin-bottom:26px;font-size:14px}.agr-status b{font-weight:500;display:block}'+
+  '.agr-audit{margin-top:26px;font-size:12px;color:#6E655E;line-height:1.7;border-top:1px solid rgba(0,0,0,.1);padding-top:16px;break-inside:avoid}.agr-audit dl{display:grid;grid-template-columns:auto 1fr;gap:2px 16px;margin-top:8px}.agr-audit dd{min-width:0;overflow-wrap:anywhere}'+
+  '.agr-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}'+
+  '@media print{@page{size:A4;margin:16mm 16mm 18mm}body{padding:0!important;background:#fff!important}body>*:not(#modalRoot){display:none!important}'+
+  '#modalRoot .scrim{position:static!important;background:none!important;padding:0!important;display:block!important;backdrop-filter:none!important}'+
+  '#modalRoot .modal{position:static!important;width:auto!important;max-width:none!important;height:auto!important;max-height:none!important;overflow:visible!important;box-shadow:none!important;border-radius:0!important;animation:none!important;background:#fff!important}'+
+  '.agr-w{height:auto!important;overflow:visible!important;background:#fff!important}.agr-in{padding:0!important;max-width:none!important}.agr-np,.agr-bar{display:none!important}'+
+  '.qa{font-size:12.5px}.qa .qa-box,.qa .qa-call,.qa .qa-tbl td,.agr-box,.agr-status{-webkit-print-color-adjust:exact;print-color-adjust:exact}}'+
+  '</style>'}
+/* the phone's back gesture or back button closes an agreement screen, like everywhere else */
+function agrPush(){try{if(!(history.state&&history.state.agr))history.pushState({agr:1},'')}catch(e){}}
+window.addEventListener('popstate',()=>{if(S.modal&&S.modal.agr)closeModal()});
+function agrClose(){if(history.state&&history.state.agr)history.back();else closeModal()}
+
 function openAgrSign(cid,kind){const Q=window.QMAgreements;const d=Q.DOCS[kind];const c=client(cid);
-  S.modal={type:'agrsign',cls:'wide',cid,kind,err:'',html:()=>{const m=S.modal;return '<style>'+Q.CSS+'.agr-w{height:100%;overflow:auto;background:#FBFAF8;color:#111}.agr-in{max-width:760px;margin:0 auto;padding:22px 20px 60px}'+
-    '.agr-bar{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;background:rgba(251,250,248,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(0,0,0,.06);color:#111}'+
-    '.agr-sign{margin-top:36px;background:#F1EFEC;border-radius:18px;padding:20px}.agr-sign label{display:grid;gap:6px;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#6E655E;margin-top:12px}'+
-    '.agr-sign input[type=text]{font:inherit;font-size:16px;color:#111;background:#fff;border:0;border-radius:12px;padding:12px 13px;text-transform:none;letter-spacing:0}'+
-    '.agr-pad{position:relative;background:#fff;border-radius:14px;height:160px;touch-action:none;overflow:hidden}.agr-pad canvas{position:absolute;inset:0;width:100%;height:100%}.agr-pad i{position:absolute;left:14px;right:14px;bottom:38px;border-top:1px dashed rgba(0,0,0,.25)}'+
-    '.agr-ok{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px;color:#111}.agr-ok input{width:20px;height:20px;flex:none;margin-top:2px;accent-color:#111}'+
-    '.agr-w .btn{background:#111;color:#fff}.agr-w .btn.ghost{background:#E6E3DF;color:#111}.agr-w .btn[disabled]{opacity:.35}</style>'+
-    '<div class="agr-w"><div class="agr-bar"><b style="font-weight:400">'+esc(d.title)+' · '+esc(c.name)+'</b><button class="btn ghost small" data-act="closemodal">Close</button></div><div class="agr-in"><div class="qa">'+d.html+'</div>'+
-    '<div class="agr-sign"><h3 style="font-weight:300;font-size:21px;margin-bottom:4px">Sign for Quiet Media</h3><p class="note" style="color:#6E655E">You sign first. The link you send '+esc(Q.COUNTER.name)+' shows your signature, and the agreement starts when '+esc(Q.COUNTER.name.split(' ')[0])+' signs. The text above is fixed from the moment you sign.</p>'+
+  S.modal={type:'agrsign',agr:true,cls:'wide',cid,kind,err:'',html:()=>{const m=S.modal;return agrStyle()+
+    '<div class="agr-w"><div class="agr-bar"><b>'+esc(d.title)+' · '+esc(c.name)+'</b><div class="agr-btns"><button class="btn ghost small" data-act="agrclose">Close</button></div></div><div class="agr-in"><div class="qa">'+d.html+'</div>'+
+    '<div class="agr-sign"><h3 style="font-weight:300;font-size:21px;margin-bottom:4px">Sign for Quiet Media</h3><p class="note">You sign first. The link you send '+esc(Q.COUNTER.name)+' shows your signature, and the agreement starts when '+esc(Q.COUNTER.name.split(' ')[0])+' signs. The text above is fixed from the moment you sign.</p>'+
     '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px"><label>Full name<input type="text" id="agr-n" value="'+esc(Q.PROVIDER.name)+'"></label><label>Position<input type="text" id="agr-r" value="'+esc(Q.PROVIDER.role)+'"></label></div>'+
     '<label>Signature</label><div class="agr-pad" id="agr-pad"><i></i><canvas></canvas></div><div style="display:flex;justify-content:flex-end"><button class="link" data-act="agrclear" style="color:#6E655E">Clear</button></div>'+
     '<label class="agr-ok" style="text-transform:none;letter-spacing:0;font-weight:300;font-size:14px;display:flex"><input type="checkbox" id="agr-ok"><span>I have read this agreement and sign it for '+esc(Q.PROVIDER.company)+', as a director authorised to do so.</span></label>'+
@@ -2773,7 +2796,7 @@ function openAgrSign(cid,kind){const Q=window.QMAgreements;const d=Q.DOCS[kind];
     S.modal.clear=()=>{ctx.clearRect(0,0,cv.width,cv.height);pts=0;check()};
     S.modal.read=()=>{const s=Math.min(1,600/cv.width);const c2=document.createElement('canvas');c2.width=Math.round(cv.width*s);c2.height=Math.round(cv.height*s);c2.getContext('2d').drawImage(cv,0,0,c2.width,c2.height);
       return {name:nm.value.trim(),role:root.querySelector('#agr-r').value.trim(),sig:c2.toDataURL('image/png')}}}};
-  renderModal()}
+  agrPush();renderModal()}
 
 async function createAgreement(cid,kind,f){const Q=window.QMAgreements;const d=Q.DOCS[kind];const c=client(cid);
   const key=b64url(crypto.getRandomValues(new Uint8Array(18)));const id='agr-'+kind+'-'+b64url(crypto.getRandomValues(new Uint8Array(9)));
@@ -2782,19 +2805,48 @@ async function createAgreement(cid,kind,f){const Q=window.QMAgreements;const d=Q
   if(error)throw new Error(/does not exist|schema cache/i.test(error.message)?'Agreements are not set up yet: run supabase/agreements.sql in Supabase first.':error.message);
   await patch('clients',cid,{agreements:{...(c.agreements||{}),[kind]:{id,key,at:Date.now()}}});await loadAgreements(cid);return id}
 
-function openAgrLink(cid,kind){S.modal={type:'agrlink',cid,kind,html:()=>{const Q=window.QMAgreements;const d=Q.DOCS[kind];const c=client(cid);const r=agrLive(cid,kind);const k=(c.agreements||{})[kind];
+function openAgrLink(cid,kind){S.modal={type:'agrlink',agr:true,cid,kind,html:()=>{const Q=window.QMAgreements;const d=Q.DOCS[kind];const c=client(cid);const r=agrLive(cid,kind);const k=(c.agreements||{})[kind];
   if(!r)return '<h2>'+esc(d.title)+'</h2><p class="note">This agreement isn’t live any more.</p>';
+  if(r.signed_at)return '<h2>'+esc(d.title)+'</h2><p class="note">Signed by both parties.</p><div class="acts"><button class="btn" data-act="agrview" data-v="'+r.id+'" data-c="'+cid+'">View signed copy</button></div>';
   if(!k||k.id!==r.id)return '<h2>'+esc(d.title)+'</h2><p class="note">The link for this agreement was made on another device and hasn’t synced here yet. Try again in a moment.</p>';
   const url=agrUrl(r.id,k.key);const first=Q.COUNTER.name.split(' ')[0];const to=[c.email,...contactsOf(c).map(x=>x.email)].filter(Boolean).join(',');
-  const body='Hi '+first+',\n\nHere is the '+d.title+' between Quiet Media and '+Q.COUNTER.company+'. I’ve signed it already. Please read it through and sign at the bottom of the page:\n'+url+'\n\nOnce you’ve signed, the same link keeps a copy you can save as a PDF.\n\nBest,\n'+Q.PROVIDER.name.split(' ')[0]+'\nQuiet Media';
-  if(r.signed_at)return '<h2>'+esc(d.title)+'</h2><p class="note">Signed by both parties. In effect from '+agrDate(r.signed_at)+'. It can’t be changed or deleted.</p><div class="acts"><a class="btn" href="'+esc(agrUrl(r.id,k.key,1))+'" target="_blank" rel="noopener">Open signed copy</a></div><p class="note">The signed copy shows both signatures, when and from where each was signed, and the fingerprint of the text. Use “Save as PDF” on that page to keep a file copy.</p>';
+  const body='Hi '+first+',\n\nHere is the '+d.title+' between Quiet Media and '+Q.COUNTER.company+'. I’ve signed it already. Please read it through and sign at the bottom of the page:\n'+url+'\n\nYou can save it as a PDF from the same page, before or after signing.\n\nBest,\n'+Q.PROVIDER.name.split(' ')[0]+'\nQuiet Media';
   return '<h2>'+esc(d.title)+'</h2><p class="note">You signed on '+agrDate(r.created_at)+'. Send this private link to '+esc(Q.COUNTER.name)+'. Anyone with the link can open it, so send it only to them.</p>'+
     '<div class="linkbox"><span>'+esc(url)+'</span><button class="link" data-act="copy" data-v="'+esc(url)+'">Copy</button></div>'+
     '<p class="note">'+(r.open_count?'Opened '+r.open_count+' time'+(r.open_count===1?'':'s')+', first '+agrDate(r.first_opened_at)+', last '+agrDate(r.last_opened_at)+'.':'Not opened yet.')+'</p>'+
-    '<div class="acts"><button class="btn ghost small" data-act="agrrevoke" data-v="'+cid+'" data-k="'+kind+'">Cancel this link</button><a class="btn ghost" href="'+esc(agrUrl(r.id,k.key,1))+'" target="_blank" rel="noopener">Preview</a><a class="btn" href="'+mailLink(to,d.title+' · Quiet Media and '+Q.COUNTER.company,body)+'">Email the link</a></div>'}};
-  renderModal();loadAgreements(cid)}
+    '<div class="acts"><button class="btn ghost small" data-act="agrrevoke" data-v="'+cid+'" data-k="'+kind+'">Cancel this link</button><button class="btn ghost" data-act="agrview" data-v="'+r.id+'" data-c="'+cid+'">View</button><a class="btn" href="'+mailLink(to,d.title+' · Quiet Media and '+Q.COUNTER.company,body)+'">Email the link</a></div>'}};
+  agrPush();renderModal();loadAgreements(cid)}
 async function revokeAgreement(cid,kind){const r=agrLive(cid,kind);if(!r)return;const {error}=await sb.from('agreements').update({revoked:true}).eq('id',r.id);if(error)throw new Error(error.message);
   const c=client(cid);const a={...(c.agreements||{})};delete a[kind];await patch('clients',cid,{agreements:a});await loadAgreements(cid)}
+
+/* the stored agreement, read straight from the database: works whether or not the client's link is on */
+async function openAgrView(id,cid){S.modal={type:'agrview',agr:true,cls:'wide',id,cid,row:null,err:'',busy:false,html:()=>{const m=S.modal;const r=m.row;const c=client(cid)||{};
+    const bar='<div class="agr-bar"><b>'+esc(r?r.title:'Agreement')+' · '+esc(c.name||'')+'</b><div class="agr-btns">'+(r?'<button class="btn ghost small" data-act="agrprint">Save as PDF</button>':'')+'<button class="btn ghost small" data-act="agrclose">Close</button></div></div>';
+    if(!r)return agrStyle()+'<div class="agr-w">'+bar+'<div class="agr-in"><p class="note">'+(m.err?'Could not load it: '+esc(m.err):'Loading…')+'</p></div></div>';
+    const p=r.provider||{},k=r.client_sig,cp=r.counterparty||{};const key=((c.agreements||{})[r.kind]||{});const url=key.id===r.id?agrUrl(r.id,key.key):'';
+    const box=(lab,x,signed)=>'<div class="agr-box"><span class="agr-lab">'+esc(lab)+'</span><div style="font-size:16px">'+esc(x.name||'')+(x.role?'<span style="color:#6E655E">, '+esc(x.role)+'</span>':'')+'</div>'+(signed?'<img alt="Signature of '+esc(x.name)+'" src="'+esc(x.sig)+'"><div class="when">Signed '+esc(agrWhen(x.signed_at))+'</div>':'<div class="when" style="margin-top:12px">Not signed yet</div>')+'</div>';
+    const status=k?'<div class="agr-status"><div><b>Signed by both parties</b>In effect from '+esc(agrDate(r.signed_at))+'. Stored in Studio’s database; it can’t be changed or deleted.</div></div>'
+      :'<div class="agr-status"><div><b>Waiting for '+esc(cp.name||'the client')+'</b>You signed '+esc(agrDate(r.created_at))+'. The agreement starts when they sign.</div></div>';
+    const link=!k?'':'<div class="agr-box agr-np" style="margin-top:26px"><span class="agr-lab">'+esc(cp.name||'Client')+'’s link</span>'+
+      (r.link_off?'<p><b style="font-weight:500">Off.</b> The link shows “switched off” and nothing else. The agreement stays here.</p><div class="acts" style="justify-content:flex-start;margin-top:12px"><button class="btn" data-act="agrlinkoff" data-v="on"'+(m.busy?' disabled':'')+'>Turn the link back on</button></div>'
+        :'<p><b style="font-weight:500">On.</b> '+esc((cp.name||'The client').split(' ')[0])+' can open the signed copy and save it as a PDF. Turn it off if they no longer need it; the agreement stays here either way.</p>'+(url?'<div class="linkbox" style="margin-top:10px;background:#fff"><span>'+esc(url)+'</span><button class="link" data-act="copy" data-v="'+esc(url)+'">Copy</button></div>':'')+
+         '<div class="acts" style="justify-content:flex-start;margin-top:12px"><button class="btn ghost" data-act="agrlinkoff" data-v="off"'+(m.busy?' disabled':'')+'>Turn the link off</button></div>')+
+      (m.err?'<p style="color:#A8662C;margin-top:10px">'+esc(m.err)+'</p>':'')+'</div>';
+    const audit='<div class="agr-audit"><b style="font-weight:500">Signing record</b><dl><dt>Agreement</dt><dd>'+esc(r.title)+' · ref '+esc(r.id)+'</dd><dt>Text fingerprint</dt><dd class="agr-mono">SHA-256 '+esc(r.doc_hash)+(m.intact===false?' · DOES NOT MATCH':m.intact?' · checked':'')+'</dd>'+
+      '<dt>'+esc(p.company||'Quiet Media Ltd')+'</dt><dd>'+esc(p.name)+', '+esc(agrWhen(p.signed_at))+(p.ip?' · IP '+esc(p.ip):'')+(p.ua?'<br><span class="agr-mono">'+esc(p.ua)+'</span>':'')+'</dd>'+
+      (k?'<dt>'+esc(k.company||cp.company||'')+'</dt><dd>'+esc(k.name)+' ('+esc(k.email)+'), '+esc(agrWhen(k.signed_at))+(k.ip?' · IP '+esc(k.ip):'')+(k.ua?'<br><span class="agr-mono">'+esc(k.ua)+'</span>':'')+'</dd>':'')+
+      '<dt>Link</dt><dd>'+(r.open_count?'Opened '+r.open_count+' time'+(r.open_count===1?'':'s')+', first '+esc(agrWhen(r.first_opened_at))+', last '+esc(agrWhen(r.last_opened_at)):'Not opened')+(r.link_off?' · now off':'')+'</dd></dl>'+
+      '<p style="margin-top:8px">Signed electronically. Each signature is stored with the time it was made, the IP address and the device, against the fingerprint of the text above.</p></div>';
+    return agrStyle()+'<div class="agr-w">'+bar+'<div class="agr-in">'+status+'<div class="qa">'+r.doc_html+'</div><div class="agr-sigs">'+box('For '+(p.company||'Quiet Media Ltd'),p,true)+(k?box('For '+(k.company||cp.company||''),k,true):box('For '+(cp.company||''),cp,false))+'</div>'+audit+link+'</div></div>'}};
+  agrPush();renderModal();await agrViewLoad()}
+async function agrViewLoad(){const m=S.modal;if(!m||m.type!=='agrview')return;
+  const {data,error}=await sb.from('agreements').select('*').eq('id',m.id).maybeSingle();
+  if(S.modal!==m)return;if(error||!data){m.err=error?error.message:'not found';renderModal();return}
+  m.row=data;m.intact=(await sha256hex(data.doc_html))===data.doc_hash;if(S.modal===m)renderModal()}
+async function agrSetLink(on){const m=S.modal;if(!m||m.type!=='agrview'||!m.row)return;m.busy=true;m.err='';renderModal();
+  const {error}=await sb.from('agreements').update({link_off:!on}).eq('id',m.id);
+  m.busy=false;if(error){m.err=/link_off/.test(error.message)?'Run the latest supabase/agreements.sql in Supabase first.':error.message;renderModal();return}
+  await agrViewLoad();toast(on?'Link turned back on':'Link turned off. The agreement is still stored.');loadAgreements(m.cid)}
 
 /* ===== crew forms: a pencil hold and a signed booking, each a page on sheets.quietmedia.co.uk/crew/ ===== */
 const crewFormUrl=f=>SHEETS_HOST+'/crew/#'+f.sid+'.'+f.key;
@@ -3058,6 +3110,10 @@ document.addEventListener('click',async ev=>{
     case 'agrcreate':{const m=S.modal;if(!m||m.type!=='agrsign'||!m.read)break;const f=m.read();b.disabled=true;b.textContent='Signing…';
       try{await createAgreement(m.cid,m.kind,f);toast('Signed. Now send the link.');openAgrLink(m.cid,m.kind)}catch(e){b.disabled=false;b.textContent='Sign and create link';const p=b.parentNode;const old=p.querySelector('.agr-err');if(old)old.remove();p.insertAdjacentHTML('beforebegin','<p class="agr-err" style="color:#A8662C;margin-top:10px">Could not sign: '+esc(e.message||'try again')+'</p>')}break}
     case 'agrlink':{openAgrLink(v,b.dataset.k);break}
+    case 'agrview':{openAgrView(v,b.dataset.c);break}
+    case 'agrclose':{agrClose();break}
+    case 'agrprint':{window.print();break}
+    case 'agrlinkoff':{if(v==='off'&&!confirm('Turn the link off? It will stop working for the client straight away. The signed agreement stays stored in Studio, and you can turn the link back on at any time.'))break;await agrSetLink(v==='on');break}
     case 'agrrevoke':{const m=S.modal;if(!confirm('Cancel this link? It will stop working straight away. You can sign and send a new one afterwards.'))break;try{await revokeAgreement(v,b.dataset.k);closeModal();toast('Link cancelled')}catch(e){toast('Could not cancel: '+(e.message||'try again'))}break}
     case 'calpub':{if(S.modal&&S.modal.type==='cal'){S.modal.busy=true;S.modal.err='';renderModal()}try{const url=await publishClientCal(v);try{await navigator.clipboard.writeText(url)}catch(e){}toast('Calendar link ready and copied')}catch(e){if(S.modal)S.modal.err=e.message||'try again'}if(S.modal&&S.modal.type==='cal'){S.modal.busy=false;renderModal()}break}
     case 'calstop':{await stopClientCal(v);toast('Calendar link switched off');renderModal();break}
