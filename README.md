@@ -8,6 +8,12 @@ Business data lives in Quiet Media's Supabase database (London), in one `records
 
 The Studio menu bar app on the Mac (`menubar/`) saves the whole of Studio as one JSON file every night to a folder you choose, normally on the NAS: `Studio Backups/YYYY/MM/studio-YYYY-MM-DD.json`. It keeps every day for 30 days and the 1st of each month for good. Settings → Backups shows the last one, downloads one by hand and restores from a file (anything deleted or changed since comes back; anything added since is kept).
 
+## Email
+
+Email buttons (crew pencils, booking forms, releases, call sheets, and the client's pencil, confirmation and reminder) send straight from Studio through Resend, in one click. The message is the one shown on screen, with a button to the page it is about. Replies go to the Reply email in Settings. If sending is not set up, the button opens the mail app as it used to.
+
+Setup: verify the sending domain in Resend, create a Resend API key with sending access, deploy `supabase/functions/email` as the Edge Function `email` with "Verify JWT" off, and add the key to it as the secret `RESEND_API_KEY`. In Studio, Settings → Sending to clients and crew → "Send emails from" must be an address on the verified domain (it falls back to the Reply email). "Send me a copy of every email" BCCs the Reply email, since emails sent this way do not appear in your own Sent folder.
+
 ## Agreements
 
 International Collective's client page has an **Agreements** panel for the Data Processing Agreement and the Services and Licence Agreement. Samuel reads and signs one in Studio, which creates a private link (`sheets.quietmedia.co.uk/agreement/`) for the client to read and sign. The text lives in `agreements.js`; once Samuel signs, the text is stored and fingerprinted (SHA-256), and editing `agreements.js` only affects agreements created after that.
