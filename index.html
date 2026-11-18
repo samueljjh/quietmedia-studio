@@ -675,7 +675,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=64;
+const APP_VERSION=65;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -2457,7 +2457,7 @@ function openProjectModal(id,presetClient){
     '<label class="f">Notes<textarea id="j-notes" rows="2">'+esc(p.notes||'')+'</textarea></label>'+
     (()=>{if(!id)return '';const log=workLog(id);if(!log.length)return '';const h=log.reduce((s,d)=>s+d.hours,0);return '<div><div class="eyebrow" style="margin-bottom:8px">Hours worked · '+hrs(h)+' over '+fmtDays(projectWorkedDays(p))+' days</div>'+workLogHtml(log,S.modal.allDays?400:12,id)+'</div>'})()+
     (()=>{const cands=Object.values(S.events).filter(e=>e.clientId===p.clientId&&e.status!=='cancelled'&&(!e.projectId||e.projectId===id)).sort((a,b)=>a.start-b.start);if(!p.clientId||!cands.length)return '';return '<div><div class="eyebrow" style="margin-bottom:8px">Bookings in this project</div><div class="grid" style="gap:6px;max-height:220px;overflow:auto">'+cands.map(e=>'<div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px"><label class="chip" style="font-size:13px;align-items:flex-start;flex:1;min-width:0"><input type="checkbox" data-attach="'+e.id+'" '+(e.projectId===id?'checked':'')+'> <span>'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · '+esc(e.title)+' · '+esc(e.type)+(e.fee&&!e.projectId?' · '+gbp(e.fee)+' own fee':'')+(e.invoiceId&&S.invoices[e.invoiceId]?' · on '+esc(S.invoices[e.invoiceId].number):'')+'</span></label>'+(id&&e.projectId===id?'<button type="button" class="link" data-act="pday" data-v="'+id+'" data-k="'+startOfDay(e.start)+'" style="flex:none">Open</button>':'')+'</div>').join('')+'</div><p class="note" style="margin-top:6px">Ticked bookings count towards this project and lose their own fee (crew costs stay). Untick to detach.</p></div>'})()+
-    '<div class="acts">'+(id?'<button class="btn ghost small" data-act="allocate" data-v="'+id+'">Allocate days</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveproject" data-v="'+(id||'')+'">Save project</button></div>'}};
+    '<div class="acts">'+(id?'<button class="btn ghost small" data-act="allocate" data-v="'+id+'">Allocate days</button><button class="btn ghost small" data-act="projform" data-v="'+id+'">Client booking form'+(S.projects[id]&&S.projects[id].form&&S.projects[id].form.signed?' · signed':'')+'</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveproject" data-v="'+(id||'')+'">Save project</button></div>'}};
   renderModal();
 }
 function readProjectModal(){const p=S.modal.p;const g=id=>{const el=document.getElementById(id);return el?el.value:undefined};
@@ -2898,8 +2898,68 @@ async function crewRelease(evid,cid){const ev=S.events[evid];const x=(ev.crew||[
   await setCrew(ev,cid,y=>({...y,status:'released',forms:{...(y.forms||{}),pencil:{...((y.forms||{}).pencil||{}),releasedAt:Date.now()}}}));
   const f=(x.forms||{}).pencil;if(f&&f.sid&&sb&&ORG){try{const nf=await publishCrewForm(S.events[evid],cid,'crewpencil',{released:true});url=crewFormUrl(nf)}catch(e){}}
   openCrewShare(evid,cid,'release',url)}
+/* ===== project booking form: one form for the whole project, priced however you choose to show it, signed by the client.
+   It is published like a crew booking form (same table, same reply path) and opens on the Sheets site at /booking/. ===== */
+const projFormUrl=f=>SHEETS_HOST+'/booking/#'+f.sid+'.'+f.key;
+function projFormPerType(p){const rates=projectRates(p);const al=projectAllocated(p);let plan=(p.plan||[]).filter(x=>+x.days>0).map(x=>({type:x.type,days:+x.days}));if(!plan.length)plan=Object.keys(al).map(t=>({type:t,days:al[t]}));
+  const day=x=>(x.type==='Shoot'?'':'approx ')+fmtDays(x.days)+' day'+(x.days>1?'s':'');
+  return plan.map(x=>({type:x.type,label:x.type==='Shoot'?'Filming':x.type==='Edit'?'Editing':x.type,detail:day(x),amount:Math.round(x.days*(rates[x.type]||0))}))}
+/* the starting point, then every line is yours to reword, reprice, add or remove */
+function projFormOneLine(p){const pr=pricingOf(p);const per=projFormPerType(p);return [{label:p.title||'Project fee',detail:pr==='retainer'?'Within your retainer':per.map(l=>l.detail+' '+l.label.toLowerCase()).join(', '),amount:pr==='fee'?(+p.fee||0):pr==='days'?per.reduce((t,l)=>t+l.amount,0):0}]}
+function projFormSplit(p){return projFormPerType(p).map(l=>({label:l.label,detail:l.detail,amount:l.amount}))}
+function projFormDefaultLines(p){const pr=pricingOf(p);const per=projFormSplit(p);if(!per.length||pr==='retainer')return projFormOneLine(p);if(pr==='days')return per;
+  return per.length>1&&per.reduce((t,l)=>t+l.amount,0)===(+p.fee||0)&&+p.fee>0?per:projFormOneLine(p)}
+const projFormTotal=ls=>ls.reduce((t,l)=>t+(+l.amount||0),0);
+function projFormMsg(p,total,url){const c=client(p.clientId)||{};const first=(((contactsOf(c)[0]||{}).name||'').split(' ')[0])||'there';const s=S.settings;
+  return 'Hi '+first+', here is the booking form for '+p.title+(total?', '+gbp(total)+(c.vat!==false?' plus VAT':''):'')+'. Please have a read and sign it to confirm: '+url+'\n\nBest,\n'+(s.senderName||'Samuel')+'\nQuiet Media'}
+function projFormPayload(p,m,resignAfter){const c=client(p.clientId)||{};const s=S.settings;
+  const lines=m.lines.map(l=>({label:String(l.label||'').trim().slice(0,120),detail:String(l.detail||'').trim().slice(0,160),amount:+l.amount||0})).filter(l=>l.label||l.amount);
+  const days=m.showDates?projectBookings(p.id).map(e=>({date:e.start,start:fmtTime(e.start),end:fmtTime(e.end),type:e.type,location:e.location||'',pencil:e.status==='pencil'})):[];
+  return {kind:'crewbook',form:'project',v:1,title:p.title,client:c.name||'',name:c.name||'The client',lines,total:projFormTotal(lines),vat:c.vat!==false,vatRate:+s.vatRate||20,days,note:String(m.note||'').trim().slice(0,2000),from:s.senderName||'Quiet Media',company:s.companyName||'Quiet Media Limited',replyPhone:s.replyPhone||'',replyEmail:s.replyEmail||s.availEmail||'',terms:s.bookingTerms||DEFAULT_TERMS,ref:String(p.id).toUpperCase().slice(-8),sent:Date.now(),resignAfter:resignAfter||0}}
+function readProjForm(){const m=S.modal;if(!m||m.type!=='projform')return;document.querySelectorAll('[data-pfl]').forEach(el=>{const l=m.lines[+el.dataset.pfl];if(l)l[el.dataset.k]=el.dataset.k==='amount'?(+el.value||0):el.value});
+  const g=id=>document.getElementById(id);if(g('pf-note'))m.note=g('pf-note').value;if(g('pf-dates'))m.showDates=g('pf-dates').checked;if(g('pf-msg'))m.msg=g('pf-msg').value}
+function projFormTotalNote(p,m){const c=client(p.clientId)||{};const t=projFormTotal(m.lines);const fee=pricingOf(p)==='fee'?(+p.fee||0):null;
+  return 'Total '+gbp(t)+(c.vat!==false?' plus VAT':'')+(fee!=null&&fee!==t?'. <b style="color:var(--warn)">The project fee in Studio is '+gbp(fee)+'</b>, and that is what gets invoiced. Change the lines, or the fee on the project, so they match.':'')}
+function openProjectForm(pid){const p=S.projects[pid];if(!p)return;const f=p.form||{};
+  S.modal={type:'projform',pid,lines:(f.lines&&f.lines.length?f.lines:projFormDefaultLines(p)).map(l=>({label:l.label||'',detail:l.detail||'',amount:+l.amount||0})),note:f.note||'',showDates:f.showDates!==false,msg:'',html:()=>{
+    const p=S.projects[pid];if(!p)return '';const f=p.form||{};const m=S.modal;const c=client(p.clientId)||{};const n=projectBookings(pid).length;const url=f.sid?projFormUrl(f):'';
+    const to=c.email||(contactsOf(c).find(x=>x.email)||{}).email||'';const msg=m.msg||(url?projFormMsg(p,f.total!=null?f.total:projFormTotal(m.lines),url):'');const sub='Booking form: '+p.title;
+    const when=t=>fmtDate(t,{weekday:'short',day:'numeric',month:'short'});
+    const state=f.signed?'<div class="banner" style="margin-bottom:14px;color:var(--fg)"><b>Signed by '+esc(f.signed.name)+'</b> on '+when(f.signed.at)+'. <a class="link" target="_blank" rel="noopener" href="'+esc(url)+'">View signed form</a><br><span class="note">Updating the form below replaces it, and the client will need to sign again.</span></div>':
+      f.declined?'<div class="banner warn" style="margin-bottom:14px">'+esc(c.name||'The client')+' asked for a change on '+when(f.declined.at)+(f.declined.note?': “'+esc(f.declined.note)+'”':'.')+'</div>':
+      f.sid?'<p class="note" style="margin:-4px 0 12px">Published '+when(f.lastSent||f.at)+'. Not signed yet.</p>':'';
+    return '<h2>Client booking form</h2><p class="note">'+esc(p.title)+' · '+esc(c.name||'')+' · '+PRICING_LABEL[pricingOf(p)]+'</p>'+state+
+      '<div><div class="eyebrow" style="margin-bottom:8px">Price, as the client sees it</div><div class="grid" style="gap:8px">'+m.lines.map((l,i)=>'<div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px"><input type="text" data-pfl="'+i+'" data-k="label" value="'+esc(l.label)+'" placeholder="Filming" aria-label="What it is" style="flex:2;min-width:0"><input type="text" data-pfl="'+i+'" data-k="detail" value="'+esc(l.detail)+'" placeholder="2 days" aria-label="Detail" style="flex:2;min-width:0"><input type="number" data-pfl="'+i+'" data-k="amount" min="0" value="'+(l.amount||'')+'" placeholder="£" aria-label="Amount in pounds" style="flex:1;min-width:0"><button type="button" class="link" data-act="pfrm" data-v="'+i+'" style="flex:0 0 auto" aria-label="Remove line">✕</button></div>').join('')+'</div>'+
+      '<div class="row" style="gap:14px;margin-top:8px"><button type="button" class="link" data-act="pfadd">Add a line</button><button type="button" class="link" data-act="pfsplit">Split into filming, editing…</button><button type="button" class="link" data-act="pfone">Show one fee</button></div>'+
+      '<p class="note" id="pf-tot" style="margin-top:8px">'+projFormTotalNote(p,m)+'</p></div>'+
+      '<label class="chip" style="margin-top:4px"><input type="checkbox" id="pf-dates" '+(m.showDates?'checked':'')+'> List the days booked so far ('+n+')</label>'+
+      '<label class="f">Note to the client (optional)<textarea id="pf-note" rows="2" placeholder="e.g. 50% on booking, the balance on delivery. Edit days are flexible.">'+esc(m.note)+'</textarea></label>'+
+      '<p class="note" style="margin-top:8px">The form shows the price above, your booking terms from Settings, and a box for the client to sign. When they sign, the project shows as signed here and its pencilled days are confirmed.</p>'+
+      (url?'<section class="panel" style="padding:16px;margin-top:12px"><div class="linkbox"><span>'+esc(url)+'</span><button class="link" data-act="copy" data-v="'+esc(url)+'">Copy</button><a class="link" target="_blank" rel="noopener" href="'+esc(url)+'">Preview</a></div><textarea id="pf-msg" rows="5" style="width:100%;margin-top:10px">'+esc(msg)+'</textarea><div class="row" style="gap:8px;margin-top:10px;align-items:center">'+
+        (to?emailBtn('btn small','Email to '+esc(to),to,sub,msg,{src:'pf-msg',link:url,label:'Open the booking form'}):'<a class="btn small" href="'+mailLink('',sub,msg)+'">Email</a><span class="note">No email saved for '+esc(c.name||'this client')+'.</span>')+'</div></section>':'')+
+      '<div class="acts"><button class="btn ghost" data-act="editproject" data-v="'+pid+'">Back to project</button><button class="btn ghost" data-act="closemodal">Done</button><button class="btn" data-act="pfpublish" data-v="'+pid+'">'+(f.sid?'Update form':'Publish form')+'</button></div>'}};
+  renderModal()}
+async function publishProjForm(pid,b){readProjForm();const m=S.modal;const p=S.projects[pid];if(!p||!m)return;const f=p.form||{};
+  if(!sb||!ORG||!navigator.onLine){toast('Not connected. Try again when online.');return}
+  if(!m.lines.some(l=>String(l.label||'').trim()||+l.amount)){toast('Add at least one price line.');return}
+  if(f.signed&&!confirmed('pf'+pid)){toast('This form is signed. Updating it means the client signs again. Tap Update again to go ahead.');return}
+  const sid=f.sid||('pj'+pid+'b').replace(/[^A-Za-z0-9_-]/g,'');const key=f.key||b64url(crypto.getRandomValues(new Uint8Array(16)));
+  const resignAfter=f.sid?Date.now():0;const body=projFormPayload(p,m,resignAfter);const label=b.textContent;b.disabled=true;b.textContent='Publishing…';
+  try{const {error}=await sb.from('sheets').upsert({id:sid,org_id:ORG,kind:'crewbook',token:key,payload:body,version:(f.version||0)+1,published_at:new Date().toISOString(),revoked:false});if(error)throw new Error(error.message);
+    await patch('projects',pid,{form:{...f,sid,key,at:f.at||Date.now(),version:(f.version||0)+1,lastSent:Date.now(),lines:body.lines,note:body.note,showDates:m.showDates,total:body.total,resignAfter,signed:null,declined:null}});
+    m.lines=body.lines.map(l=>({...l}));m.msg='';try{await navigator.clipboard.writeText(projFormUrl({sid,key}))}catch(e){}toast(f.sid?'Form updated. Link copied.':'Form published. Link copied.')}
+  catch(e){b.disabled=false;b.textContent=label;toast('Could not publish: '+(e.message||'try again'));return}
+  renderModal()}
+/* the client's reply: signing marks the project signed and confirms its pencilled days; a signature older than the latest version does not count */
+async function applyProjFormResponse(r,p){const f=p.form||{};if((f.rid||0)>=r.id)return;const d=r.data||{};const at=Date.parse(r.created_at)||Date.now();const who=(client(p.clientId)||{}).name||'The client';
+  if(d.accept&&at<(f.resignAfter||0)){await patch('projects',p.id,{form:{...f,rid:r.id}});return}
+  if(d.accept){await patch('projects',p.id,{form:{...f,rid:r.id,signed:{name:String(d.name||who).slice(0,120),at},declined:null}});
+    let n=0;for(const e of projectBookings(p.id)){if(e.status==='pencil'){await patch('events',e.id,{status:'confirmed'});n++}}
+    toast(who+' signed the booking form for '+p.title+(n?'. '+n+' pencilled day'+(n===1?'':'s')+' confirmed.':''))}
+  else{await patch('projects',p.id,{form:{...f,rid:r.id,declined:{note:String(d.note||'').slice(0,500),at}}});toast(who+' asked for a change on '+p.title)}
+  if(S.modal&&S.modal.type==='projform'&&S.modal.pid===p.id)renderModal()}
 /* replies from crew land in sheet_responses; apply the newest to the booking */
-async function pullCrewResponses(){if(!sb||!ORG)return;const want={};Object.values(S.events).forEach(e=>(e.crew||[]).forEach(x=>{const f=x.forms||{};if(f.pencil&&f.pencil.sid)want[f.pencil.sid]=1;if(f.book&&f.book.sid)want[f.book.sid]=1;Object.keys(x.call||{}).forEach(k=>want[k]=1)}));const ids=Object.keys(want);if(!ids.length)return;
+async function pullCrewResponses(){if(!sb||!ORG)return;const want={};Object.values(S.events).forEach(e=>(e.crew||[]).forEach(x=>{const f=x.forms||{};if(f.pencil&&f.pencil.sid)want[f.pencil.sid]=1;if(f.book&&f.book.sid)want[f.book.sid]=1;Object.keys(x.call||{}).forEach(k=>want[k]=1)}));Object.values(S.projects).forEach(p=>{if(p.form&&p.form.sid)want[p.form.sid]=1});const ids=Object.keys(want);if(!ids.length)return;
   const {data,error}=await sb.from('sheet_responses').select('id,sheet_id,kind,data,created_at').in('sheet_id',ids).order('id',{ascending:true});if(error){if(!S.respWarned){S.respWarned=1;console.warn('crew replies:',error.message)}return}
   undoQuiet++;try{for(const r of (data||[]))await applyCrewResponse(r)}finally{undoQuiet--}}
 async function applyCallAck(r){const d=r.data||{};const cid=d.person;const v=+d.version||0;const at=Date.parse(r.created_at)||Date.now();
@@ -2907,7 +2967,7 @@ async function applyCallAck(r){const d=r.data||{};const cid=d.person;const v=+d.
   const x=ev.crew.find(y=>y.id===cid);const cur=((x.call||{})[r.sheet_id])||{};if((cur.rid||0)>=r.id)return;
   await setCrew(ev,cid,y=>{const call={...(y.call||{})};const o={...(call[r.sheet_id]||{}),rid:r.id};if(d.what==='seen'){o.seenAt=o.seenAt&&(o.seenV||0)>=v?o.seenAt:at;o.seenV=Math.max(o.seenV||0,v)}if(d.what==='confirmed'){o.seenAt=o.seenAt||at;o.seenV=Math.max(o.seenV||0,v);if(v>=(o.confV||0)){o.confAt=at;o.confV=v}}call[r.sheet_id]=o;return {...y,call}});
   if(d.what==='confirmed'&&!(cur.confV>=v))toast(crewName(cid)+' confirmed the timings for '+ev.title)}
-async function applyCrewResponse(r){if(r.kind==='callack')return applyCallAck(r);const slot=r.kind==='crewbook'?'book':'pencil';const d=r.data||{};const at=Date.parse(r.created_at)||Date.now();
+async function applyCrewResponse(r){if(r.kind==='callack')return applyCallAck(r);const pj=Object.values(S.projects).find(p=>p.form&&p.form.sid===r.sheet_id);if(pj)return applyProjFormResponse(r,pj);const slot=r.kind==='crewbook'?'book':'pencil';const d=r.data||{};const at=Date.parse(r.created_at)||Date.now();
   const ev=Object.values(S.events).find(e=>(e.crew||[]).some(x=>((x.forms||{})[slot]||{}).sid===r.sheet_id));if(!ev)return;const x=ev.crew.find(y=>((y.forms||{})[slot]||{}).sid===r.sheet_id);const f=(x.forms||{})[slot]||{};
   if((f.rid||0)>=r.id)return;const who=crewName(x.id);
   if(slot==='pencil'){const hold=!!d.hold;await setCrew(ev,x.id,y=>({...y,status:(y.status==='pencil'||!y.status||y.status==='declined')&&!(f.releasedAt)?(hold?'pencil':'declined'):y.status,forms:{...(y.forms||{}),pencil:{...f,rid:r.id,reply:{hold,note:String(d.note||'').slice(0,500),at}}}}));toast(who+(hold?' is holding ':' can’t do ')+ev.title)}
@@ -2947,7 +3007,9 @@ function openSendModal(evid,mode){
       (st==='pencil'?'<div class="banner warn" style="margin:0 0 12px">The client hasn’t confirmed this job, so crew can only be pencilled. <button class="link" data-act="sendsheet" data-v="'+evid+'" data-k="client">Client booking</button></div>':'')+
       ((ev.crew||[]).length?(ev.crew||[]).map(x=>crewJobRow(ev,x,false)).join(''):'<p class="note">Nobody on this job yet.</p>')+'<p class="note" style="margin-top:10px">Send pencil asks them to hold the dates. Book sends the booking form with fee, dates and your terms to sign. Tap a step to set it yourself. Only booked crew go on the call sheet.</p></section>';
     if(mode==='team')return '<h2>Team booking</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+tabs+teamPart+'<div class="acts"><button class="btn" data-act="closemodal">Done</button></div>';
-    return '<h2>Client booking</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+tabs+(false?''+(false?'<div class="list">'+(ev.crew||[]).map(x=>{const cr=S.crew[x.id]||{};const st=x.status||'pencil';const f=x.forms||{};const days=groupOf(ev).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(y=>y.id===x.id));const tot=days.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===x.id)||{}).rate||0),0);
+    const pj=ev.projectId&&S.projects[ev.projectId];const pjf=pj&&pj.form||{};
+    const pjNote=pj?'<div class="banner warn" style="margin-bottom:12px">This day is part of the project <b>'+esc(pj.title)+'</b>, so its price sits on the project ('+esc(projectPriceLabel(pj))+') and the page below shows no fee. To send the whole project for the client to sign, use the project’s form'+(pjf.signed?', signed by '+esc(pjf.signed.name):pjf.sid?', sent but not signed yet':'')+'. <button class="link" data-act="projform" data-v="'+pj.id+'">Project booking form</button></div>':'';
+    return '<h2>Client booking</h2><p class="note">'+esc(ev.title)+' · '+dates+'</p>'+tabs+pjNote+(false?''+(false?'<div class="list">'+(ev.crew||[]).map(x=>{const cr=S.crew[x.id]||{};const st=x.status||'pencil';const f=x.forms||{};const days=groupOf(ev).filter(e=>e.status!=='cancelled'&&(e.crew||[]).some(y=>y.id===x.id));const tot=days.reduce((t,e)=>t+(+((e.crew||[]).find(y=>y.id===x.id)||{}).rate||0),0);
       const btn=(k,l,g)=>'<button class="btn small'+(g?' ghost':'')+'" data-act="'+k+'" data-e="'+evid+'" data-c="'+x.id+'">'+l+'</button>';
       const acts=st==='released'||st==='declined'?btn('crewform','Pencil again',1).replace('data-act="crewform"','data-act="crewform" data-v="pencil"'):st==='confirmed'?(f.book&&f.book.signed?'<a class="btn small ghost" target="_blank" rel="noopener" href="'+crewFormUrl(f.book)+'">View signed form</a>':btn('crewform',f.book&&f.book.sid?'Resend booking form':'Send booking form',1).replace('data-act="crewform"','data-act="crewform" data-v="book"')):
         btn('crewform',f.pencil&&f.pencil.sid?'Resend pencil':'Ask to pencil',1).replace('data-act="crewform"','data-act="crewform" data-v="pencil"')+btn('crewform',f.book&&f.book.sid?'Resend booking form':'Book · send form',0).replace('data-act="crewform"','data-act="crewform" data-v="book"')+(f.pencil&&f.pencil.sid||st==='pencil'?btn('crewrelease','Release',1):'');
@@ -3245,6 +3307,12 @@ document.addEventListener('click',async ev=>{
     case 'callcopy':try{await navigator.clipboard.writeText(v);await callMark(b.dataset.e,b.dataset.c);toast('Link copied')}catch(e){toast('Copy failed')}break;
     case 'crewcopy':try{await navigator.clipboard.writeText(v);toast('Link copied')}catch(e){toast('Copy failed')}break;
     case 'emailsend':await emailSend(b);break;
+    case 'projform':openProjectForm(v);break;
+    case 'pfadd':readProjForm();S.modal.lines.push({label:'',detail:'',amount:0});renderModal();break;
+    case 'pfrm':readProjForm();S.modal.lines.splice(Number(v),1);if(!S.modal.lines.length)S.modal.lines.push({label:'',detail:'',amount:0});renderModal();break;
+    case 'pfsplit':{readProjForm();const ls=projFormSplit(S.projects[S.modal.pid]);if(ls.length)S.modal.lines=ls;else toast('Add the days to the project plan first, or type the lines yourself.');renderModal();break}
+    case 'pfone':readProjForm();S.modal.lines=projFormOneLine(S.projects[S.modal.pid]);renderModal();break;
+    case 'pfpublish':await publishProjForm(v,b);break;
     case 'crewsend':setTimeout(()=>{if(S.modal&&S.modal.type==='crewshare')toast('Sent? Close this when done.')},800);break;
     case 'daykeep':dayKeep();break;
     case 'hours':closeModal();openHoursModal(v);break;
@@ -3382,6 +3450,7 @@ document.addEventListener('keydown',ev=>{if(S.locked)return;const typing=ev.targ
   if(S.modal&&S.modal.type==='search'&&ev.target.id==='qin'){const n=(S.qres||[]).length;if(ev.key==='ArrowDown'||ev.key==='ArrowUp'){ev.preventDefault();S.qsel=((S.qsel||0)+(ev.key==='ArrowDown'?1:-1)+n)%Math.max(1,n);document.getElementById('qres').innerHTML=searchHtml(ev.target.value);const el=document.querySelector('.qres [aria-selected=true]');if(el)el.scrollIntoView({block:'nearest'})}else if(ev.key==='Enter'){ev.preventDefault();searchGo(S.qsel||0)}}},true);
 document.addEventListener('input',ev=>{if(ev.target.id==='drq'){S.drQuery=ev.target.value;const l=document.getElementById('drfind');if(l)l.innerHTML=driveFindHtml();return}});
 document.addEventListener('change',ev=>{const t=ev.target;if(!t.dataset||!t.dataset.drlink)return;const k=t.dataset.drlink,i=k.indexOf('|'),did=k.slice(0,i),fname=k.slice(i+1);const links={...(driveRec(did).links||{})};if(t.value==='auto')delete links[fname];else links[fname]=t.value;S.drEdit=null;patch('drives',did,{links})});
+document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='projform'&&ev.target.dataset&&ev.target.dataset.pfl){readProjForm();const t=document.getElementById('pf-tot');if(t)t.innerHTML=projFormTotalNote(S.projects[S.modal.pid],S.modal)}});
 document.addEventListener('input',ev=>{if(ev.target.id==='tmq'){S.tmQuery=ev.target.value;const l=document.getElementById('tmlist');if(l)l.innerHTML=teamListHtml();return}if(ev.target.id==='clq'){S.clQuery=ev.target.value;const l=document.getElementById('cllist');if(l)l.innerHTML=clientsListHtml();return}if(ev.target.id==='qin'){S.qsel=0;document.getElementById('qres').innerHTML=searchHtml(ev.target.value)}});
 document.addEventListener('input',ev=>{if(S.modal&&S.modal.type==='callsheet'&&ev.target.closest('#csb-form')){readSheetForm();csPreview();clearTimeout(csTravel.t);csTravel.t=setTimeout(csTravel,900)}});
 document.addEventListener('input',ev=>{const t=ev.target;if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}if(S.modal&&S.modal.type==='event'){feeNote();availNote()}
