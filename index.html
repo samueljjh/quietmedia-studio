@@ -592,6 +592,7 @@ hr.s{border:0;border-top:1px solid var(--line);margin:4px 0}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
 <script src="p/sheet.js"></script>
 <script src="agreements.js"></script>
+<script src="shots.js"></script>
 <script>document.head.insertAdjacentHTML('beforeend','<style>'+QMSheet.css+'.cs{--cs-inv:var(--bg);--cs-muted:var(--muted);--cs-line:var(--line-strong)}</style>')</script>
 </head>
 <body>
@@ -629,7 +630,7 @@ const DEFAULT_CREW_TERMS='1. Confirmation. This booking is confirmed when you si
 const DEFAULT_TERMS='A pencil holds the dates for you without obligation on either side. Once you confirm, the dates are yours and we turn other work away for them.\n\nMoving or cancelling a confirmed booking: free with more than 7 days\u2019 notice (one move per booking). Within 7 days, 50% of the fee is payable. Within 48 hours, the full fee is payable.\n\nFees are ex VAT and exclude travel and expenses, which are agreed in advance and itemised on the invoice. Payment is due within 30 days of invoice.\n\nWeather, access or illness on our side: we will offer the next available dates at no charge.';
 const DEF_SETTINGS = {names:{samuel:'Samuel',tamy:'Tamy'},vatRate:20,prefix:'QM-',nextInvoice:1001,terms:30,accountCode:'200',monthlyGoal:0,weeklyHoursTarget:0,availPublish:true,availAhead:39,availWeekends:false,availEmail:'hello@quietmedia.co.uk',availMinHours:3,availEditFlex:true,senderName:'Samuel',replyEmail:'hello@quietmedia.co.uk',replyPhone:'',pencilDays:7,bookingTerms:DEFAULT_TERMS,driveMinShield:500,driveMinT7:250};
 
-const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},enquiries:{},subs:{},settings:{...DEF_SETTINGS},
+const S = {clients:{},crew:{},projects:{},entries:{},invoices:{},events:{},drives:{},enquiries:{},subs:{},shotlists:{},shots:{},shotnotes:{},settings:{...DEF_SETTINGS},
   view:'today',client:null,week:0,period:'month',draft:{},modal:null,live:false,writable:true,loaded:{},
   cal:{mode:matchMedia('(max-width:720px)').matches?'month':'week',cursor:Date.now(),sel:null}};
 try{const cm=localStorage.getItem('qm-calmode');if(cm)S.cal.mode=cm==='list'?'day':cm}catch(e){}
@@ -670,12 +671,12 @@ const SB_URL='https://jxfnzlwwsvfcrstxpgzr.supabase.co';
 const SB_KEY='sb_publishable_tQiBC9EehadDkCdVhsqzUQ__7FfYpEV';
 const SHEETS_HOST='https://sheets.quietmedia.co.uk';
 const ORG_SLUG='quiet-media';
-const COLS=['clients','crew','projects','entries','invoices','events','drives','settings','enquiries','subs'];
+const COLS=['clients','crew','projects','entries','invoices','events','drives','settings','enquiries','subs','shotlists','shots','shotnotes'];
 const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=65;
+const APP_VERSION=66;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -808,6 +809,7 @@ async function startSession(session){
   const c=cacheLoad();
   if(c&&c.user&&c.user.id===session.user.id&&c.org){ORG=c.org;SINCE=c.since||0;COLS.forEach(col=>{if(col==='settings')S.settings={...DEF_SETTINGS,...(c.cols.settings&&c.cols.settings.app||{})};else S[col]=c.cols[col]||{}});Object.assign(DEAD,c.dead||{});Object.assign(DIRTY,c.dirty||{})}
   render();
+  try{const o=localStorage.getItem('qm-shots-open');if(o&&S.shotlists[o])openShotList(o)}catch(e){}
   pushRefresh();
   try{if(!ORG)await loadOrg();subscribeRealtime();await syncAll()}
   catch(e){S.sync.state='error';S.sync.err=e.message||'Could not load';renderSyncDot();if(!ORG){S.locked=true;S.unlockErr=e.message;await sb.auth.signOut();render()}}
@@ -1327,6 +1329,59 @@ function gcalLink(ev){
   return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(ev.title)+'&dates='+f(ev.start)+'/'+f(ev.end)+'&ctz=Europe/London&details='+encodeURIComponent(details)+(ev.location?'&location='+encodeURIComponent(ev.location):'');
 }
 
+/* ---------- shot lists ----------
+   A shot list belongs to a project. The list itself (days, blocks, running order, looks, props, questions) is one record in `shotlists`.
+   Every shot is its own record in `shots` and every note from set its own record in `shotnotes`, so two people ticking or writing at
+   once never overwrite each other. shots.js draws it, here and on the crew link page (sheets.quietmedia.co.uk/shots/), where anyone
+   with the link can tick shots, log grabs and add notes through the functions in supabase/shots.sql.
+   Full-size monitor grabs live in the `shot_grabs` table; a small copy travels inside the shot so it shows offline. */
+const listShots=lid=>Object.values(S.shots).filter(s=>s.listId===lid);
+const projLists=pid=>Object.values(S.shotlists).filter(l=>l.projectId===pid).sort((a,b)=>(a.created||0)-(b.created||0));
+const shotStats=lid=>QMShots.stats(listShots(lid));
+/* each tick, note or edit in a shot list is its own undo step, even when two come within a second of each other */
+const undoBreak=()=>{const st=UNDO[UNDO.length-1];if(st&&!st.fn)st.at=0};
+function shotAdapter(lid){return {mode:'studio',can:{edit:true},
+  list:()=>S.shotlists[lid]||null,shots:()=>listShots(lid),notes:()=>Object.values(S.shotnotes).filter(n=>n.listId===lid),
+  who:()=>name(S.person),setWho(){},
+  patchShot:(id,d)=>{if(S.shots[id]){undoBreak();patch('shots',id,d);undoBreak()}},
+  patchList:d=>{undoBreak();patch('shotlists',lid,d);undoBreak()},
+  addShot:d=>{const id=lid+'-'+uid();undoBreak();put('shots',id,{...d,listId:lid});undoBreak();return id},
+  removeShot:id=>{undoBreak();remove('shots',id);undoBreak()},
+  addNote:d=>{undoBreak();put('shotnotes',lid+'-n'+uid(),{...d,listId:lid,by:name(S.person),at:Date.now()});undoBreak()},
+  removeNote:id=>{undoBreak();remove('shotnotes',id);undoBreak()},
+  checkItem:(k,id,done)=>{const l=S.shotlists[lid];if(!l)return;undoBreak();patch('shotlists',lid,{[k]:(l[k]||[]).map(x=>x.id===id?{...x,done,by:done?name(S.person):''}:x)});undoBreak()},
+  saveGrab:async(id,img)=>{if(!sb||!ORG)throw new Error('offline');const {error}=await sb.from('shot_grabs').upsert({shot_id:id,list_id:lid,org_id:ORG,img,updated_at:new Date().toISOString()});
+    if(error){if(/does not exist|schema cache/i.test(error.message))toast('Full-size grabs need supabase/shots.sql run in Supabase first.');throw new Error(error.message)}},
+  loadGrab:async id=>{const {data,error}=await sb.from('shot_grabs').select('img').eq('shot_id',id).maybeSingle();if(error)throw new Error(error.message);return data?data.img:null},
+  undo:()=>undo(),canUndo:()=>UNDO.length>0,
+  newKey:()=>b64url(crypto.getRandomValues(new Uint8Array(16))),
+  shareUrl:l=>l.share&&l.share.key?SHEETS_HOST+'/shots/#'+lid+'.'+l.share.key:'',
+  close:()=>closeShotList(),removeList:()=>deleteShotList(lid)}}
+function openShotList(lid){if(!S.shotlists[lid]||!window.QMShots)return;let r=$('#shotsRoot');if(!r){r=document.createElement('div');r.id='shotsRoot';document.body.appendChild(r)}
+  document.body.classList.add('sl-open');try{localStorage.setItem('qm-shots-open',lid)}catch(e){}QMShots.mount(r,shotAdapter(lid));r.scrollTop=0}
+function closeShotList(keep){const r=$('#shotsRoot');if(!r)return;QMShots.unmount();r.remove();document.body.classList.remove('sl-open');if(!keep){try{localStorage.removeItem('qm-shots-open')}catch(e){}}render()}
+function shotListLabel(l){const st=shotStats(l.id);return st.n?(st.p1left?st.p1left+' P1 left':'All P1 done')+' · '+st.done+' of '+st.n+' shots':'No shots yet'}
+function openShotLists(pid){const p=S.projects[pid];if(!p)return;const ls=projLists(pid);if(ls.length===1){if(S.modal)closeModal();openShotList(ls[0].id);return}
+  S.modal={type:'shotlists',html:()=>{const ls=projLists(pid);return '<h2>Shot list</h2><p class="note" style="margin:-8px 0 0">'+esc(p.title)+' · '+esc(cname(p.clientId))+'</p>'+
+    (ls.length?'<div class="grid" style="gap:8px">'+ls.map(l=>'<button class="btn ghost" style="justify-content:space-between;border-radius:14px;padding:14px 16px" data-act="openshots" data-v="'+l.id+'"><span>'+esc(l.title)+'</span><span class="note">'+esc(shotListLabel(l))+'</span></button>').join('')+'</div>':'<p class="note">This project has no shot list yet. Start an empty one, or bring one in from a shot list file (.json).</p>')+
+    '<div class="acts"><label class="btn ghost" style="position:relative;overflow:hidden">Import from a file<input type="file" id="sl-import" accept=".json,application/json" style="position:absolute;inset:0;opacity:0;font-size:0"></label><button class="btn" data-act="newshots" data-v="'+pid+'">New shot list</button></div>'},
+    after:root=>{const i=root.querySelector('#sl-import');if(i)i.onchange=()=>{if(i.files[0])importShotList(pid,i.files[0])}}};renderModal()}
+function newShotList(pid){const p=S.projects[pid];if(!p)return;const lid='sl'+uid();undoBreak();put('shotlists',lid,{...QMShots.blank(p.title),projectId:pid});undoBreak();closeModal();openShotList(lid)}
+async function importShotList(pid,file){const p=S.projects[pid];if(!p)return;
+  try{const seed=JSON.parse(await file.text());const lid='sl'+uid();const out=QMShots.fromSeed(seed,lid);userAt=Date.now();undoBreak();
+    put('shotlists',lid,{...QMShots.blank(p.title),...out.list,projectId:pid,created:Date.now()});out.shots.forEach(s=>put('shots',s.id,s.data));undoBreak();
+    closeModal();openShotList(lid);toast(out.shots.length+' shots imported into '+p.title,{undo:true})}
+  catch(e){toast(e instanceof SyntaxError?'That file could not be read as a shot list.':e.message)}}
+function deleteShotList(lid){const l=S.shotlists[lid];if(!l)return;closeShotList();userAt=Date.now();undoBreak();
+  listShots(lid).forEach(s=>remove('shots',s.id));Object.values(S.shotnotes).filter(n=>n.listId===lid).forEach(n=>remove('shotnotes',n.id));remove('shotlists',lid);undoBreak();
+  toast('Shot list deleted',{undo:true})}
+/* Today: shot lists that are still being shot, one tap from the phone on set */
+function shotListsPanel(){const t0=dayKey(startOfDay(Date.now())-864e5);
+  const ls=Object.values(S.shotlists).filter(l=>S.projects[l.projectId]&&pstatus(S.projects[l.projectId])!=='cancelled'&&((l.days||[]).some(d=>d.date>=t0)||(shotStats(l.id).n&&shotStats(l.id).done<shotStats(l.id).n&&(l.days||[]).some(d=>d.date>=dayKey(Date.now()-30*864e5))))).sort((a,b)=>String((a.days||[]).map(d=>d.date).filter(x=>x>=t0)[0]||'z').localeCompare(String((b.days||[]).map(d=>d.date).filter(x=>x>=t0)[0]||'z')));
+  if(!ls.length)return '';
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Shot lists</h3></div><div class="grid" style="gap:8px">'+ls.map(l=>{const next=(l.days||[]).map(d=>d.date).filter(x=>x>=dayKey(Date.now()))[0];
+    return '<button class="btn ghost" style="justify-content:space-between;border-radius:14px;padding:14px 16px;text-align:left;gap:14px" data-act="openshots" data-v="'+l.id+'"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l.title)+(next?' <span class="note">· '+(next===dayKey(Date.now())?'today':fmtDate(parseLocal(next),{weekday:'short',day:'numeric',month:'short'}))+'</span>':'')+'</span><span class="note" style="flex:none">'+esc(shotListLabel(l))+'</span></button>'}).join('')+'</div></section>'}
+
 /* ---------- views ---------- */
 const TABS=[['today','Today'],['schedule','Schedule'],['clients','Clients'],['team','Team'],['drives','Drives'],['invoicing','To invoice'],['insights','Insights'],['costs','Costs'],['settings','Settings']];
 function renderChrome(){
@@ -1345,7 +1400,7 @@ let renderQueued=false;
 function render(){ if(renderQueued)return; renderQueued=true; requestAnimationFrame(()=>{renderQueued=false;doRender()}) }
 function doRender(){
   renderChrome();
-  document.body.classList.toggle('locked',!!S.locked);if(S.locked){$('#view').innerHTML=vLock();renderLive();return}
+  document.body.classList.toggle('locked',!!S.locked);if(S.locked){closeShotList(true);$('#view').innerHTML=vLock();renderLive();return}
   const v=S.view;let h='';
   if(v==='today')h=vToday();else if(v==='schedule')h=vSchedule();else if(v==='clients')h=S.client&&client(S.client)?vClient(S.client):vClients();
   else if(v==='team')h=vTeam();else if(v==='drives')h=vDrives();else if(v==='invoicing')h=vInvoicing();else if(v==='insights')h=vInsights();else if(v==='costs')h=vCosts();else h=vSettings();
@@ -1353,6 +1408,7 @@ function doRender(){
   view.innerHTML=h; if(!view.dataset.key)view.dataset.key=key;  // no fade when the app opens, only when you change page
   if(view.dataset.key!==key){view.classList.remove('fade');void view.offsetWidth;view.classList.add('fade');view.dataset.key=key;clearTimeout(doRender.ft);doRender.ft=setTimeout(()=>view.classList.remove('fade'),700)}
   renderLive();
+  if(window.QMShots&&QMShots.open())QMShots.refresh();
   if(S.cal.toToday){S.cal.toToday=false;requestAnimationFrame(()=>requestAnimationFrame(scrollWeekToToday))}
 }
 function renderLive(){
@@ -1409,7 +1465,7 @@ function vToday(){
   const upl=up.length?'<div class="cards">'+up.map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div>':'<div class="empty">No upcoming work booked. <button class="link" data-act="newevent">Schedule something</button></div>';
   const toInv=activeClients().reduce((s,c)=>s+unbilled(c.id).total,0);const nToInv=activeClients().reduce((s,c)=>s+unbilled(c.id).lines.length,0);
   return '<div class="panel-head"><h1>'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})+'</h1><button class="eyebrow num link" style="text-decoration:none" data-act="nav" data-v="invoicing">'+gbp(toInv)+' to invoice · '+nToInv+' line'+(nToInv===1?'':'s')+'</button></div>'+
-  filmingToday(d0)+ditPanel('today')+requestsPanel()+lowDrivesNudge()+billsNudge()+backupNudge()+
+  filmingToday(d0)+shotListsPanel()+ditPanel('today')+requestsPanel()+lowDrivesNudge()+billsNudge()+backupNudge()+
   '<div class="grid g2">'+cards+'</div>'+
   inProgressPanel()+(()=>{const ex=[unassignedPanel(),pencilsPanel()].filter(Boolean);return ex.length?'<div class="grid g2" style="margin-top:16px">'+ex.join('')+'</div>':''})()+
   '<div class="grid g2" style="margin-top:16px"><section class="panel"><div class="panel-head"><h3>Logged today</h3><button class="link" data-act="manual">Add time</button></div><div class="list">'+list+'</div></section>'+
@@ -2457,7 +2513,7 @@ function openProjectModal(id,presetClient){
     '<label class="f">Notes<textarea id="j-notes" rows="2">'+esc(p.notes||'')+'</textarea></label>'+
     (()=>{if(!id)return '';const log=workLog(id);if(!log.length)return '';const h=log.reduce((s,d)=>s+d.hours,0);return '<div><div class="eyebrow" style="margin-bottom:8px">Hours worked · '+hrs(h)+' over '+fmtDays(projectWorkedDays(p))+' days</div>'+workLogHtml(log,S.modal.allDays?400:12,id)+'</div>'})()+
     (()=>{const cands=Object.values(S.events).filter(e=>e.clientId===p.clientId&&e.status!=='cancelled'&&(!e.projectId||e.projectId===id)).sort((a,b)=>a.start-b.start);if(!p.clientId||!cands.length)return '';return '<div><div class="eyebrow" style="margin-bottom:8px">Bookings in this project</div><div class="grid" style="gap:6px;max-height:220px;overflow:auto">'+cands.map(e=>'<div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px"><label class="chip" style="font-size:13px;align-items:flex-start;flex:1;min-width:0"><input type="checkbox" data-attach="'+e.id+'" '+(e.projectId===id?'checked':'')+'> <span>'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · '+esc(e.title)+' · '+esc(e.type)+(e.fee&&!e.projectId?' · '+gbp(e.fee)+' own fee':'')+(e.invoiceId&&S.invoices[e.invoiceId]?' · on '+esc(S.invoices[e.invoiceId].number):'')+'</span></label>'+(id&&e.projectId===id?'<button type="button" class="link" data-act="pday" data-v="'+id+'" data-k="'+startOfDay(e.start)+'" style="flex:none">Open</button>':'')+'</div>').join('')+'</div><p class="note" style="margin-top:6px">Ticked bookings count towards this project and lose their own fee (crew costs stay). Untick to detach.</p></div>'})()+
-    '<div class="acts">'+(id?'<button class="btn ghost small" data-act="allocate" data-v="'+id+'">Allocate days</button><button class="btn ghost small" data-act="projform" data-v="'+id+'">Client booking form'+(S.projects[id]&&S.projects[id].form&&S.projects[id].form.signed?' · signed':'')+'</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveproject" data-v="'+(id||'')+'">Save project</button></div>'}};
+    '<div class="acts">'+(id?'<button class="btn ghost small" data-act="allocate" data-v="'+id+'">Allocate days</button><button class="btn ghost small" data-act="shotlist" data-v="'+id+'">Shot list'+(projLists(id).length?' · '+shotStats(projLists(id)[0].id).done+'/'+shotStats(projLists(id)[0].id).n:'')+'</button><button class="btn ghost small" data-act="projform" data-v="'+id+'">Client booking form'+(S.projects[id]&&S.projects[id].form&&S.projects[id].form.signed?' · signed':'')+'</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveproject" data-v="'+(id||'')+'">Save project</button></div>'}};
   renderModal();
 }
 function readProjectModal(){const p=S.modal.p;const g=id=>{const el=document.getElementById(id);return el?el.value:undefined};
@@ -3308,6 +3364,9 @@ document.addEventListener('click',async ev=>{
     case 'crewcopy':try{await navigator.clipboard.writeText(v);toast('Link copied')}catch(e){toast('Copy failed')}break;
     case 'emailsend':await emailSend(b);break;
     case 'projform':openProjectForm(v);break;
+    case 'shotlist':openShotLists(v);break;
+    case 'openshots':if(S.modal)closeModal();openShotList(v);break;
+    case 'newshots':newShotList(v);break;
     case 'pfadd':readProjForm();S.modal.lines.push({label:'',detail:'',amount:0});renderModal();break;
     case 'pfrm':readProjForm();S.modal.lines.splice(Number(v),1);if(!S.modal.lines.length)S.modal.lines.push({label:'',detail:'',amount:0});renderModal();break;
     case 'pfsplit':{readProjForm();const ls=projFormSplit(S.projects[S.modal.pid]);if(ls.length)S.modal.lines=ls;else toast('Add the days to the project plan first, or type the lines yourself.');renderModal();break}
