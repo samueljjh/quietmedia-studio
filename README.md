@@ -22,6 +22,18 @@ Publishing makes a private link on the Sheets site (`sheets.quietmedia.co.uk/boo
 
 It is stored and answered like a crew booking form (the `sheets` and `sheet_responses` tables, and the same two database functions), so it needs no database change.
 
+## Shot lists
+
+A project can have a **shot list** (the Shot list button on the project, and a panel on Today while it is being shot). It holds the shoot days (location, hours, parking, house rules), the blocks in each day with their look codes, every shot (ID, priority, A cam and B cam set-up and lens, action, notes), the running order, and wardrobe looks, props and open questions as checklists. On set: tick shots, filter by day, block and priority, and see the P1 shots left.
+
+A shot marked **GRAB** takes a photo of the monitor plus focal length, stop, focus distance and camera height; shots marked **MATCH** show that grab and its numbers so the frame can be lined up again.
+
+**Share with crew** makes a private link on the Sheets site (`sheets.quietmedia.co.uk/shots/`). Anyone with it can tick shots, log grabs and add notes, and everyone sees changes within a few seconds; they cannot change the list itself. Switching the link off kills it; switching it on again makes a new one.
+
+The list is stored as records like everything else (`shotlists`, one record per shot in `shots`, one per note in `shotnotes`), so it syncs, works offline, undoes and is in the nightly backup. Shot lists are brought in from a `.json` file (Import from a file) or built by hand; "Download a copy" on the Info tab saves one out. Shot list files are not kept in this repository, which is public.
+
+Setup: run `supabase/shots.sql` in the Supabase SQL editor (safe to re-run). It adds the functions the link uses and the `shot_grabs` table for full-size grabs. Full-size grabs are not in the nightly backup; the small copy inside each shot is.
+
 ## Agreements
 
 International Collective's client page has an **Agreements** panel for the Data Processing Agreement and the Services and Licence Agreement. Samuel reads and signs one in Studio, which creates a private link (`sheets.quietmedia.co.uk/agreement/`) for the client to read and sign. The text lives in `agreements.js`; once Samuel signs, the text is stored and fingerprinted (SHA-256), and editing `agreements.js` only affects agreements created after that.

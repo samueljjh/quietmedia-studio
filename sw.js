@@ -1,6 +1,6 @@
 /* Quiet Media Hours — offline shell. Caches the app files only; data is never cached here. */
-const CACHE='qm-studio-v65';
-const SHELL=['./','./index.html','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png','./p/sheet.js','./agreements.js'];
+const CACHE='qm-studio-v66';
+const SHELL=['./','./index.html','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png','./p/sheet.js','./agreements.js','./shots.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE&&k!=='qm-fonts').map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{
