@@ -676,7 +676,7 @@ const DEAD={};            // local tombstones per collection: {id: deletedAt}
 const DIRTY={};           // records changed on this device and not yet saved: {col:{id:true}}
 let sb=null, ORG=null, pushTimer=null, pollTimer=null, pushing=false, SINCE=0, chan=null;
 S.sync={state:'idle',last:0,err:''};S.user=null;
-const APP_VERSION=66;
+const APP_VERSION=67;
 const CACHE_KEY='qm-db';
 function cacheLoad(){try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'null')}catch(e){return null}}
 let cacheTimer=null;
@@ -1473,7 +1473,7 @@ function vToday(){
 }
 /* ===== DIT: card offload progress from the quiet media DIT app on the Mac, handed in by the Studio Menu Bar app
    (QM.dit) every few seconds and kept in drives/dit, so it syncs to every device like everything else. ===== */
-function ditIn(st){const cur=S.drives.dit||{};const now=Date.now();
+function ditIn(st){if(st&&Array.isArray(st.copies))ditCopiesIn(st.copies);const cur=S.drives.dit||{};const now=Date.now();
   const write=d=>{const q=undoQuiet;undoQuiet=true;try{touch('drives','dit',d)}finally{undoQuiet=q}return true};
   if(!st){if(cur.on)return write({...stripId(cur),on:false,offAt:now});return false}
   const p=st.progress||{};const busy=!!st.busy;const pct=Math.max(0,Math.min(100,Math.round(+p.percent||0)));
@@ -1484,6 +1484,54 @@ function ditIn(st){const cur=S.drives.dit||{};const now=Date.now();
     eta:p.etaSeconds==null?null:Math.round(+p.etaSeconds),speed:Math.round(+p.speedBytesPerSecond||0),filesDone:+p.filesDone||0,filesTotal:+p.filesTotal||0,
     queued:+st.queued||0,last:st.last||null,done:(st.done||[]).slice(0,8),mac:st.mac||'',by:S.person});
 }
+/* ===== DIT copy history: every project the DIT app has copied (cards, sizes, times, which SSDs), handed in with the
+   live status and kept as drives/ditlog-<session>, one record per DIT project. Linked to a client and project by name,
+   or by hand. Only shown inside Studio. ===== */
+function ditCopiesIn(list){const now=Date.now();let n=0;
+  list.forEach(c=>{if(!c||!c.sid||!c.sig)return;const key='ditlog-'+String(c.sid).replace(/[^\w-]/g,'');const cur=S.drives[key];if(cur&&cur.sig===c.sig)return;
+    const q=undoQuiet;undoQuiet=true;try{touch('drives',key,{kind:'ditlog',sid:c.sid,sig:c.sig,client:c.client||'',project:c.project||'',folder:c.folder||'',primary:c.primary||'',mirror:c.mirror||'',multicam:!!c.multicam,started:c.started||'',days:(c.days||[]).slice(0,200),link:cur&&cur.link||null,at:now,by:S.person})}finally{undoQuiet=q}n++});
+  return n}
+const ditLogs=()=>Object.values(S.drives).filter(r=>r&&r.kind==='ditlog');
+function ditScore(a,b){const x=normName(a),y=normName(b);if(x.length<2||y.length<2)return 0;if(x===y)return 100;
+  if((' '+x+' ').includes(' '+y+' ')||(' '+y+' ').includes(' '+x+' '))return 80;
+  const A=x.split(' ').filter(w=>w.length>2),B=y.split(' ').filter(w=>w.length>2);const sh=A.length<=B.length?A:B,lo=sh===A?B:A;return sh.length&&sh.every(w=>lo.includes(w))?60:0}
+function ditLink(r){const l=r.link;
+  if(l&&l.none)return {none:true,manual:true};
+  if(l&&l.projectId&&S.projects[l.projectId])return {clientId:S.projects[l.projectId].clientId,projectId:l.projectId,manual:true};
+  if(l&&l.clientId&&client(l.clientId))return {clientId:l.clientId,projectId:'',manual:true};
+  let best=null,score=0,tie=false;Object.values(S.clients).filter(c=>!c.mergedInto).forEach(c=>{const v=ditScore(r.client,c.name);if(v>score){score=v;best=c.id;tie=false}else if(v&&v===score)tie=true});
+  if(!best||tie||score<60)return {};
+  let pid='',ps=0;if(normName(r.project)&&normName(r.project)!==normName(r.client))Object.values(S.projects).filter(p=>p.clientId===best&&pstatus(p)!=='cancelled').forEach(p=>{const v=ditScore(r.project,p.title);if(v>ps){ps=v;pid=p.id}});
+  return {clientId:best,projectId:ps>=60?pid:''}}
+function ditTot(r){const cs=(r.days||[]).flatMap(d=>d.cards||[]);const ok=cs.filter(c=>c.ok);const at=ok.map(c=>c.at).filter(Boolean).sort();
+  return {cards:ok.length,failed:cs.length-ok.length,files:ok.reduce((t,c)=>t+(c.files||0),0),bytes:ok.reduce((t,c)=>t+(c.bytes||0),0),sec:ok.reduce((t,c)=>t+(c.sec||0),0),first:at[0]||'',last:at[at.length-1]||''}}
+const ditWhen=t=>t?fmtDate(new Date(t.replace(' ','T')).getTime(),{weekday:'short',day:'numeric',month:'short',year:'numeric'}):'';
+const ditDur=s=>{s=Math.round(+s||0);if(s<60)return s+'s';const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?h+'h '+pad(m)+'m':m+'m '+pad(s%60)+'s'};
+function ditPicker(r){const l=r.link||{};const v=l.none?'-':l.projectId?'p:'+l.projectId:l.clientId?'c:'+l.clientId:'auto';
+  return '<select class="drlink" data-ditlink="'+esc(r.id)+'" aria-label="Link '+esc(r.client+' '+r.project)+'"><option value="auto"'+(v==='auto'?' selected':'')+'>Match automatically</option>'+
+    activeClients().map(c=>'<optgroup label="'+esc(c.name)+'"><option value="c:'+c.id+'"'+(v==='c:'+c.id?' selected':'')+'>'+esc(c.name)+' (no project)</option>'+activeProjects(c.id).map(p=>'<option value="p:'+p.id+'"'+(v==='p:'+p.id?' selected':'')+'>'+esc(c.name)+' · '+esc(p.title)+'</option>').join('')+'</optgroup>').join('')+
+    '<option value="-"'+(v==='-'?' selected':'')+'>Not a client project</option></select>'}
+function ditRecHtml(r,opts){opts=opts||{};const t=ditTot(r);const lk=ditLink(r);
+  const where='<span class="muted">'+esc(r.primary||'')+(r.mirror?' + '+esc(r.mirror):'')+'</span>';
+  const linkTxt=lk.none?'<span class="muted">Not a client project</span>':lk.clientId?'<button class="link" style="color:var(--fg);text-decoration:none" data-act="openclient" data-v="'+lk.clientId+'"><span class="dot" style="background:'+colour(lk.clientId)+';width:8px;height:8px"></span> '+esc(cname(lk.clientId))+(lk.projectId?' · '+esc(S.projects[lk.projectId].title):'')+'</button>':'<span style="color:var(--warn)">Not linked</span>';
+  const editing=S.ditEdit===r.id||(!lk.clientId&&!lk.none&&opts.pick);
+  const days=(r.days||[]).slice().reverse().map(d=>'<div style="margin-top:10px"><div class="eyebrow" style="margin-bottom:4px">Day '+pad(d.n||0)+' · '+esc(d.date?fmtDate(new Date(d.date+'T12:00').getTime(),{weekday:'short',day:'numeric',month:'short'}):'')+(d.label?' · '+esc(d.label):'')+'</div><div class="tbl"><table style="font-size:13px;white-space:nowrap"><thead><tr><th>Time</th><th>Angle</th><th>Card</th><th class="r">Files</th><th class="r">Size</th><th class="r">Took</th><th class="r">Speed</th><th></th></tr></thead><tbody>'+
+    (d.cards||[]).map(c=>'<tr'+(c.ok?'':' style="color:var(--danger)"')+'><td class="num">'+esc((c.at||'').slice(11,16))+'</td><td>'+esc(c.angle||'')+'</td><td class="num muted">'+esc(c.card||'')+'</td><td class="r num">'+(c.files||0)+'</td><td class="r num">'+fmtBytes(c.bytes)+'</td><td class="r num">'+(c.sec?ditDur(c.sec):'—')+'</td><td class="r num">'+(c.sec?fmtBytes((c.bytes||0)/c.sec)+'/s':'—')+'</td><td>'+(c.ok?'✓'+((c.to||[]).length>1?' ×2':''):'not complete')+'</td></tr>').join('')+'</tbody></table></div></div>').join('');
+  return '<div class="item" style="display:block"><div class="row" style="justify-content:space-between;align-items:flex-start;gap:10px"><div style="min-width:0"><div class="t">'+esc(r.project||r.client)+(opts.client?' <span class="muted">· '+esc(r.client)+'</span>':'')+'</div>'+
+    '<div class="meta num">'+(t.last?ditWhen(t.first)+(t.first.slice(0,10)!==t.last.slice(0,10)?' – '+ditWhen(t.last):''):'nothing copied')+' · '+t.cards+' card'+(t.cards===1?'':'s')+' · '+t.files+' files · '+fmtBytes(t.bytes)+(t.sec?' · '+ditDur(t.sec)+' copying':'')+(t.failed?' · <span style="color:var(--danger)">'+t.failed+' not complete</span>':'')+'</div>'+
+    '<div class="meta">'+where+' · <span class="num muted">'+esc(r.folder||'')+'</span></div>'+
+    (opts.links?'<div class="meta">'+(editing?ditPicker(r):linkTxt+' <button class="link" data-act="ditrelink" data-v="'+esc(r.id)+'">change</button>')+'</div>':'')+'</div></div>'+
+    '<details class="wdet"><summary>'+(r.days||[]).length+' shoot day'+((r.days||[]).length===1?'':'s')+'</summary>'+days+'</details></div>'}
+function ditByLink(test){return ditLogs().filter(r=>test(ditLink(r))).sort((a,b)=>(ditTot(b).last||'').localeCompare(ditTot(a).last||''))}
+function ditClientPanel(cid){const rs=ditByLink(l=>l.clientId===cid);if(!rs.length)return '';const b=rs.reduce((t,r)=>t+ditTot(r).bytes,0);
+  return '<section class="panel"><div class="panel-head"><h3>Footage copied</h3><span class="eyebrow num">'+fmtBytes(b)+'</span></div><div class="list">'+rs.map(r=>ditRecHtml(r,{links:true})).join('')+'</div></section>'}
+function ditProjectHtml(pid){const rs=ditByLink(l=>l.projectId===pid);if(!rs.length)return '';
+  return '<div><div class="eyebrow" style="margin-bottom:8px">Footage copied · '+fmtBytes(rs.reduce((t,r)=>t+ditTot(r).bytes,0))+'</div><div class="list">'+rs.map(r=>ditRecHtml(r,{})).join('')+'</div></div>'}
+function ditAllPanel(){const all=ditLogs();if(!all.length)return '';const loose=all.filter(r=>{const l=ditLink(r);return !l.clientId&&!l.none});
+  const linked=all.filter(r=>ditLink(r).clientId).sort((a,b)=>(ditTot(b).last||'').localeCompare(ditTot(a).last||''));
+  return '<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Footage copied with DIT</h3><span class="eyebrow num">'+all.length+' project'+(all.length===1?'':'s')+' · '+fmtBytes(all.reduce((t,r)=>t+ditTot(r).bytes,0))+'</span></div>'+
+    (loose.length?'<p class="note" style="margin:0 0 8px">'+loose.length+' not linked to a client yet — pick one and it stays linked.</p><div class="list">'+loose.map(r=>ditRecHtml(r,{links:true,pick:true,client:true})).join('')+'</div>':'')+
+    (linked.length?'<details class="wdet"'+(loose.length?'':' open')+'><summary>'+linked.length+' linked to clients</summary><div class="list">'+linked.map(r=>ditRecHtml(r,{links:true,client:true})).join('')+'</div></details>':'')+'</section>'}
 function ditEta(s){if(s==null||!isFinite(s))return '';s=Math.max(0,s);if(s<60)return Math.max(1,Math.round(s))+'s';const m=Math.floor(s/60);return m>=60?Math.floor(m/60)+'h '+(m%60)+'m':m+'m'}
 function ditPanel(where){const d=S.drives.dit;if(!d||!d.on)return '';const now=Date.now();const age=now-(d.at||0);
   const recent=d.busy||age<12*3.6e6;if(!recent)return '';
@@ -1664,7 +1712,7 @@ function vClient(cid){
   (()=>{const ps=activeProjects(cid).filter(p=>pstatus(p)!=='invoiced');return ps.length?'<section class="panel"><div class="panel-head"><h3>Projects</h3><span class="note num">'+gbp(ps.reduce((s,p)=>s+projectValue(p),0))+' · '+gbp(ps.reduce((s,p)=>s+projectValue(p)-projectCost(p),0))+' net</span></div><div class="grid" style="gap:12px">'+ps.map(projectCard).join('')+'</div></section>':''})()+
   (upcoming.length?'<section class="panel"><div class="panel-head"><h3>Booked, not yet done</h3><span class="note num">'+gbp(upcoming.reduce((s,e)=>s+eventValue(e),0))+' coming</span></div><div class="cards">'+upcoming.slice(0,6).map(e=>evCard(e).replace('<span class="tx"><span class="t">','<span class="tx"><span class="t"><span class="muted" style="font-weight:300">'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · </span>')).join('')+'</div></section>':'')+
   '<section class="panel"><div class="panel-head"><h3>Time logged'+(li?' since '+esc(li.number):'')+'</h3><button class="link" data-act="manual" data-v="'+cid+'">Add time</button></div><div class="list">'+(ents.length?ents.slice(0,30).map(entryRow).join(''):'<div class="empty">No time logged yet.</div>')+'</div></section></div>'+
-  '<div class="grid" style="align-content:start">'+agreementsPanel(cid)+clientDrivesPanel(cid)+'<section class="panel"><h3 style="margin-bottom:14px">Who did the work</h3><div class="bars">'+people+'</div>'+
+  '<div class="grid" style="align-content:start">'+agreementsPanel(cid)+clientDrivesPanel(cid)+ditClientPanel(cid)+'<section class="panel"><h3 style="margin-bottom:14px">Who did the work</h3><div class="bars">'+people+'</div>'+
   (Object.keys(byCat).length?'<hr class="s" style="margin:16px 0"><dl class="kv">'+Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,h])=>'<dt>'+esc(k)+'</dt><dd>'+hrs(h)+'</dd>').join('')+'</dl>':'')+'</section>'+
   '<section class="panel"><h3 style="margin-bottom:12px">Suggested fees</h3><p class="note" style="margin:0 0 10px">Used to pre-fill a fee when you book. Change the fee on any booking.</p><dl class="kv">'+(r.billing==='retainer'?'<dt>Retainer fee</dt><dd>'+gbp2(r.monthlyFee)+' per '+(r.retainerPeriod||'month')+'</dd><dt>Promised</dt><dd>'+(['Shoot','Edit'].filter(t=>r.retainerPlan[t]).map(t=>fmtDays(r.retainerPlan[t])+' '+(t==='Shoot'?'filming':'edit')).join(' + ')||'0 days')+' × '+r.retainerDayHours+'h per '+(r.retainerPeriod||'month')+'</dd><dt>Basis</dt><dd>'+(r.retainerBasis==='scope'?'Agreed work, hours measure profit':'Time, days delivered')+'</dd><dt>Since</dt><dd>'+(monthKeyOf(r.retainerStart,c.created)?monthLabel(monthKeyOf(r.retainerStart,c.created)):'client added')+'</dd>':r.billing==='hourly'?'<dt>Hourly</dt><dd>'+gbp2(r.hourlyRate)+'</dd>':'<dt>Filming up to 2 hrs</dt><dd>'+gbp(r.shortRate)+'</dd><dt>Half day, 3–4 hrs</dt><dd>'+gbp(r.halfDay)+'</dd><dt>Full day, 4+ hrs</dt><dd>'+gbp(r.fullDay)+'</dd><dt>Edit day</dt><dd>'+gbp(r.editDay)+'</dd>')+'</dl>'+(c.notes?'<p class="note" style="margin-top:12px">'+esc(c.notes)+'</p>':'')+'</section>'+
   '<section class="panel"><div class="panel-head"><h3>Invoices</h3>'+(invs.length?'<button class="link" data-act="xero" data-v="'+cid+'">Export for Xero</button>':'')+'</div><div class="list">'+(invs.length?invs.map(invRow).join(''):'<div class="empty">No invoices yet.</div>')+'</div></section></div></div>';
@@ -2426,7 +2474,7 @@ function vDrives(){
   const free=seen.reduce((t,d)=>t+(driveRec(d.id).free||0),0);
   return '<div class="panel-head"><h1>Drives</h1><span class="eyebrow num">'+(low.length?'<span style="color:var(--danger)">'+low.length+' low on space</span> · ':'')+(now.length?now.length+' plugged in · ':'')+fmtBytes(free)+' free across '+seen.length+' of '+DRIVES.length+'</span></div>'+
   '<div class="row" style="align-items:center;margin-bottom:14px"><div class="qbox" style="flex:1;min-width:200px"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.8"/><path d="M10.6 10.6L14 14"/></svg><input id="drq" type="search" placeholder="Where is… (client or folder)" value="'+esc(S.drQuery||'')+'" autocomplete="off" style="font-size:15px;padding:11px 0"></div></div>'+
-  ditPanel('drives')+
+  ditPanel('drives')+ditAllPanel()+
   '<div id="drfind">'+driveFindHtml()+'</div>'+
   (loose.length?'<section class="panel" style="margin-bottom:16px"><div class="panel-head"><h3>Needs sorting</h3><span class="note">'+loose.length+' folder'+(loose.length===1?'':'s')+' not linked to a client</span></div><p class="note" style="margin:0 0 4px">Pick the client once and it sticks. Or rename the folder on the drive to the client’s name in Studio and it links itself.</p><div class="list">'+loose.map(({d,f})=>folderRow(d,f,'on '+esc(d.name))).join('')+'</div></section>':'')+
   archPanel()+
@@ -2511,7 +2559,7 @@ function openProjectModal(id,presetClient){
     '<div class="row"><label class="f">Status<select id="j-status"><option value="active" '+(pstatus(p)==='active'?'selected':'')+'>Open</option><option value="complete" '+(pstatus(p)==='complete'?'selected':'')+'>'+((p.pricing||'fee')==='retainer'?'Closed':'Closed, ready to invoice')+'</option><option value="cancelled" '+(pstatus(p)==='cancelled'?'selected':'')+'>Cancelled</option></select></label><label class="f">Deadline (optional)<input type="date" id="j-due" value="'+(p.due?dayKey(p.due):'')+'"></label></div>'+
     (p.invoiceId?'<p class="note" style="color:var(--warn)">On invoice '+esc((S.invoices[p.invoiceId]||{}).number||'')+'.</p>':'')+
     '<label class="f">Notes<textarea id="j-notes" rows="2">'+esc(p.notes||'')+'</textarea></label>'+
-    (()=>{if(!id)return '';const log=workLog(id);if(!log.length)return '';const h=log.reduce((s,d)=>s+d.hours,0);return '<div><div class="eyebrow" style="margin-bottom:8px">Hours worked · '+hrs(h)+' over '+fmtDays(projectWorkedDays(p))+' days</div>'+workLogHtml(log,S.modal.allDays?400:12,id)+'</div>'})()+
+    (()=>{if(!id)return '';const log=workLog(id);if(!log.length)return '';const h=log.reduce((s,d)=>s+d.hours,0);return '<div><div class="eyebrow" style="margin-bottom:8px">Hours worked · '+hrs(h)+' over '+fmtDays(projectWorkedDays(p))+' days</div>'+workLogHtml(log,S.modal.allDays?400:12,id)+'</div>'})()+(id?ditProjectHtml(id):'')+
     (()=>{const cands=Object.values(S.events).filter(e=>e.clientId===p.clientId&&e.status!=='cancelled'&&(!e.projectId||e.projectId===id)).sort((a,b)=>a.start-b.start);if(!p.clientId||!cands.length)return '';return '<div><div class="eyebrow" style="margin-bottom:8px">Bookings in this project</div><div class="grid" style="gap:6px;max-height:220px;overflow:auto">'+cands.map(e=>'<div class="row" style="flex-wrap:nowrap;align-items:center;gap:8px"><label class="chip" style="font-size:13px;align-items:flex-start;flex:1;min-width:0"><input type="checkbox" data-attach="'+e.id+'" '+(e.projectId===id?'checked':'')+'> <span>'+fmtDate(e.start,{weekday:'short',day:'numeric',month:'short'})+' · '+esc(e.title)+' · '+esc(e.type)+(e.fee&&!e.projectId?' · '+gbp(e.fee)+' own fee':'')+(e.invoiceId&&S.invoices[e.invoiceId]?' · on '+esc(S.invoices[e.invoiceId].number):'')+'</span></label>'+(id&&e.projectId===id?'<button type="button" class="link" data-act="pday" data-v="'+id+'" data-k="'+startOfDay(e.start)+'" style="flex:none">Open</button>':'')+'</div>').join('')+'</div><p class="note" style="margin-top:6px">Ticked bookings count towards this project and lose their own fee (crew costs stay). Untick to detach.</p></div>'})()+
     '<div class="acts">'+(id?'<button class="btn ghost small" data-act="allocate" data-v="'+id+'">Allocate days</button><button class="btn ghost small" data-act="shotlist" data-v="'+id+'">Shot list'+(projLists(id).length?' · '+shotStats(projLists(id)[0].id).done+'/'+shotStats(projLists(id)[0].id).n:'')+'</button><button class="btn ghost small" data-act="projform" data-v="'+id+'">Client booking form'+(S.projects[id]&&S.projects[id].form&&S.projects[id].form.signed?' · signed':'')+'</button>':'')+'<button class="btn ghost" data-act="closemodal">Cancel</button><button class="btn" data-act="saveproject" data-v="'+(id||'')+'">Save project</button></div>'}};
   renderModal();
@@ -3227,6 +3275,7 @@ document.addEventListener('click',async ev=>{
     case 'newclient':openClientModal();break;
     case 'editclient':openClientModal(v);break;
     case 'openclient':S.view='clients';S.client=v;render();window.scrollTo(0,0);break;
+    case 'ditrelink':S.ditEdit=v;render();if(S.modal)renderModal();break;
     case 'closeclient':S.client=null;render();break;
     case 'swatch':readClientForm();S.modal.c.colour=v;renderModal();break;
     case 'saveclient':{readClientForm();const c=S.modal.c;if(!c.name.trim()){document.getElementById('m-name').focus();return}c.name=c.name.trim();if(!c.created)c.created=Date.now();const id=v||null;closeModal();await put('clients',id||null,stripId(c));toast('Saved '+c.name);break}
@@ -3450,6 +3499,7 @@ document.addEventListener('click',async ev=>{
 });
 document.addEventListener('change',ev=>{
   if(ev.target.id==='mg-t'&&S.modal&&S.modal.type==='merge'){S.modal.tgt=ev.target.value;renderModal();return}
+  if(ev.target.dataset.ditlink){const key=ev.target.dataset.ditlink,v=ev.target.value,r=S.drives[key];if(r){const link=v==='auto'?null:v==='-'?{none:true}:v.startsWith('p:')?{projectId:v.slice(2)}:{clientId:v.slice(2)};S.ditEdit=null;touch('drives',key,{...stripId(r),link});toast(link?'Linked':'Matching automatically')}return}
   const t=ev.target;
   if(t.dataset.draft){S.draft[t.dataset.draft]=t.value}
   if(t.dataset.act==='billing'){readClientForm();renderModal()}
